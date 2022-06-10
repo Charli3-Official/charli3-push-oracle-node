@@ -1,3 +1,3 @@
 #!/bin/sh
 
-python -m unittest
+pytest
