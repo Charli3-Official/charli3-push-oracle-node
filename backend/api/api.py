@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-from ast import parse
-import asyncio
+
 import aiohttp
 
 class ApiResponse(object):
@@ -23,8 +22,8 @@ class Api(object):
         "Accepts": "application/json"
     }
 
-    async def _request(self, method, path, data, headers=dict()):
-        headers = self._header.update(headers)
+    async def _request(self, method, path, data=None, headers=dict()):
+        headers = dict(self._header, **headers)
         async with aiohttp.ClientSession() as session:
             async with session.request(
                     method,
