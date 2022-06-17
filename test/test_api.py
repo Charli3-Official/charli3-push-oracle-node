@@ -19,7 +19,7 @@ class TestApiMethods(Api):
         methods = ["get", "post", "put"]
         for i in methods:
             httpretty.register_uri(
-                getattr(httpretty, m=i.upper()),
+                getattr(httpretty, i.upper()),
                 f"{self.api_url}/{i}",
                 body=json.dumps({"response": i}),
                 **{"Content-Type": "application/json"})
