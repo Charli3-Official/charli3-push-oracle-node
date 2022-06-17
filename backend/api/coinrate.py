@@ -1,20 +1,25 @@
-#!/usr/bin/env python3
-import os
-
+"""Exchange Api classes."""
 from .api import Api
 
-
 class CoinRate(Api):
+    """Abstract coinRate class"""
+    def get_path(self):
+        """Path encapsulation"""
+
+    async def get_rate(self):
+        """Returns the rate accoirding to the classes instance"""
+
+class Generic(CoinRate):
     """Abstracts the calls to exchange API's."""
     def __init__(self,
                  api_url: str,
                  path: str,
                  json_path: list[str|int],
-                 key: dict=dict()):
+                 key: dict=None):
         self.api_url = api_url
         self.path = path
         self.json_path = json_path
-        self.key = key
+        self.key = {} if not key else key
 
     def get_path(self):
         return self.path
@@ -22,14 +27,13 @@ class CoinRate(Api):
     async def get_rate(self):
         resp = await self._request('GET', self.path, headers=self.key)
         data = resp.json
-        for f in self.json_path:
-            data = data[f]
+        for key in self.json_path:
+            data = data[key]
         if (200<=resp.status and resp.status<300):
             return float(data)
-        else:
-            return None
+        return None
 
-class BinanceApi(Api):
+class BinanceApi(CoinRate):
     """Abstracts the binance API rate"""
     api_url = "https://api.binance.com"
     path = "/api/v3/avgPrice?symbol="
@@ -45,10 +49,9 @@ class BinanceApi(Api):
             self.get_path())
         if (200<=resp.status and resp.status<300):
             return float(resp.json["price"])
-        else:
-            return None
+        return None
 
-class CoingeckoApi(Api):
+class CoingeckoApi(CoinRate):
     """Abstracts the coingecko API"""
     api_url="https://api.coingecko.com"
     path_f = "/api/v3/simple/price?ids={}&vs_currencies={}"
@@ -66,20 +69,19 @@ class CoingeckoApi(Api):
             )
         if (200<=resp.status and resp.status<300):
             return resp.json[self.tid][self.vs_currency]
-        else:
-            return None
+        return None
 
 apiTypes = {
-    "generic": CoinRate,
+    "generic": Generic,
     "binance": BinanceApi,
     "coingecko": CoingeckoApi
 }
 
-# TODO: Once we make a config file make the apis that require keys.
+# This dictionary will be removed, it is kept for the sake of exemplification
 coinApis = {
     "binance_adausd": BinanceApi("ADAUSDT"),
     "coingecko_adausd": CoingeckoApi("cardano", "usd"),
-    "coinmarketcap_adausd": CoinRate(
+    "coinmarketcap_adausd": Generic(
         "https://pro-api.coinmarketcap.com",
         "/v1/cryptocurrency/quotes/latest?symbol=ADA",
         ["data","ADA","quote","USD","price"],

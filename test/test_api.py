@@ -1,32 +1,31 @@
-#!/usr/bin/env python3
-
+"""Abstract api class testing file"""
 import json
 
 import pytest
-import sure
+import sure # pylint: disable=unused-import
 from mocket import async_mocketize
 from mocket.plugins.httpretty import httpretty
 
 from backend.api import Api
 
-class customApi(Api):
+@pytest.mark.asyncio
+class TestApiMethods(Api):
+    """Test class for all the required http methods"""
     api_url = "http://persodomain.com"
 
-@pytest.mark.asyncio
-class TestApiMethods():
     @async_mocketize(strict_mode=True)
     async def test_httpbin(self):
+        """Test that the values returned are correct"""
         methods = ["get", "post", "put"]
-        for m in methods:
+        for i in methods:
             httpretty.register_uri(
-                getattr(httpretty, m.upper()),
-                f"{customApi.api_url}/{m}",
-                body=json.dumps({"response": m}),
+                getattr(httpretty, i.upper()),
+                f"{self.api_url}/{i}",
+                body=json.dumps({"response": i}),
                 **{"Content-Type": "application/json"})
 
-        ca = customApi()
-        for m in methods:
-            data = await ca._request(m.upper(), f"/{m}", data={"request": m})
-            data.json.should.equal({"response": m})
-            assert bytes(m, encoding="utf-8") in httpretty.last_request.body
+        for i in methods:
+            data = await self._request(i.upper(), f"/{i}", data={"request": i})
+            data.json.should.equal({"response": i})
+            assert bytes(i, encoding="utf-8") in httpretty.last_request.body
         httpretty.latest_requests.should.have.length_of(3)
