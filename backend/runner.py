@@ -1,9 +1,9 @@
-#!/usr/bin/env python3
+"""Main updater class"""
 
-from backend.api import *
+from backend.api import NodeContractApi, CoinRate, ChainQuery
 from .core.oracle import OracleSettings
 
-class FeedUpdater(object):
+class FeedUpdater():
     """Main thread for managing a node feed"""
     def __init__(self,
                  update_inter: int,
@@ -14,4 +14,4 @@ class FeedUpdater(object):
         pass
 
     def run(self):
-        pass
+        """Checks and if necesary updates and/or aggregates the contract"""

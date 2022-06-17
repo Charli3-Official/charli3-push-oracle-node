@@ -1,27 +1,34 @@
-#!/usr/bin/env python3
+"""Datum parser classes"""
+
+from dataclasses import dataclass
 from cbor2 import loads
 
-class OracleDatum(object):
+@dataclass(init=False)
+class OracleDatum():
     """Parses the cbor recieved from the chain-index for OracleDatum objects"""
     def __init__(self, cbor):
         # parse cbor and get feed, expiry, whitelist, enabled.
-        self.oracleDatum    = loads(bytes.fromhex(cbor))
-        self.oracleFeed     = Feed(self.oracleDatum.value[0].value[0].value[0].value)
-        self.expiryDate     = self.oracleDatum.value[0].value[1].value[0]
-        self.whitelist      = self.oracleDatum.value[0].value[2]
-        self.feedEnabled    = self.oracleDatum.value[0].value[3]
+        self.oracle_datum = loads(bytes.fromhex(cbor))
+        self.oracle_feed = Feed(
+            self.oracle_datum.value[0].value[0].value[0].value
+        )
+        self.expiry_date = self.oracle_datum.value[0].value[1].value[0]
+        self.whitelist = self.oracle_datum.value[0].value[2]
+        self.feed_enabled = self.oracle_datum.value[0].value[3]
 
-class NodeDatum(object):
+@dataclass
+class NodeDatum():
     """Parses the cbor recieved from the chain-index for NodeDatum objects"""
     def __init__(self, cbor):
         # parse cbor and get feed, node-operator.
-        self.nodeDatum      = loads(bytes.fromhex(cbor))
-        self.nodeOperator   = self.nodeDatum.value[0].value[0].value[0].hex()
-        self.nodeFeed       = Feed(self.nodeDatum.value[0].value[1].value[0].value)
+        self.node_datum = loads(bytes.fromhex(cbor))
+        self.node_operator = self.node_datum.value[0].value[0].value[0].hex()
+        self.node_feed = Feed(self.node_datum.value[0].value[1].value[0].value)
 
-class Feed(object):
+@dataclass
+class Feed():
     """Information class for the Feed type of the oracle"""
     def __init__(self, feed):
         # parse cbor and get value, timestamp.
-        self.value      = feed[0]
-        self.timestamp  = feed[1]
+        self.value = feed[0]
+        self.timestamp = feed[1]

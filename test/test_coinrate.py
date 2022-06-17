@@ -1,21 +1,22 @@
-#!/usr/bin/env python3
+"""CoinRate classes testing"""
 
-import os
 import json
 
 import pytest
-import sure
+import sure # pylint: disable=unused-import
 from mocket import async_mocketize
 from mocket.plugins.httpretty import httpretty
 
-from backend.api.coinrate import *
+from backend.api.coinrate import coinApis
 
 @pytest.mark.asyncio
 class TestCoinRateClasses():
+    """Coin Rate classes testing"""
     ex_price = 0.47039482
     ex_price_double = 0.485228513411705
 
     def register_api_uri(self, url, body):
+        """Helper method to mock http endpoints"""
         httpretty.register_uri(
             httpretty.GET,
             url,
@@ -25,6 +26,7 @@ class TestCoinRateClasses():
 
     @async_mocketize(strict_mode=True)
     async def test_binance(self):
+        """Binance correct functionality test"""
         api = coinApis["binance_adausd"]
         self.register_api_uri(
             f"{api.api_url}{api.get_path()}",
@@ -35,6 +37,7 @@ class TestCoinRateClasses():
 
     @async_mocketize(strict_mode=True)
     async def test_coingecko(self):
+        """CoinGecko correct functionality test"""
         api = coinApis["coingecko_adausd"]
         self.register_api_uri(
             f"{api.api_url}{api.get_path()}",
@@ -45,6 +48,7 @@ class TestCoinRateClasses():
 
     @async_mocketize(strict_mode=True)
     async def test_coinmarketcap(self):
+        """CoinMarketcap correct functionality test"""
         bod = {
             "status":{
                 "timestamp":"2022-06-13T20:44:46.669Z",
