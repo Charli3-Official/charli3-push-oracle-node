@@ -28,10 +28,10 @@ class Oracle:
                     self.fee_asset[1]),
                 "aggStateNFT": self._asset_class(
                     self.oracle_curr,
-                    "AggStateNFT"),
+                    "AggState"),
                 "oracleNFT": self._asset_class(
                     self.oracle_curr,
-                    "OracleNFT"),
+                    "OracleFeed"),
                 "nodeToken": self._asset_class(
                     self.oracle_curr,
                     "NodeFeed"),
