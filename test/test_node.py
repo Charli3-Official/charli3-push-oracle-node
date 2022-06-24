@@ -189,5 +189,7 @@ def gen_mock_status(operation):
 
 class AsyncMock(mock.MagicMock):
     """Mock for asyncio.sleep"""
+    # pylint: disable=invalid-overridden-method
+    # pylint: disable=useless-super-delegation
     async def __call__(self, *args, **kwargs):
         return super().__call__(*args, **kwargs)
