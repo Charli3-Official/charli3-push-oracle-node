@@ -20,21 +20,21 @@ def _await_status(func):
         resp = await self.status()
         resp = resp.json["cicCurrentState"]["observableState"]
         tries = 0
-        while resp["status"]["tag"]=="Empty":
+        while resp["status"]["tag"]=="Empty" and resp:
             if tries>6:
                 raise PABTimeout("Operation Timed Out")
             await asyncio.sleep(10)
             resp = await self.status()
             resp = resp.json["cicCurrentState"]["observableState"]
-        _check_error(resp)
+        if resp["status"]["tag"] == "Error":
+            _raise_error(resp)
     return wrapper
 
-def _check_error(resp):
-    if resp["status"]["tag"] == "Error":
-        mess = resp["status"]["contents"]["contents"]["contents"]
-        rege = r"\\\"message\\\":\\\"(.*?)\\\""
-        match = re.findall(rege, mess, re.MULTILINE)
-        raise FaliedOperation(match[0])
+def _raise_error(resp):
+    mess = resp["status"]["contents"]["contents"]["contents"]
+    rege = r"\\\"message\\\":\\\"(.*?)\\\""
+    match = re.findall(rege, mess, re.MULTILINE)
+    raise FaliedOperation(match[0])
 
 class NodeContractApi(Api):
     """Abstracts the calls to the PAB API."""
@@ -57,13 +57,12 @@ class NodeContractApi(Api):
         data = {
             "caID": {
                 "tag": "ConnectNode",
-                "contents":self.oracle.to_dict()
+                "contents": self.oracle.to_dict()
             },
             "caWallet": {
                 "getWalletId": self.wallet_id
             }
         }
-        print(data)
         resp = await self._request("POST", "/contract/activate", data)
         self.contract_id = resp.json["unContractInstanceId"]
 
