@@ -28,7 +28,7 @@ class TestOracle():
                     "unCurrencySymbol": ocurr
                 },
                 {
-                    "unTokenName": "AggStateNFT"
+                    "unTokenName": "AggState"
                 }]
             },
             "oracleNFT": {
@@ -36,7 +36,7 @@ class TestOracle():
                     "unCurrencySymbol": ocurr
                 },
                 {
-                    "unTokenName": "OracleNFT"
+                    "unTokenName": "OracleFeed"
                 }]
             },
             "nodeToken": {
