@@ -7,6 +7,7 @@ import pytest
 import sure # pylint: disable=unused-import
 from mocket import async_mocketize
 from mocket.plugins.httpretty import httpretty
+from backend.api.node import PABTimeout
 
 from backend.core import Oracle
 from backend.api import NodeContractApi
@@ -164,6 +165,27 @@ class TestNode():
         endpoint_req.method.should.equal("PUT")
         endpoint_req.body.should.equal(b"")
 
+    @async_mocketize(strict_mode=True)
+    async def test_endpoint_timeout(self):
+        """Test the timeout exception"""
+        failed = False
+        operation = "node-update"
+        node_api = await self._init_contract()
+        self._register_uri(
+            f"/contract/instance/{node_api.contract_id}/endpoint/{operation}",
+            [])
+        self._register_uri(
+            f"/contract/instance/{node_api.contract_id}/status",
+            gen_mock_empty_status(operation),
+            "GET"
+        )
+        with mock.patch('asyncio.sleep', new_callable=AsyncMock):
+            try:
+                await node_api.update(MOCK_UPDATE_AMMOUNT)
+            except PABTimeout:
+                failed = True
+        assert failed
+
 # Mock responses
 MOCK_ACTIVATE = {
     "unContractInstanceId": MOCK_CONTRACT_ID
@@ -181,6 +203,19 @@ def gen_mock_status(operation):
                         "getTxId": MOCK_TXID
                     },
                     "tag": "LastTx"
+                },
+                "operation": operation
+            }
+        }
+    }
+
+def gen_mock_empty_status(operation):
+    """Generate a succesful status for an operation"""
+    return {
+        "cicCurrentState": {
+            "observableState": {
+                "status": {
+                    "tag": "Empty"
                 },
                 "operation": operation
             }

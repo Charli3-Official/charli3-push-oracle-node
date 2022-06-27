@@ -15,7 +15,7 @@ class ApiResponse():
         self.headers = self._resp.headers
 
     async def get_info(self):
-        """Load async information from the response object`"""
+        """Load async information from the response object"""
         self.json = await self._resp.json()
 
 class Api():
@@ -36,6 +36,11 @@ class Api():
                     f"{self.api_url}{path}",
                     json=data,
                     headers=headers) as resp:
+                if not resp.ok:
+                    raise UnsuccessfulResponse(resp.status)
                 pars = ApiResponse(resp)
                 await pars.get_info()
                 return pars
+
+class UnsuccessfulResponse(Exception):
+    """Used when the response is not 200"""
