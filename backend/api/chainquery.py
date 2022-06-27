@@ -6,7 +6,7 @@ from .datums import NodeDatum, OracleDatum
 
 class ChainQuery(Api):
     """chainQuery methods"""
-    api_url = "http://35.223.197.209:9085/"
+    api_url = "http://54.219.17.88:7081/"
 
     async def get_currency_utxos(self, nft: tuple[str, str]) -> list[dict]:
         """Get utxos list from the nft currency symbol."""
@@ -63,17 +63,24 @@ class ChainQuery(Api):
         else:
             return None
 
-    async def get_oracle_datum(self, utxo):
+    async def get_oracle_datum(self, oracle_nft):
         """Get Oracle Datum from Oracle utxo"""
-        datum = await self.get_datum(utxo)
-        if datum != "":
-            return OracleDatum(datum)
+        utxo = await self.get_currency_utxos(oracle_nft)
+        if len(utxo) > 0 :
+            datum = await self.get_datum(utxo[0])
+            if datum != "":
+                return OracleDatum(datum)
 
-    async def get_node_datum(self, utxo):
-        """Get Node Datum from Node utxo"""
-        node_datum = await self.get_datum(utxo)
-        if node_datum != "":
-            return NodeDatum(node_datum)
+    async def get_nodes_datum(self, node_nft):
+        """Get Node Datum list from Node utxos"""
+        result = []
+        utxos = await self.get_currency_utxos(node_nft)
+        if len(utxos) > 0 :
+            for utxo in utxos:
+                node_datum = await self.get_datum(utxo)
+                if node_datum != "":
+                    result.append(NodeDatum(node_datum))
+        return result
 
     def get_tx_status(self, txid):
         """Get Tx status"""

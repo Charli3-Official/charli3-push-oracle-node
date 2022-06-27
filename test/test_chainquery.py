@@ -8,12 +8,24 @@ from mocket import async_mocketize
 from mocket.plugins.httpretty import httpretty
 from backend.api.chainquery import ChainQuery
 
+# Variables
+ORACLE_NFT = (
+    "24c19e34702eb1bafa2f7598570992d79b91de7d3e38790f6cfaa221", "OracleFeed")
+ORACLE_UTXO = {
+    "txOutRefId": {
+        "getTxId": "4288e6fe0a20c9daf9548dae36211d78b707eea75267418e6d16ab934d304ec3"
+    },
+    "txOutRefIdx": 3
+}
+DATUM_HASH = "47f37db205ebdc6cbe4ff9318d26768c6b222f471b8809a521d2c2517cce9cbb"
+DATUM = "d87b9fd8799fd8799fd8799f1a000b85381b00000180f77ed897ffffd8799f1b00000180f789d517ff80d87a80ffff"
 
 @pytest.mark.asyncio
 class TestChainQueryClasse():
     """Test ChainQuery Class"""
 
     api = ChainQuery()
+
     def register_api_uri(self, url, body):
         """SETTING UP MOCK url responses."""
         httpretty.register_uri(
@@ -23,44 +35,49 @@ class TestChainQueryClasse():
             **{"Content-Type": "application/json"}
         )
 
-    @async_mocketize(strict_mode=True)
-    async def test_get_currency_utxos(self):
-        """test currency utxos endpoint"""
-        nft = ("24c19e34702eb1bafa2f7598570992d79b91de7d3e38790f6cfaa221", "OracleFeed")
+    def _register_endpoint(self):
         self.register_api_uri(
             f"{self.api.api_url}{'utxo-with-currency'}",
             get_currency_utxos_mock
         )
-        data = await self.api.get_currency_utxos(nft)
+        self.register_api_uri(
+            f"{self.api.api_url}{'unspent-tx-out'}",
+            get_datum_mock
+        )
+        self.register_api_uri(
+            f"{self.api.api_url}{'from-hash/datum'}",
+            DATUM
+        )
+
+    @async_mocketize(strict_mode=True)
+    async def test_get_currency_utxos(self):
+        """test currency utxos endpoint"""
+        self._register_endpoint()
+        data = await self.api.get_currency_utxos(ORACLE_NFT)
         data.should.equal(get_currency_utxos_mock['page']['pageItems'])
 
     @async_mocketize(strict_mode=True)
     async def test_get_datum(self):
         """test datum endpoint"""
-        utxo = {
-            "txOutRefId": {
-                "getTxId": "02e58d8cf6c18c9eac82491cba93b8c21f04271fd329c7fb7ae27a3c7de5e26d"
-            },
-            "txOutRefIdx": 0
-        }
-        self.register_api_uri(
-            f"{self.api.api_url}{'unspent-tx-out'}",
-            get_datum_mock
-        )
-        data = await self.api.get_datum(utxo)
+        self._register_endpoint()
+        data = await self.api.get_datum(ORACLE_UTXO)
         data.should.equal(get_datum_mock['_ciTxOutDatum']['Right'])
 
     @async_mocketize(strict_mode=True)
     async def test_get_datum_hash(self):
         """test datum-hash endpoint"""
-        datum_hash = "47f37db205ebdc6cbe4ff9318d26768c6b222f471b8809a521d2c2517cce9cbb"
-        datum = "d87b9fd8799fd8799fd8799f1a000b85381b00000180f77ed897ffffd8799f1b00000180f789d517ff80d87a80ffff"
-        self.register_api_uri(
-            f"{self.api.api_url}{'from-hash/datum'}",
-            datum
-        )
-        data = await self.api.get_datum_from_hash(datum_hash)
-        data.should.equal(datum)
+        self._register_endpoint()
+        data = await self.api.get_datum_from_hash(DATUM_HASH)
+        data.should.equal(DATUM)
+
+    @async_mocketize(strict_mode=True)
+    async def test_get_oracle_datum(self):
+        """test get_oracle_datum endpoint"""
+        self._register_endpoint()
+        data = await self.api.get_oracle_datum(ORACLE_NFT)
+        data.oracle_feed.timestamp.should.equal(1655474743999)
+        data.oracle_feed.value.should.equal(460000)
+
 
 
 # mock response of get_currency_utxos
@@ -83,9 +100,9 @@ get_currency_utxos_mock = {
         "pageItems": [
             {
                 "txOutRefId": {
-                    "getTxId": "3b4934528590c50f11f9bbee8a205fd49bca794034e433f732d47398c9253a93"
+                    "getTxId": "4288e6fe0a20c9daf9548dae36211d78b707eea75267418e6d16ab934d304ec3"
                 },
-                "txOutRefIdx": 6
+                "txOutRefIdx": 3
             }
         ],
         "nextPageQuery": None
@@ -95,13 +112,15 @@ get_currency_utxos_mock = {
 # mock response of get_datum
 get_datum_mock = {
     "_ciTxOutValidator": {
-        "Left": "daacdb7f5d6a4f0a992e13d693f777e9ef1f5bd0fab5a9b1543772bb"
+        "Right": {
+            "getValidator": ""
+        }
     },
     "tag": "ScriptChainIndexTxOut",
     "_ciTxOutAddress": {
         "addressStakingCredential": None,
         "addressCredential": {
-            "contents": "daacdb7f5d6a4f0a992e13d693f777e9ef1f5bd0fab5a9b1543772bb",
+            "contents": "3567adaca6cf5156bfff96e1b88e114afde6bfa8f797fb742d628a51",
             "tag": "ScriptCredential"
         }
     },
@@ -122,12 +141,12 @@ get_datum_mock = {
             ],
             [
                 {
-                    "unCurrencySymbol": "24c19e34702eb1bafa2f7598570992d79b91de7d3e38790f6cfaa221"
+                    "unCurrencySymbol": "e106ae90da0d5d4b155cd9477a440a043715cc24eb3996a4bee4d76f"
                 },
                 [
                     [
                         {
-                            "unTokenName": "NodeFeed"
+                            "unTokenName": "OracleFeed"
                         },
                         1
                     ]
@@ -136,6 +155,6 @@ get_datum_mock = {
         ]
     },
     "_ciTxOutDatum": {
-        "Right": "fc6b8e2310615801ddf54570ee3e4a7a2b0343c8b21c9a52aa40c56f503c6125"
+        "Right": "d87b9fd8799fd8799fd8799f1a000704e01b0000018171fbeabfffffd8799f1b000001817206e73fff80d87a80ffff"
     }
 }
