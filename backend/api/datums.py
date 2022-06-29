@@ -11,13 +11,12 @@ class OracleDatum():
     def __init__(self, cbor):
         # parse cbor and get feed, expiry, whitelist, enabled.
         self.oracle_datum = loads(bytes.fromhex(cbor))
-        if len(self.oracle_datum.value[0].value[0].value) > 0:
-            self.oracle_feed = Feed(
-                self.oracle_datum.value[0].value[0].value[0].value
-            )
+        self.oracle_feed = Feed(self.oracle_datum.value[0].value[0].value)
+        self.expiry_date = None
+        if self.oracle_feed.has_value():
             self.expiry_date = self.oracle_datum.value[0].value[1].value[0]
-            self.whitelist = self.oracle_datum.value[0].value[2]
-            self.feed_enabled = self.oracle_datum.value[0].value[3]
+        self.whitelist = self.oracle_datum.value[0].value[2]
+        self.feed_enabled = self.oracle_datum.value[0].value[3]
 
 
 @dataclass
@@ -28,11 +27,8 @@ class NodeDatum():
         # parse cbor and get feed, node-operator.
         self.node_datum = loads(bytes.fromhex(cbor))
         self.node_operator = self.node_datum.value[0].value[0].value[0].hex()
-        if len(self.node_datum.value[0].value[1].value) > 0 :
-            self.node_feed = Feed(
-                self.node_datum.value[0].value[1].value[0].value)
-        else:
-            self.node_feed = None
+        self.node_feed = Feed(self.node_datum.value[0].value[1].value)
+
 
 
 @dataclass
@@ -41,5 +37,13 @@ class Feed():
 
     def __init__(self, feed):
         # parse cbor and get value, timestamp.
-        self.value = feed[0]
-        self.timestamp = feed[1]
+        self._initialized = False
+        if len(feed) > 0 :
+            feed = feed[0].value
+            self.value = feed[0]
+            self.timestamp = feed[1]
+            self._initialized = True
+
+    def has_value(self):
+        """Returns if the Feed has a value"""
+        return self._initialized
