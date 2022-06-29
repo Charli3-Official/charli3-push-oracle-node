@@ -35,14 +35,14 @@ def _raise_error(resp):
     mess = resp["status"]["contents"]["contents"]["contents"]
     rege = r"\\\"message\\\":\\\"(.*?)\\\""
     match = re.findall(rege, mess, re.MULTILINE)
-    raise FaliedOperation(match[0])
+    raise FailedOperation(match[0])
 
 def _catch_http_errors(func):
     async def wrapper(self, *args, **kwargs):
         try:
             resp = await func(self, *args, **kwargs)
         except UnsuccessfulResponse as e:
-            raise FaliedOperation(
+            raise FailedOperation(
                 f"UnsuccesfulResponse from the PAB. Status={e.args[0]}"
                 ) from e
         return resp
@@ -61,6 +61,14 @@ class NodeContractApi(Api):
     def is_activated(self):
         """Returns if the instance is activated"""
         return hasattr(self, "contract_id") and self.contract_id is not None
+
+    def is_stuck(self):
+        """Check if the PAB is broken"""
+        try:
+            self.status()
+        except UnsuccessfulResponse:
+            return True
+        return False
 
     @_catch_http_errors
     async def activate(self):
@@ -139,7 +147,7 @@ class NodeContractApi(Api):
 class NotActivated(Exception):
     """Used when calling and endpoint while the contract is not activated"""
 
-class FaliedOperation(Exception):
+class FailedOperation(Exception):
     """Used when a Contract operation fails"""
 
 class PABTimeout(Exception):

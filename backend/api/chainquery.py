@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Abstracts the calls to the chain index API."""
+import asyncio
 from .api import Api
 from .datums import NodeDatum, OracleDatum
 
@@ -28,10 +29,9 @@ class ChainQuery(Api):
             query_path,
             req,
         )
-        if (200 <= resp.status and resp.status < 300):
+        if 200 <= resp.status < 300:
             return resp.json['page']['pageItems']
-        else:
-            return None
+        return None
 
     async def get_datum(self, utxo):
         """Get Datum from utxo"""
@@ -41,7 +41,7 @@ class ChainQuery(Api):
             query_path,
             utxo,
         )
-        if (200 <= resp.status and resp.status < 300):
+        if 200 <= resp.status < 300:
             data = resp.json['_ciTxOutDatum']
             if "Right" in data:
                 return data['Right']
@@ -58,10 +58,9 @@ class ChainQuery(Api):
             query_path,
             datum_hash,
         )
-        if (200 <= resp.status and resp.status < 300):
+        if 200 <= resp.status < 300:
             return resp.json
-        else:
-            return None
+        return None
 
     async def get_oracle_datum(self, oracle_nft):
         """Get Oracle Datum from Oracle utxo"""

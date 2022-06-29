@@ -2,6 +2,7 @@
 """This module contains the oracle information classes"""
 import json
 from dataclasses import dataclass
+from math import ceil
 
 @dataclass
 class Oracle:
@@ -18,23 +19,27 @@ class Oracle:
 
         return self._json
 
+    def get_oracle_feed_nft(self):
+        """Get the OracleFeed NFT"""
+        return (self.oracle_curr,"OracleFeed")
+
+    def get_aggstate_nft(self):
+        """Get the aggstate nft"""
+        return (self.oracle_curr,"AggState")
+
+    def get_node_feed_nft(self):
+        """Get the NodeFeed token"""
+        return (self.oracle_curr,"NodeFeed")
+
     def to_dict(self):
         """Generate and cache a dict for the pab"""
         if not hasattr(self,"_dict"):
             # pylint: disable=attribute-defined-outside-init
             self._dict = {
-                "feeToken": self._asset_class(
-                    self.fee_asset[0],
-                    self.fee_asset[1]),
-                "aggStateNFT": self._asset_class(
-                    self.oracle_curr,
-                    "AggState"),
-                "oracleNFT": self._asset_class(
-                    self.oracle_curr,
-                    "OracleFeed"),
-                "nodeToken": self._asset_class(
-                    self.oracle_curr,
-                    "NodeFeed"),
+                "feeToken": self._asset_class(*self.fee_asset),
+                "aggStateNFT": self._asset_class(*self.get_aggstate_nft()),
+                "oracleNFT": self._asset_class(*self.get_oracle_feed_nft()),
+                "nodeToken": self._asset_class(*self.get_node_feed_nft()),
                 "oracleCreator": {
                     "unPaymentPubKeyHash": {
                         "getPubKeyHash": self.oracle_owner
@@ -67,3 +72,9 @@ class OracleSettings:
     aggregate_change: float
     mad_mult: int
     divergence: int
+    percent_resolution: int
+
+    def required_nodes_num(self):
+        """Number of nodes required"""
+        n_nodes = len(self.node_pkhs)
+        return ceil(self.required_nodes*n_nodes/self.percent_resolution)
