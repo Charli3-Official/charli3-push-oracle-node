@@ -156,6 +156,7 @@ if __name__=="__main__":
         o,
         "71517afc9a4d6dd79294ff6be77dd6a6a3c70d95",
         "3a1314fa60a312d41eaf203378a6a92b5fca5c6649580e0c3e4fa707")
+        
     sett = OracleSettings(
         node_pkhs=['3a1314fa60a312d41eaf203378a6a92b5fca5c6649580e0c3e4fa707'],
         required_nodes=3500,

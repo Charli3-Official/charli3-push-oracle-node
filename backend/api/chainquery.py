@@ -7,7 +7,9 @@ from .datums import NodeDatum, OracleDatum
 
 class ChainQuery(Api):
     """chainQuery methods"""
-    api_url = "http://54.219.17.88:7081/"
+    
+    def __init__(self, api_url):
+        self.api_url = api_url
 
     async def get_currency_utxos(self, nft: tuple[str, str]) -> list[dict]:
         """Get utxos list from the nft currency symbol."""

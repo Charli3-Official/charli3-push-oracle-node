@@ -50,13 +50,14 @@ def _catch_http_errors(func):
 
 class NodeContractApi(Api):
     """Abstracts the calls to the PAB API."""
-    api_url = "http://localhost:9080/api"
 
-    def __init__(self, oracle, wallet_id, pkh):
+    def __init__(self, oracle, wallet_id, pkh, api_url):
         self.oracle = oracle
         self.wallet_id = wallet_id
         self.pkh = pkh
+        self.api_url = api_url
         self.contract_id = None
+        
 
     def is_activated(self):
         """Returns if the instance is activated"""
