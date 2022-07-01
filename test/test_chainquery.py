@@ -24,7 +24,7 @@ DATUM = "d87b9fd8799fd8799fd8799f1a000b85381b00000180f77ed897ffffd8799f1b0000018
 class TestChainQueryClasse():
     """Test ChainQuery Class"""
 
-    api = ChainQuery()
+    api = ChainQuery('http://54.219.17.88:7081/')
 
     def register_api_uri(self, url, body):
         """SETTING UP MOCK url responses."""
