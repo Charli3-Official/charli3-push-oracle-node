@@ -35,11 +35,11 @@ class NodeDatum():
 class Feed():
     """Information class for the Feed type of the oracle"""
 
-    def __init__(self, feed):
+    def __init__(self, cbor):
         # parse cbor and get value, timestamp.
         self._initialized = False
-        if len(feed) > 0 :
-            feed = feed[0].value
+        if len(cbor) > 0 :
+            feed = cbor[0].value
             self.value = feed[0]
             self.timestamp = feed[1]
             self._initialized = True

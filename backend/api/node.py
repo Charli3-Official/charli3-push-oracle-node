@@ -2,9 +2,18 @@
 
 import re
 import asyncio
+import logging
 
+from backend.core import Oracle
 from .api import Api, UnsuccessfulResponse
 
+logger = logging.getLogger("NodeContract")
+
+def _log_call(func):
+    def wrapper(self, *args, **kwargs):
+        logger.info("Called PAB %s", func.__name__)
+        return func(self, *args, **kwargs)
+    return wrapper
 
 def _require_activated(func):
     def wrapper(self, *args, **kwargs):
@@ -51,13 +60,16 @@ def _catch_http_errors(func):
 class NodeContractApi(Api):
     """Abstracts the calls to the PAB API."""
 
-    def __init__(self, oracle, wallet_id, pkh, api_url):
+    def __init__(self,
+                 oracle: Oracle,
+                 wallet_id: str,
+                 pkh: str,
+                 api_url: str):
         self.oracle = oracle
         self.wallet_id = wallet_id
         self.pkh = pkh
         self.api_url = api_url
         self.contract_id = None
-        
 
     def is_activated(self):
         """Returns if the instance is activated"""
@@ -72,6 +84,7 @@ class NodeContractApi(Api):
         return False
 
     @_catch_http_errors
+    @_log_call
     async def activate(self):
         """Activate the contract using the provided arguments"""
         if self.is_activated():
@@ -94,6 +107,7 @@ class NodeContractApi(Api):
     @_require_activated
     @_await_status
     @_catch_http_errors
+    @_log_call
     async def update(self, rate):
         """Requests the pab to update the NodeFeed"""
         await self._request(
@@ -105,6 +119,7 @@ class NodeContractApi(Api):
     @_require_activated
     @_await_status
     @_catch_http_errors
+    @_log_call
     async def aggregate(self):
         """Requests the pab to aggregate the OracleFeed"""
         await self._request("POST", self._get_endpoint_path("aggregate"), [])
@@ -112,6 +127,7 @@ class NodeContractApi(Api):
     @_require_activated
     @_await_status
     @_catch_http_errors
+    @_log_call
     async def update_aggregate(self, rate):
         """Request the pab to perform an update aggregate"""
         await self._request(
@@ -123,12 +139,14 @@ class NodeContractApi(Api):
     @_require_activated
     @_await_status
     @_catch_http_errors
+    @_log_call
     async def collect(self):
         """Requests the pab to collect the aquired c3"""
         await self._request("POST", self._get_endpoint_path("node-collect"), [])
 
     @_require_activated
     @_catch_http_errors
+    @_log_call
     async def status(self):
         """Requests the pab for the status of the contract"""
         resp = await self._request(
@@ -139,6 +157,7 @@ class NodeContractApi(Api):
 
     @_require_activated
     @_catch_http_errors
+    @_log_call
     async def stop(self):
         """Stops the contract"""
         await self._request(

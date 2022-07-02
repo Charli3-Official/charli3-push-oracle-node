@@ -1,18 +1,20 @@
 """Main updater class"""
+from datetime import timedelta
 import time
 import asyncio
+import logging
 from math import ceil
 
 from .api import NodeContractApi, CoinRate, ChainQuery
 from .api.api import UnsuccessfulResponse
-from .api.coinrate import BinanceApi
 from .api.datums import NodeDatum, OracleDatum
 from .api.node import FailedOperation, PABTimeout
-from .core.oracle import OracleSettings, Oracle
+from .core.oracle import OracleSettings
+
+logger = logging.getLogger("runner")
 
 class FeedUpdater():
     """Main thread for managing a node feed"""
-
     def __init__(self,
                  update_inter: int,
                  oracle_settings: OracleSettings,
@@ -26,72 +28,85 @@ class FeedUpdater():
         self.chain = chain
         self.node_nft = self.node.oracle.get_node_feed_nft()
         self.oracle_nft = self.node.oracle.get_oracle_feed_nft()
-        self.previous_rate = 0
 
     async def run(self):
         """Checks and if necesary updates and/or aggregates the contract"""
         await self.node.activate()
         await self.initialize_feed()
         while True:
+            start_time = time.time()
+            logger.info("Requesting data")
             try:
-                print(f"started at {time.strftime('%X')}")
-                start_time = time.time()
+                # Run all of the requests simultaneously
                 data_coro = [
                     self.rate.get_rate(),
                     self.chain.get_nodes_datum(self.node_nft),
                     self.chain.get_oracle_datum(self.oracle_nft)
                 ]
                 data = await asyncio.gather(*data_coro)
-                # Prepare data for usage
+
+                # Prepare the rate for uploading
                 new_rate = self._calculate_rate(data[0])
-                # Get our datum
+                # Get the current node datum
                 node_own_datum = self.get_node_info(data[1], self.node.pkh)
                 # Remove all uninitialized nodes
                 nodes_datum = list(filter(
                     lambda x: x.node_feed.has_value(),
                     data[1]
                 ))
+                # We remove our node because it has to pass more checks than the
+                # rest. We assume that it doesn't when counting valid nodes.
                 nodes_datum.remove(node_own_datum)
-                oracle_datum = data[2]
-                print(f"gather info finished {time.strftime('%X')}")
 
+                # Prepare the rest of the variables for the checks
+                oracle_datum = data[2]
+                own_feed = node_own_datum.node_feed
                 nodes_updated = self.total_nodes_updated(
                     nodes_datum,
                     oracle_datum)
-
-                own_feed = node_own_datum.node_feed
                 req_nodes = self.oracle_settings.required_nodes_num()
+
+                # Logging times.
+                data_time = time.time()
+                logger.info(
+                    "Data gathering took: %s",
+                    str(timedelta(seconds=data_time-start_time))
+                )
 
                 if (self.check_rate_change(new_rate, own_feed.value)
                         or self.is_expired(own_feed.timestamp)):
+                    # Our node is not updated
                     if nodes_updated==req_nodes-1:
-                        print("UPDATE AGREGATE")
+                        # Our update is the one missing for an aggregate
                         await self.node.update_aggregate(new_rate)
                     else:
-                        print("UPDATE")
+                        # More nodes are required before aggregating
                         await self.node.update(new_rate)
                 elif nodes_updated+1>=req_nodes:
-                    print("Aggregate")
+                    # Our node is updated
                     await self.node.aggregate()
-                else:
-                    print("Did nothing")
 
+                # Logging times
+                logger.info(
+                    "Operation took: %ss",
+                    str(timedelta(seconds=time.time()-data_time))
+                )
 
-                print(f"finished at {time.strftime('%X')}")
-                time_elapsed = time.time()-start_time
+            except (UnsuccessfulResponse, FailedOperation, PABTimeout) as exc:
+                logger.error(repr(exc))
+            except Exception as exc:
+                logger.critical(repr(exc))
 
-                print(f"elapsed {time_elapsed} must wait {self.update_inter-time_elapsed}")
-                await asyncio.sleep(max(self.update_inter-time_elapsed,0))
-                print(f"finished at {time.strftime('%X')}")
-            except UnsuccessfulResponse as e:
-                print(f"UnsuccessfulResponse{e}")
-            except FailedOperation as e:
-                print(f"FailedOperation{e}")
-            except PABTimeout as e:
-                print(f"PABTimeout{e}")
+            time_elapsed = time.time()-start_time
+            logger.info(
+                "Loop took: %ss",
+                str(timedelta(seconds=time_elapsed))
+            )
+            await asyncio.sleep(max(self.update_inter-time_elapsed,0))
 
     async def initialize_feed(self):
         """Check that our feed is initialized and do if its not"""
+        logger.info("Initializing feed")
         datums = await self.chain.get_nodes_datum(self.node_nft)
         own_datum = self.get_node_info(datums, self.node.pkh)
         if not own_datum.node_feed.has_value():
@@ -145,27 +160,3 @@ class FeedUpdater():
             if dat.node_operator==pkh:
                 return dat
         return None
-
-if __name__=="__main__":
-    o = Oracle(
-        "ef097309136a1242669c29bf772b32efad68af0405f406e92a2e1ac0",
-        "de031116866f1688d288b8eb42d1c321c0a2ecaf4acb05bbf7757c02",
-        ("716e6a0dc6ade9c74eae49bfb3f006e809a131d9e5f201f631f8b7d4", "CHARLI3")
-    )
-    n = NodeContractApi(
-        o,
-        "71517afc9a4d6dd79294ff6be77dd6a6a3c70d95",
-        "3a1314fa60a312d41eaf203378a6a92b5fca5c6649580e0c3e4fa707")
-        
-    sett = OracleSettings(
-        node_pkhs=['3a1314fa60a312d41eaf203378a6a92b5fca5c6649580e0c3e4fa707'],
-        required_nodes=3500,
-        node_expiry=300000,
-        aggregate_time=720000,
-        aggregate_change=500,
-        mad_mult=20000,
-        divergence=1500,
-        percent_resolution=10000
-    )
-    a = FeedUpdater(180, sett, n, BinanceApi("ADAUSDT"),ChainQuery())
-    loop = asyncio.run(a.run())
