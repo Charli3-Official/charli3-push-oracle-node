@@ -5,7 +5,7 @@ import asyncio
 import argparse
 import configparser
 
-from backend.api import NodeContractApi, ChainQuery, apiTypes
+from backend.api import NodeContractApi, chainQueryTypes, apiTypes
 from backend.core.oracle import Oracle, OracleSettings
 from backend.runner import FeedUpdater
 
@@ -54,12 +54,17 @@ rateclass = apiTypes[rrate_tp](**ini_rate)
 
 ini_updater = dict(conffile.items('Updater'))
 ini_chainquery = dict(conffile.items('ChainQuery'))
+
+tp = ini_chainquery["type"]
+del ini_chainquery["type"]
+chain = chainQueryTypes[tp](**ini_chainquery)
+
 updater = FeedUpdater(
         int(ini_updater['update_inter']),
         sett,
         node,
         rateclass,
-        ChainQuery(ini_chainquery['api_url'])
+        chain
     )
 
 numeric_level = getattr(logging, ini_updater["verbosity"], None)

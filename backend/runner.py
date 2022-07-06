@@ -125,7 +125,6 @@ class FeedUpdater():
         """check rate change condition"""
         res = self.oracle_settings.percent_resolution
         change = abs((new_rate*res)/prev_rate-res)
-        print(f"check_rate:{change>self.oracle_settings.aggregate_change} rate={prev_rate}")
         return change>self.oracle_settings.aggregate_change
 
     def is_expired(
@@ -134,7 +133,6 @@ class FeedUpdater():
         """check time change condition"""
         time_ms = time.time_ns()*1e-6
         timediff = time_ms-last_time
-        print(f"is_expired:{timediff>self.oracle_settings.node_expiry} timediff:{timediff}")
         return timediff>self.oracle_settings.node_expiry
 
     def total_nodes_updated(

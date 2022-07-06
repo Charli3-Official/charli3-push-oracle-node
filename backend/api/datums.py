@@ -3,47 +3,110 @@
 from dataclasses import dataclass
 from cbor2 import loads
 
-
-@dataclass(init=False)
-class OracleDatum():
-    """Parses the cbor recieved from the chain-index for OracleDatum objects"""
-
-    def __init__(self, cbor):
-        # parse cbor and get feed, expiry, whitelist, enabled.
-        self.oracle_datum = loads(bytes.fromhex(cbor))
-        self.oracle_feed = Feed(self.oracle_datum.value[0].value[0].value)
-        self.expiry_date = None
-        if self.oracle_feed.has_value():
-            self.expiry_date = self.oracle_datum.value[0].value[1].value[0]
-        self.whitelist = self.oracle_datum.value[0].value[2]
-        self.feed_enabled = self.oracle_datum.value[0].value[3]
-
-
-@dataclass
-class NodeDatum():
-    """Parses the cbor recieved from the chain-index for NodeDatum objects"""
-
-    def __init__(self, cbor):
-        # parse cbor and get feed, node-operator.
-        self.node_datum = loads(bytes.fromhex(cbor))
-        self.node_operator = self.node_datum.value[0].value[0].value[0].hex()
-        self.node_feed = Feed(self.node_datum.value[0].value[1].value)
-
-
-
 @dataclass
 class Feed():
     """Information class for the Feed type of the oracle"""
+    value: int
+    timestamp: int
+    initialized: bool
 
-    def __init__(self, cbor):
-        # parse cbor and get value, timestamp.
-        self._initialized = False
+    @classmethod
+    def from_cbor(cls, cbor):
+        """Parses the information from the cbor recieved from the Datums"""
+        value = None
+        timestamp = None
+        initialized = False
         if len(cbor) > 0 :
             feed = cbor[0].value
-            self.value = feed[0]
-            self.timestamp = feed[1]
-            self._initialized = True
+            value = feed[0]
+            timestamp = feed[1]
+            initialized = True
+
+        return cls(value, timestamp, initialized)
+
+    @classmethod
+    def from_blockfrost(cls, data):
+        """Parses the information from the blockfrost datatype"""
+        value = False
+        timestamp = None
+        initialized = False
+        if len(data) > 0 :
+            feed = data[0].fields
+            value = feed[0].int
+            timestamp = feed[1].int
+            initialized = True
+
+        return cls(value, timestamp, initialized)
 
     def has_value(self):
         """Returns if the Feed has a value"""
-        return self._initialized
+        return self.initialized
+
+
+@dataclass()
+class OracleDatum():
+    """Representation for Oracle Datums"""
+    oracle_feed: Feed
+    expiry_date: int
+    whitelist: list[bytes]
+    feed_enabled: bool
+
+    @classmethod
+    def from_cbor(cls, cbor):
+        """Parses the cbor recieved from the chain-index for OracleDatum objects"""
+        # parse cbor and get feed, expiry, whitelist, enabled.
+        oracle_datum = loads(bytes.fromhex(cbor))
+        oracle_feed = Feed.from_cbor(oracle_datum.value[0].value[0].value)
+        expiry_date = None
+        if oracle_feed.has_value():
+            expiry_date = oracle_datum.value[0].value[1].value[0]
+        whitelist = oracle_datum.value[0].value[2]
+        feed_enabled = oracle_datum.value[0].value[3]
+
+        return cls(oracle_feed, expiry_date, whitelist, feed_enabled)
+
+    @classmethod
+    def from_blockfrost(cls, data):
+        """Parses the blockfrost datum datatype onto an oracle datum"""
+        # parse cbor and get feed, expiry, whitelist, enabled.
+        oracle_datum = data
+        oracle_feed = Feed.from_blockfrost(
+            oracle_datum.fields[0].fields[0].fields
+        )
+        expiry_date = None
+        if oracle_feed.has_value():
+            expiry_date = oracle_datum.fields[0].fields[1].fields[0].int
+        whitelist = []
+        for add in oracle_datum.fields[0].fields[2].list:
+            whitelist.append(add.bytes)
+        feed_enabled = bool(oracle_datum.fields[0].fields[3].constructor)
+
+        return cls(oracle_feed, expiry_date, whitelist, feed_enabled)
+
+@dataclass
+class NodeDatum():
+    """Representation for Node Datums"""
+    node_operator: bytes
+    node_feed: Feed
+
+    @classmethod
+    def from_cbor(cls, cbor):
+        """Parses the cbor recieved from the chain-index for NodeDatum objects"""
+        # parse cbor and get feed, node-operator.
+        node_datum = loads(bytes.fromhex(cbor))
+        node_operator = node_datum.value[0].value[0].value[0].hex()
+        node_feed = Feed.from_cbor(node_datum.value[0].value[1].value)
+
+        return cls(node_operator, node_feed)
+
+    @classmethod
+    def from_blockfrost(cls, data):
+        """Parses the blockfrost datum datatype onto a Node Datum"""
+        # parse cbor and get feed, node-operator.
+        node_datum = data
+        node_operator = node_datum.fields[0].fields[0].fields[0].bytes
+        node_feed = Feed.from_blockfrost(
+            node_datum.fields[0].fields[1].fields
+        )
+
+        return cls(node_operator, node_feed)
