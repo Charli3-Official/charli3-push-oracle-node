@@ -73,18 +73,13 @@ class FeedUpdater():
                     str(timedelta(seconds=data_time-start_time))
                 )
 
-                if (self.check_rate_change(new_rate, own_feed.value)
-                        or self.is_expired(own_feed.timestamp)):
-                    # Our node is not updated
-                    if nodes_updated==req_nodes-1:
-                        # Our update is the one missing for an aggregate
-                        await self.node.update_aggregate(new_rate)
-                    else:
-                        # More nodes are required before aggregating
-                        await self.node.update(new_rate)
-                elif nodes_updated+1>=req_nodes:
-                    # Our node is updated
-                    await self.node.aggregate()
+                # Update - Aggregate or Update Aggregate
+                await self.feed_operate(
+                    nodes_updated,
+                    req_nodes,
+                    new_rate,
+                    own_feed
+                    )
 
                 # Logging times
                 logger.info(
@@ -158,3 +153,22 @@ class FeedUpdater():
             if dat.node_operator==pkh:
                 return dat
         return None
+
+    async def feed_operate(self,
+        nodes_updated,
+        req_nodes,
+        new_rate,
+        own_feed
+        ):
+
+        if (self.check_rate_change(new_rate, own_feed.value) or self.is_expired(own_feed.timestamp)):
+            # Our node is not updated
+            if nodes_updated==req_nodes-1:
+                # Our update is the one missing for an aggregate
+                await self.node.update_aggregate(new_rate)
+            else:
+                # More nodes are required before aggregating
+                await self.node.update(new_rate)
+        elif nodes_updated+1>=req_nodes:
+            # Our node is updated
+            await self.node.aggregate()

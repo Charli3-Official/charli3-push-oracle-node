@@ -5,3 +5,4 @@ pytest==7.1.2
 pytest-asyncio==0.18.3
 cbor2==5.4.3
 blockfrost-python==0.4.4
+localconfig==1.1.3
