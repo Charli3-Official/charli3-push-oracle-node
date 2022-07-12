@@ -1,7 +1,10 @@
 """Main Api abstract class and a response class to keep the information"""
 from dataclasses import dataclass
+import logging
 
 import aiohttp
+
+logger = logging.getLogger("api")
 
 @dataclass(init=False)
 class ApiResponse():
@@ -11,7 +14,7 @@ class ApiResponse():
         self._resp = resp
         self.status = self._resp.status
         self.json = None
-        self.is_ok = self._resp.ok
+        self.is_ok = 200 <= self.status < 300
         self.headers = self._resp.headers
 
     async def get_info(self):
@@ -31,6 +34,10 @@ class Api():
             headers = {}
         headers = dict(self._header, **headers)
         async with aiohttp.ClientSession() as session:
+            logger.debug("Request to %s%s with data: %s",
+                         self.api_url,
+                         path,
+                         str(data))
             async with session.request(
                     method,
                     f"{self.api_url}{path}",

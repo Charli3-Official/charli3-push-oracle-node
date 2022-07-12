@@ -7,7 +7,18 @@ import sure # pylint: disable=unused-import
 from mocket import async_mocketize
 from mocket.plugins.httpretty import httpretty
 
-from backend.api.coinrate import coinApis
+from backend.api.coinrate import BinanceApi, CoingeckoApi, Generic
+
+coinApis = {
+    "binance_adausd": BinanceApi("ADAUSDT"),
+    "coingecko_adausd": CoingeckoApi("cardano", "usd"),
+    "coinmarketcap_adausd": Generic(
+        "https://pro-api.coinmarketcap.com",
+        "/v1/cryptocurrency/quotes/latest?symbol=ADA",
+        ["data","ADA","quote","USD","price"],
+        {"X-CMC_PRO_API_KEY": "asdf"}
+    )
+}
 
 @pytest.mark.asyncio
 class TestCoinRateClasses():
@@ -47,8 +58,8 @@ class TestCoinRateClasses():
         data.should.equal(self.ex_price)
 
     @async_mocketize(strict_mode=True)
-    async def test_coinmarketcap(self):
-        """CoinMarketcap correct functionality test"""
+    async def test_generic(self):
+        """Generic class correct functionality test"""
         bod = {
             "status":{
                 "timestamp":"2022-06-13T20:44:46.669Z",
