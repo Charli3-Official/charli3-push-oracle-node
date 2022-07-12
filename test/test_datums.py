@@ -12,7 +12,7 @@ class TestDatums():
 
     def test_oracle_datum(self):
         """Test the oracle datum with valid information"""
-        oracle_data=OracleDatum(self.oracleDatum)
+        oracle_data=OracleDatum.from_cbor(self.oracleDatum)
         assert oracle_data.expiry_date == 1655229787999
         assert oracle_data.oracle_feed.timestamp == 1655229067999
         assert oracle_data.oracle_feed.value == 600000
@@ -20,7 +20,7 @@ class TestDatums():
     def test_node_datum(self):
         """Test the oracle datum with valid information"""
         node_operator = '1e5d17616b1a98b8314412c980ae1feaa95b1e441ffc350b756ef8c5'
-        node_data=NodeDatum(self.nodeDatum)
+        node_data=NodeDatum.from_cbor(self.nodeDatum)
         assert node_data.node_operator == node_operator
         assert node_data.node_feed.value == 660000
         assert node_data.node_feed.timestamp == 1655229031999

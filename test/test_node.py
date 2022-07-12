@@ -61,7 +61,8 @@ class TestNode():
         node_api = NodeContractApi(
             MOCK_ORACLE,
             MOCK_NODE_WID,
-            MOCK_NODE_PKH
+            MOCK_NODE_PKH,
+            MOCK_PAB_URL
         )
         await node_api.activate()
         return node_api

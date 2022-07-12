@@ -1,5 +1,8 @@
 """Exchange Api classes."""
+import logging
 from .api import Api
+
+logger = logging.getLogger("CoinRate")
 
 class CoinRate(Api):
     """Abstract coinRate class"""
@@ -8,6 +11,7 @@ class CoinRate(Api):
 
     async def get_rate(self):
         """Returns the rate accoirding to the classes instance"""
+
 
 class Generic(CoinRate):
     """Abstracts the calls to exchange API's."""
@@ -25,13 +29,17 @@ class Generic(CoinRate):
         return self.path
 
     async def get_rate(self):
+        logger.info("Getting generic rate")
         resp = await self._request('GET', self.path, headers=self.key)
         data = resp.json
         for key in self.json_path:
             data = data[key]
-        if (200<=resp.status and resp.status<300):
-            return float(data)
+        if resp.is_ok:
+            rate = float(data)
+            logger.debug("Rate: %s", rate)
+            return rate
         return None
+
 
 class BinanceApi(CoinRate):
     """Abstracts the binance API rate"""
@@ -44,12 +52,16 @@ class BinanceApi(CoinRate):
         return self.path+self.symbol
 
     async def get_rate(self):
+        logger.info("Getting Binance %s rate", self.symbol)
         resp = await self._request(
             'GET',
             self.get_path())
-        if (200<=resp.status and resp.status<300):
-            return float(resp.json["price"])
+        if resp.is_ok:
+            rate = float(resp.json["price"])
+            logger.debug("%s Rate: %s", self.symbol, rate)
+            return rate
         return None
+
 
 class CoingeckoApi(CoinRate):
     """Abstracts the coingecko API"""
@@ -63,28 +75,20 @@ class CoingeckoApi(CoinRate):
         return self.path_f.format(self.tid, self.vs_currency)
 
     async def get_rate(self):
+        logger.info("Getting coingecko %s-%s rate", self.tid, self.vs_currency)
         resp = await self._request(
             'GET',
             self.get_path(),
             )
-        if (200<=resp.status and resp.status<300):
-            return resp.json[self.tid][self.vs_currency]
+        if resp.is_ok:
+            rate = resp.json[self.tid][self.vs_currency]
+            logger.debug("%s-%s Rate: %f", self.tid, self.vs_currency, rate)
+            return rate
         return None
+
 
 apiTypes = {
     "generic": Generic,
     "binance": BinanceApi,
     "coingecko": CoingeckoApi
-}
-
-# This dictionary will be removed, it is kept for the sake of exemplification
-coinApis = {
-    "binance_adausd": BinanceApi("ADAUSDT"),
-    "coingecko_adausd": CoingeckoApi("cardano", "usd"),
-    "coinmarketcap_adausd": Generic(
-        "https://pro-api.coinmarketcap.com",
-        "/v1/cryptocurrency/quotes/latest?symbol=ADA",
-        ["data","ADA","quote","USD","price"],
-        {"X-CMC_PRO_API_KEY": "asdf"} # missing a way to get the api key.
-    )
 }
