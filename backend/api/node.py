@@ -89,6 +89,9 @@ class NodeContractApi(Api):
         """Activate the contract using the provided arguments"""
         if self.is_activated():
             return
+
+        resp = await self.get_instances_by_status('active')
+
         data = {
             "caID": {
                 "tag": "ConnectNode",
@@ -98,10 +101,26 @@ class NodeContractApi(Api):
                 "getWalletId": self.wallet_id
             }
         }
+
+        for instance in resp.json:
+
+            if (instance['cicWallet']['getWalletId'] == self.wallet_id) and (instance['cicDefinition']['contents'] == data['caID']['contents']):
+
+                # If i find an active instance use that one for running the feed
+                self.contract_id = instance['cicContract']['unContractInstanceId']
+
+                return
+
         resp = await self._request("POST", "/contract/activate", data)
+
         self.contract_id = resp.json["unContractInstanceId"]
 
+    async def get_instances_by_status(self,status):
+
+        return await self._request("GET", f"/contract/instances?status={status}")
+
     def _get_endpoint_path(self, endpoint):
+
         return f"/contract/instance/{self.contract_id}/endpoint/{endpoint}"
 
     @_require_activated
