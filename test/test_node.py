@@ -58,6 +58,14 @@ class TestNode():
             "/contract/activate",
             MOCK_ACTIVATE
         )
+
+        status = 'active'
+        self._register_uri(
+            f"/contract/instances?status={status}",
+            MOCK_ACTIVE_INSTANCES,
+            'GET'
+        )
+
         node_api = NodeContractApi(
             MOCK_ORACLE,
             MOCK_NODE_WID,
@@ -191,6 +199,9 @@ class TestNode():
 MOCK_ACTIVATE = {
     "unContractInstanceId": MOCK_CONTRACT_ID
 }
+
+#MOCK_ACTIVE_INSTANCES
+MOCK_ACTIVE_INSTANCES = []
 
 # We keep this response to only the part we are interested ot prevent the file
 # getting to big
