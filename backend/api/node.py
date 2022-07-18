@@ -92,6 +92,16 @@ class NodeContractApi(Api):
 
         resp = await self.get_instances_by_status('active')
 
+        for instance in resp.json:
+
+            if (instance['cicWallet']['getWalletId'] == self.wallet_id and
+                instance['cicDefinition']['contents'] == self.oracle.to_dict()):
+
+                # If i find an active instance use that for running the feed
+                self.contract_id = instance['cicContract']['unContractInstanceId']
+
+                return
+
         data = {
             "caID": {
                 "tag": "ConnectNode",
@@ -102,20 +112,12 @@ class NodeContractApi(Api):
             }
         }
 
-        for instance in resp.json:
-
-            if (instance['cicWallet']['getWalletId'] == self.wallet_id) and (instance['cicDefinition']['contents'] == data['caID']['contents']):
-
-                # If i find an active instance use that one for running the feed
-                self.contract_id = instance['cicContract']['unContractInstanceId']
-
-                return
-
         resp = await self._request("POST", "/contract/activate", data)
 
         self.contract_id = resp.json["unContractInstanceId"]
 
     async def get_instances_by_status(self,status):
+        """Retrieves al running instances on PAB by status"""
 
         return await self._request("GET", f"/contract/instances?status={status}")
 
