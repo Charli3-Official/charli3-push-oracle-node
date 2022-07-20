@@ -30,7 +30,10 @@ class Generic(CoinRate):
 
     async def get_rate(self):
         logger.info("Getting generic rate")
-        resp = await self._request('GET', self.path, headers=self.key)
+        resp = await self._get(
+            self.path,
+            headers=self.key
+            )
         data = resp.json
         for key in self.json_path:
             data = data[key]
@@ -53,9 +56,9 @@ class BinanceApi(CoinRate):
 
     async def get_rate(self):
         logger.info("Getting Binance %s rate", self.symbol)
-        resp = await self._request(
-            'GET',
-            self.get_path())
+        resp = await self._get(
+            self.get_path()
+            )
         if resp.is_ok:
             rate = float(resp.json["price"])
             logger.debug("%s Rate: %s", self.symbol, rate)
@@ -76,9 +79,8 @@ class CoingeckoApi(CoinRate):
 
     async def get_rate(self):
         logger.info("Getting coingecko %s-%s rate", self.tid, self.vs_currency)
-        resp = await self._request(
-            'GET',
-            self.get_path(),
+        resp = await self._get(
+            self.get_path()
             )
         if resp.is_ok:
             rate = resp.json[self.tid][self.vs_currency]

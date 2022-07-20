@@ -39,8 +39,7 @@ class ChainQueryIndex(ChainQuery):
                 ]
             }
         }
-        resp = await self._request(
-            'POST',
+        resp = await self._post(
             query_path,
             req,
         )
@@ -53,8 +52,7 @@ class ChainQueryIndex(ChainQuery):
     async def get_datum(self, utxo):
         """Get Datum from utxo"""
         query_path = "unspent-tx-out"
-        resp = await self._request(
-            'POST',
+        resp = await self._post(
             query_path,
             utxo,
         )
@@ -70,8 +68,7 @@ class ChainQueryIndex(ChainQuery):
     async def get_datum_from_hash(self, datum_hash):
         """Get Datum from hash"""
         query_path = "from-hash/datum"
-        resp = await self._request(
-            'POST',
+        resp = await self._pos(
             query_path,
             datum_hash,
         )
