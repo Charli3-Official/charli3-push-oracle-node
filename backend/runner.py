@@ -3,15 +3,17 @@ from datetime import timedelta
 import time
 import asyncio
 import logging
+import inspect
 from math import ceil
 
 from .api import NodeContractApi, CoinRate, ChainQuery
 from .api.api import UnsuccessfulResponse
-from .api.datums import NodeDatum, OracleDatum
+from .api.datums import Feed, NodeDatum, OracleDatum
 from .api.node import FailedOperation, PABTimeout
 from .core.oracle import OracleSettings
 
 logger = logging.getLogger("runner")
+logging.Formatter.converter = time.gmtime
 
 class FeedUpdater():
     """Main thread for managing a node feed"""
@@ -78,8 +80,9 @@ class FeedUpdater():
                     nodes_updated,
                     req_nodes,
                     new_rate,
-                    own_feed
-                    )
+                    own_feed,
+                    oracle_datum.oracle_feed
+                )
 
                 # Logging times
                 logger.info(
@@ -122,15 +125,37 @@ class FeedUpdater():
         """check rate change condition"""
         res = self.oracle_settings.percent_resolution
         change = abs((new_rate*res)/prev_rate-res)
-        return change>self.oracle_settings.aggregate_change
+        res = change>self.oracle_settings.aggregate_change
+        logger.info(
+            "check_rate_change: %s by %s",
+            str(res),
+            str(change)
+        )
+        return res
 
-    def is_expired(
+    def node_is_expired(
             self,
             last_time: int) -> bool:
-        """check time change condition"""
+        """check time change condition for the node"""
+        return self._is_expired(last_time, self.oracle_settings.node_expiry)
+
+    def agg_is_expired(
+            self,
+            last_time: int) -> bool:
+        """check time change condition for the aggregation"""
+        return self._is_expired(last_time, self.oracle_settings.aggregate_time)
+
+    def _is_expired(self, last_time, valid_time):
         time_ms = time.time_ns()*1e-6
         timediff = time_ms-last_time
-        return timediff>self.oracle_settings.node_expiry
+        res = timediff>valid_time
+        logger.info(
+            "%s: %s by %s",
+            inspect.stack()[1].function,
+            str(res),
+            str(timediff)
+        )
+        return res
 
     def total_nodes_updated(
             self,
@@ -157,20 +182,25 @@ class FeedUpdater():
         return None
 
     async def feed_operate(self,
-        nodes_updated,
-        req_nodes,
-        new_rate,
-        own_feed
-        ):
+            nodes_updated: int,
+            req_nodes: int,
+            new_rate: int,
+            own_feed: Feed,
+            oracle_feed: Feed):
+        """Main logic of the runnner"""
+        can_aggregate = (not oracle_feed.has_value() or
+                          (self.check_rate_change(new_rate, oracle_feed.value)
+                           or self.agg_is_expired(oracle_feed.timestamp)))
 
-        if (self.check_rate_change(new_rate, own_feed.value) or self.is_expired(own_feed.timestamp)):
+        if (self.check_rate_change(new_rate, own_feed.value)
+            or self.node_is_expired(own_feed.timestamp)):
             # Our node is not updated
-            if nodes_updated==req_nodes-1:
+            if (nodes_updated == req_nodes-1) and can_aggregate:
                 # Our update is the one missing for an aggregate
                 await self.node.update_aggregate(new_rate)
             else:
                 # More nodes are required before aggregating
                 await self.node.update(new_rate)
-        elif nodes_updated+1>=req_nodes:
+        elif (nodes_updated+1 >= req_nodes) and can_aggregate:
             # Our node is updated
             await self.node.aggregate()

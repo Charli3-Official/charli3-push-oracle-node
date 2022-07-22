@@ -1,0 +1,7 @@
+version: '3.9'
+services:
+  charli3-backend:
+    image: backend-v2:blockfrost
+    volumes:
+      - "./config.ini:/app/config.ini"
+    restart: always
