@@ -18,6 +18,8 @@ def _log_call(func):
 def _require_activated(func):
     def wrapper(self, *args, **kwargs):
         if not self.is_activated():
+            print('not activation error')
+            print(self.contract_id)
             raise NotActivated("Contract not activated")
         return func(self, *args, **kwargs)
     return wrapper
@@ -83,10 +85,27 @@ class NodeContractApi(Api):
             return True
         return False
 
+    async def instance_activation(self):
+        "Instance activation instance itselve"
+        data = {
+            "caID": {
+                "tag": "ConnectNode",
+                "contents": self.oracle.to_dict()
+            },
+            "caWallet": {
+                "getWalletId": self.wallet_id
+            }
+        }
+
+        resp = await self._request("POST","/contract/activate", data)
+
+        self.contract_id = resp.json["unContractInstanceId"]
+
     @_catch_http_errors
     @_log_call
     async def activate(self):
         """Activate the contract using the provided arguments"""
+
         if self.is_activated():
             return
 
@@ -102,19 +121,16 @@ class NodeContractApi(Api):
 
                 return
 
-        data = {
-            "caID": {
-                "tag": "ConnectNode",
-                "contents": self.oracle.to_dict()
-            },
-            "caWallet": {
-                "getWalletId": self.wallet_id
-            }
-        }
+        await self.instance_activation()
 
-        resp = await self._post("/contract/activate", data)
+    async def re_activate(self):
+        """ Forces node re activation """
+        logger.info("Instance reactivation. Turned off :  %s", self.contract_id)
+        await self.stop()
 
-        self.contract_id = resp.json["unContractInstanceId"]
+        await self.instance_activation()
+        logger.info("Instance reactivation. Turned on :  %s", self.contract_id)
+
 
     async def get_instances_by_status(self,status):
         """Retrieves al running instances on PAB by status"""
@@ -122,7 +138,6 @@ class NodeContractApi(Api):
         return await self._get(f"/contract/instances?status={status}")
 
     def _get_endpoint_path(self, endpoint):
-
         return f"/contract/instance/{self.contract_id}/endpoint/{endpoint}"
 
     @_require_activated
@@ -131,7 +146,8 @@ class NodeContractApi(Api):
     @_log_call
     async def update(self, rate):
         """Requests the pab to update the NodeFeed"""
-        await self._post(
+        await self._request(
+            "POST",
             self._get_endpoint_path("node-update"),
             rate
         )
@@ -142,7 +158,7 @@ class NodeContractApi(Api):
     @_log_call
     async def aggregate(self):
         """Requests the pab to aggregate the OracleFeed"""
-        await self._post(self._get_endpoint_path("aggregate"), [])
+        await self._request("POST", self._get_endpoint_path("aggregate"), [])
 
     @_require_activated
     @_await_status
@@ -150,7 +166,8 @@ class NodeContractApi(Api):
     @_log_call
     async def update_aggregate(self, rate):
         """Request the pab to perform an update aggregate"""
-        await self._post(
+        await self._request(
+            "POST",
             self._get_endpoint_path("update-aggregate"),
             rate
         )
@@ -161,14 +178,16 @@ class NodeContractApi(Api):
     @_log_call
     async def collect(self):
         """Requests the pab to collect the aquired c3"""
-        await self._post(self._get_endpoint_path("node-collect"), [])
+        await self._request("POST", self._get_endpoint_path("node-collect"), [])
 
     @_require_activated
     @_catch_http_errors
     @_log_call
     async def status(self):
         """Requests the pab for the status of the contract"""
-        resp = await self._get(f"/contract/instance/{self.contract_id}/status"
+        resp = await self._request(
+            "GET",
+            f"/contract/instance/{self.contract_id}/status"
         )
         return resp
 
@@ -177,7 +196,8 @@ class NodeContractApi(Api):
     @_log_call
     async def stop(self):
         """Stops the contract"""
-        await self._put(
+        await self._request(
+            "PUT",
             f"/contract/instance/{self.contract_id}/stop")
 
 class NotActivated(Exception):
