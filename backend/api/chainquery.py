@@ -68,7 +68,7 @@ class ChainQueryIndex(ChainQuery):
     async def get_datum_from_hash(self, datum_hash):
         """Get Datum from hash"""
         query_path = "from-hash/datum"
-        resp = await self._pos(
+        resp = await self._post(
             query_path,
             datum_hash,
         )
