@@ -16,7 +16,7 @@ class TestApiMethods(Api):
     @async_mocketize(strict_mode=True)
     async def test_httpbin(self):
         """Test that the values returned are correct"""
-        methods = ["get", "post", "put"]
+        methods = ["get", "post", "put", "delete"]
         for i in methods:
             httpretty.register_uri(
                 getattr(httpretty, i.upper()),
@@ -28,4 +28,4 @@ class TestApiMethods(Api):
             data = await self._request(i.upper(), f"/{i}", data={"request": i})
             data.json.should.equal({"response": i})
             assert bytes(i, encoding="utf-8") in httpretty.last_request.body
-        httpretty.latest_requests.should.have.length_of(3)
+        httpretty.latest_requests.should.have.length_of(4)
