@@ -113,8 +113,10 @@ class NodeContractApi(Api):
         self.pkh = pkh
         self.api_url = api_url
         self.pgconfig = pgconfig
-        self.channel = pgconfig["notify_channel"] if pgconfig else None
-        del self.pgconfig["notify_channel"]
+        self.channel = None
+        if pgconfig:
+            self.channel = pgconfig["notify_channel"]
+            del self.pgconfig["notify_channel"]
         self.contract_id = None
         self.pgcon = None
 
