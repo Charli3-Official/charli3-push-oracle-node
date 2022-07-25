@@ -67,20 +67,25 @@ MOCK_CHAIN_QUERY = chainQueryTypes['blockfrost'](**{
 
 #@pytest.fixture
 MOCKED_RUNNER_CASES = {
-        'nodes_updated': 0,
-        'req_nodes': 0,
-        'new_rate': 465210,
-        'own_feed': Feed(
-                    value=466087,
-                    timestamp=1657297865999,
-                    initialized=True
-                ),
-        'expected_results':{
-            'update_calls':1,
-            'aggregate_calls':0,
-            'update_aggregate_calls':0
-            }
-        }
+    'nodes_updated': 0,
+    'req_nodes': 0,
+    'new_rate': 465210,
+    'own_feed': Feed(
+        value=466087,
+        timestamp=1657297865999,
+        initialized=True
+    ),
+    'expected_results':{
+        'update_calls':1,
+        'aggregate_calls':0,
+        'update_aggregate_calls':0
+    },
+    'oracle_feed': Feed(
+        value=466087,
+        timestamp=1657297865999,
+        initialized=True
+    )
+}
 
 @pytest.mark.asyncio
 class TestFeedUpdaterClass():
