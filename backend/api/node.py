@@ -18,8 +18,6 @@ def _log_call(func):
 def _require_activated(func):
     def wrapper(self, *args, **kwargs):
         if not self.is_activated():
-            print('not activation error')
-            print(self.contract_id)
             raise NotActivated("Contract not activated")
         return func(self, *args, **kwargs)
     return wrapper
@@ -85,6 +83,8 @@ class NodeContractApi(Api):
             return True
         return False
 
+    @_catch_http_errors
+    @_log_call
     async def instance_activation(self):
         "Instance activation instance itselve"
         data = {
@@ -123,6 +123,8 @@ class NodeContractApi(Api):
 
         await self.instance_activation()
 
+    @_catch_http_errors
+    @_log_call
     async def re_activate(self):
         """ Forces node re activation """
         logger.info("Instance reactivation. Turned off :  %s", self.contract_id)
