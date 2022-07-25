@@ -87,9 +87,13 @@ class FeedUpdater():
                     str(timedelta(seconds=time.time()-data_time))
                 )
 
-            except (UnsuccessfulResponse, FailedOperation, PABTimeout) as exc:
+            except (UnsuccessfulResponse) as exc:
+                logger.error(repr(exc))
+
+            except (FailedOperation, PABTimeout) as exc:
                 await self.node.re_activate()
                 logger.error(repr(exc))
+
             except Exception as exc:
                 await self.node.re_activate()
                 logger.critical(repr(exc))
@@ -162,8 +166,10 @@ class FeedUpdater():
         new_rate,
         own_feed
         ):
+        """ Encapsulates the rules to decide wether to update / aggregate"""
 
-        if (self.check_rate_change(new_rate, own_feed.value) or self.is_expired(own_feed.timestamp)):
+        if (self.check_rate_change(new_rate, own_feed.value)
+            or self.is_expired(own_feed.timestamp)):
             # Our node is not updated
             if nodes_updated==req_nodes-1:
                 # Our update is the one missing for an aggregate

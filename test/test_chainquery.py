@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Chain query class testing."""
+
 import json
 
 import pytest
@@ -18,7 +19,7 @@ ORACLE_UTXO = {
     "txOutRefIdx": 3
 }
 DATUM_HASH = "47f37db205ebdc6cbe4ff9318d26768c6b222f471b8809a521d2c2517cce9cbb"
-DATUM = "d87b9fd8799fd8799fd8799f1a000b85381b00000180f77ed897ffffd8799f1b00000180f789d517ff80d87a80ffff"
+DATUM = "d87b9fd8799fd8799fd8799f1a000b85381b00000180f77ed897ffffd8799f1b00000180f789d517ff80d87a80ffff" # pylint: disable=line-too-long
 
 @pytest.mark.asyncio
 class TestChainQueryClasse():
@@ -155,6 +156,6 @@ get_datum_mock = {
         ]
     },
     "_ciTxOutDatum": {
-        "Right": "d87b9fd8799fd8799fd8799f1a000704e01b0000018171fbeabfffffd8799f1b000001817206e73fff80d87a80ffff"
+        "Right": "d87b9fd8799fd8799fd8799f1a000704e01b0000018171fbeabfffffd8799f1b000001817206e73fff80d87a80ffff" # pylint: disable=line-too-long
     }
 }

@@ -11,6 +11,7 @@ from .datums import NodeDatum, OracleDatum
 logger = logging.getLogger("ChainQuery")
 
 class ChainQuery(Api):
+    """ wrapper logging implementation"""
     async def get_oracle_datum(self, oracle_nft):
         """Get Oracle Datum from Oracle utxo"""
 
@@ -19,7 +20,7 @@ class ChainQuery(Api):
 
 
 class ChainQueryIndex(ChainQuery):
-    """chainQuery methods"""
+    """chainQuery PAB Methods"""
     def __init__(self, api_url):
         self.api_url = api_url
 
