@@ -26,7 +26,7 @@ fee_asset_name=CHARLI3
 [NodeContractApi]
 pkh=3a1314fa60a312d41eaf203378a6a92b5fca5c6649580e0c3e4fa707
 wallet_id=71517afc9a4d6dd79294ff6be77dd6a6a3c70d95
-api_url=http://http://54.219.17.88:9080/api
+api_url=http://localhost:9080/api
 
 [ChainQuery]
 type=blockfrost
