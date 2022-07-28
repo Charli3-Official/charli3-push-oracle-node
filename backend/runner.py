@@ -81,7 +81,7 @@ class FeedUpdater():
                 )
 
                 # Update - Aggregate or Update Aggregate
-                await self.feed_operate(
+                called = await self.feed_operate(
                     nodes_updated,
                     req_nodes,
                     new_rate,
@@ -90,10 +90,11 @@ class FeedUpdater():
                 )
 
                 # Logging times
-                logger.info(
-                    "Operation took: %ss",
-                    str(timedelta(seconds=time.time()-data_time))
-                )
+                if called:
+                    logger.info(
+                        "Operation took: %ss",
+                        str(timedelta(seconds=time.time()-data_time))
+                    )
 
             except (UnsuccessfulResponse, FailedOperation, PABTimeout) as exc:
                 logger.error(repr(exc))
@@ -209,3 +210,6 @@ class FeedUpdater():
         elif (nodes_updated+1 >= req_nodes) and can_aggregate:
             # Our node is updated
             await self.node.aggregate()
+        else:
+            return False
+        return True

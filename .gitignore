@@ -156,4 +156,4 @@ cython_debug/
 *.code-workspace
 .vscode
 
-config.ini
+config*.ini
