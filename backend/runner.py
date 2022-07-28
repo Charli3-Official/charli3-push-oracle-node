@@ -74,6 +74,11 @@ class FeedUpdater():
                     "Data gathering took: %s",
                     str(timedelta(seconds=data_time-start_time))
                 )
+                logger.info(
+                    "Nodes updated: %s from %s",
+                    str(nodes_updated),
+                    str(req_nodes)
+                )
 
                 # Update - Aggregate or Update Aggregate
                 await self.feed_operate(
@@ -164,8 +169,10 @@ class FeedUpdater():
         ofeed = oracle_datum.oracle_feed
         if ofeed.has_value():
             for dat in nodes_datum:
-                timediff = dat.node_feed.timestamp-ofeed.timestamp
-                if not 0 < timediff < self.oracle_settings.node_expiry:
+                timediff = dat.node_feed.timestamp - ofeed.timestamp
+                delta_update = time.time() - dat.node_feed.timestamp
+                if not (0 < timediff
+                        and delta_update < self.oracle_settings.node_expiry):
                     updated -= 1
         return updated
 
@@ -193,7 +200,7 @@ class FeedUpdater():
         if (self.check_rate_change(new_rate, own_feed.value)
             or self.node_is_expired(own_feed.timestamp)):
             # Our node is not updated
-            if (nodes_updated == req_nodes-1) and can_aggregate:
+            if (nodes_updated >= req_nodes-1) and can_aggregate:
                 # Our update is the one missing for an aggregate
                 await self.node.update_aggregate(new_rate)
             else:
