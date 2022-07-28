@@ -32,9 +32,11 @@ oracle = Oracle(
 )
 
 ini_nodecontractapi = dict(conffile.items('NodeContractApi'))
+pgconfig = dict(conffile.items("PostgresConfig"))
 node = NodeContractApi(
     oracle,
-    **ini_nodecontractapi
+    **ini_nodecontractapi,
+    pgconfig=pgconfig
 )
 
 ini_oraclesettings = dict(conffile.items('OracleSettings'))
@@ -58,6 +60,7 @@ ini_chainquery = dict(conffile.items('ChainQuery'))
 tp = ini_chainquery["type"]
 del ini_chainquery["type"]
 chain = chainQueryTypes[tp](**ini_chainquery)
+
 
 updater = FeedUpdater(
         int(ini_updater['update_inter']),
