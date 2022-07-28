@@ -76,9 +76,9 @@ MOCKED_RUNNER_CASES = {
         initialized=True
     ),
     'expected_results':{
-        'update_calls':1,
+        'update_calls':0,
         'aggregate_calls':0,
-        'update_aggregate_calls':0
+        'update_aggregate_calls':1
     },
     'oracle_feed': Feed(
         value=466087,
