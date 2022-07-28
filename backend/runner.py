@@ -98,7 +98,6 @@ class FeedUpdater():
                 logger.error(repr(exc))
 
             except Exception as exc:
-                await self.node.re_activate()
                 logger.critical(repr(exc))
 
             time_elapsed = time.time()-start_time
