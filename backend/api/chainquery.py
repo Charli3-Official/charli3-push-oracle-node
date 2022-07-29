@@ -11,6 +11,7 @@ from .datums import NodeDatum, OracleDatum
 logger = logging.getLogger("ChainQuery")
 
 class ChainQuery(Api):
+    """ Chain Query Abstract Methods """
     async def get_oracle_datum(self, oracle_nft):
         """Get Oracle Datum from Oracle utxo"""
 
@@ -19,7 +20,7 @@ class ChainQuery(Api):
 
 
 class ChainQueryIndex(ChainQuery):
-    """chainQuery methods"""
+    """chainQuery PAB Methods"""
     def __init__(self, api_url):
         self.api_url = api_url
 
@@ -39,8 +40,7 @@ class ChainQueryIndex(ChainQuery):
                 ]
             }
         }
-        resp = await self._request(
-            'POST',
+        resp = await self._post(
             query_path,
             req,
         )
@@ -53,8 +53,7 @@ class ChainQueryIndex(ChainQuery):
     async def get_datum(self, utxo):
         """Get Datum from utxo"""
         query_path = "unspent-tx-out"
-        resp = await self._request(
-            'POST',
+        resp = await self._post(
             query_path,
             utxo,
         )
@@ -70,8 +69,7 @@ class ChainQueryIndex(ChainQuery):
     async def get_datum_from_hash(self, datum_hash):
         """Get Datum from hash"""
         query_path = "from-hash/datum"
-        resp = await self._request(
-            'POST',
+        resp = await self._post(
             query_path,
             datum_hash,
         )

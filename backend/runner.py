@@ -96,8 +96,13 @@ class FeedUpdater():
                         str(timedelta(seconds=time.time()-data_time))
                     )
 
-            except (UnsuccessfulResponse, FailedOperation, PABTimeout) as exc:
+            except (UnsuccessfulResponse) as exc:
                 logger.error(repr(exc))
+
+            except (FailedOperation, PABTimeout) as exc:
+                await self.node.re_activate()
+                logger.error(repr(exc))
+
             except Exception as exc:
                 logger.critical(repr(exc))
 
@@ -194,12 +199,14 @@ class FeedUpdater():
             own_feed: Feed,
             oracle_feed: Feed):
         """Main logic of the runnner"""
+
         can_aggregate = (not oracle_feed.has_value() or
                           (self.check_rate_change(new_rate, oracle_feed.value)
                            or self.agg_is_expired(oracle_feed.timestamp)))
 
         if (self.check_rate_change(new_rate, own_feed.value)
             or self.node_is_expired(own_feed.timestamp)):
+
             # Our node is not updated
             if (nodes_updated >= req_nodes-1) and can_aggregate:
                 # Our update is the one missing for an aggregate

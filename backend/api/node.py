@@ -134,10 +134,8 @@ class NodeContractApi(Api):
 
     @_catch_http_errors
     @_log_call
-    async def activate(self):
-        """Activate the contract using the provided arguments"""
-        if self.is_activated():
-            return
+    async def instance_activation(self):
+        "Instance activation instance itselve"
         data = {
             "caID": {
                 "tag": "ConnectNode",
@@ -147,14 +145,54 @@ class NodeContractApi(Api):
                 "getWalletId": self.wallet_id
             }
         }
-        resp = await self._request("POST", "/contract/activate", data)
+
+        resp = await self._request("POST","/contract/activate", data)
+
         self.contract_id = resp.json["unContractInstanceId"]
 
+    @_catch_http_errors
+    @_log_call
+    async def activate(self):
+        """Activate the contract using the provided arguments"""
+
+        if self.is_activated():
+            return
+        
         if self.pgconfig:
             self.pgcon = await asyncpg.connect(**self.pgconfig)
             await self.pgcon.execute(
                 TRIGGER_QUERY.format(channel=self.channel)
             )
+
+        resp = await self.get_instances_by_status('active')
+
+        for instance in resp.json:
+
+            if (instance['cicWallet']['getWalletId'] == self.wallet_id and
+                instance['cicDefinition']['contents'] == self.oracle.to_dict()):
+
+                # If i find an active instance use that for running the feed
+                self.contract_id = instance['cicContract']['unContractInstanceId']
+
+                return
+
+        await self.instance_activation()
+
+    @_catch_http_errors
+    @_log_call
+    async def re_activate(self):
+        """ Forces node re activation """
+        logger.info("Instance reactivation. Turned off :  %s", self.contract_id)
+        await self.stop()
+
+        await self.instance_activation()
+        logger.info("Instance reactivation. Turned on :  %s", self.contract_id)
+
+
+    async def get_instances_by_status(self,status):
+        """Retrieves al running instances on PAB by status"""
+
+        return await self._get(f"/contract/instances?status={status}")
 
     def _get_endpoint_path(self, endpoint):
         return f"/contract/instance/{self.contract_id}/endpoint/{endpoint}"

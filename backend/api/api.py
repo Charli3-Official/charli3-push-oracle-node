@@ -49,5 +49,21 @@ class Api():
                 await pars.get_info()
                 return pars
 
+    async def _get(self, path, data=None, headers=None):
+        """Alias for sending a GET request."""
+        return await self._request("GET", path, data, headers)
+
+    async def _post(self, path, data=None, headers=None):
+        """Alias for sending a POST request."""
+        return await self._request("POST", path, data, headers)
+
+    async def _put(self, path, data=None, headers=None):
+        """Alias for sending a PUT request."""
+        return await self._request("PUT", path, data, headers)
+
+    async def _delete(self, path, data=None, headers=None):
+        """Alias for sending a DELETE request."""
+        return await self._request("DELETE", path, data, headers)
+
 class UnsuccessfulResponse(Exception):
     """Used when the response is not 200"""
