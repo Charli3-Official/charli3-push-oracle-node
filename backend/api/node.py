@@ -16,8 +16,18 @@ TRIGGER_QUERY = ("""
 CREATE EXTENSION IF NOT EXISTS plpgsql;
 CREATE OR REPLACE FUNCTION on_update_instance() RETURNS trigger as $$
   DECLARE
+	state jsonb := jsonb_object_agg(
+	    'lastState',
+	    NEW.instance_state::json->'lastState'
+	);
+	cid jsonb := jsonb_object_agg(
+	    'instance_id',
+	    NEW.instance_id
+	);
   BEGIN
-    PERFORM pg_notify('{channel}', NEW.instance_id::text );
+    PERFORM pg_notify(
+        '{channel}',
+        (cid || state)::text);
     RETURN NEW;
   END;
 $$ LANGUAGE plpgsql;
@@ -45,12 +55,12 @@ def _require_activated(func):
 def _listen_status(event, cid):
     # pylint: disable=W0613
     async def listener(connection, pid, channel, payload):
-        if payload == cid:
-            row = await connection.fetchrow(
-                'SELECT instance_state FROM instances WHERE instance_id=$1', cid)
-            resp = json.loads(row.get("instance_state"))["lastState"]
-            if resp and resp["status"]["tag"] != "Empty":
-                event.set(resp)
+        payload = json.loads(payload)
+        payload_cid = payload["instance_id"]
+        if payload_cid == cid:
+            state = payload["lastState"]
+            if state and state["status"]["tag"] != "Empty":
+                event.set(state)
     return listener
 
 def _await_status(func):
@@ -61,7 +71,7 @@ def _await_status(func):
             listener = _listen_status(event, self.contract_id)
             await self.pgcon.add_listener(self.channel, listener)
             try:
-                resp = await asyncio.wait_for(event.wait(), timeout=30)
+                resp = await asyncio.wait_for(event.wait(), timeout=60)
             except asyncio.TimeoutError:
                 raise PABTimeout("Operation Timed Out") from None
             await self.pgcon.remove_listener(self.channel, listener)
@@ -157,7 +167,7 @@ class NodeContractApi(Api):
 
         if self.is_activated():
             return
-        
+
         if self.pgconfig:
             self.pgcon = await asyncpg.connect(**self.pgconfig)
             await self.pgcon.execute(
@@ -282,3 +292,4 @@ class _ValuedEvent(asyncio.Event):
     def clear(self):
         super().clear()
         self.value = None
+

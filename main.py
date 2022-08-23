@@ -32,11 +32,13 @@ oracle = Oracle(
 )
 
 ini_nodecontractapi = dict(conffile.items('NodeContractApi'))
-pgconfig = dict(conffile.items("PostgresConfig"))
+PGCONF = None
+if "PostgresConfig" in conffile:
+    PGCONF = dict(conffile.items("PostgresConfig"))
 node = NodeContractApi(
     oracle,
     **ini_nodecontractapi,
-    pgconfig=pgconfig
+    pgconfig=PGCONF
 )
 
 ini_oraclesettings = dict(conffile.items('OracleSettings'))
