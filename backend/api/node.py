@@ -156,9 +156,10 @@ class NodeContractApi(Api):
             }
         }
 
-        resp = await self._request("POST","/contract/activate", data)
+        resp = await self._post("/contract/activate", data)
 
         self.contract_id = resp.json["unContractInstanceId"]
+        logger.info("Instance activated:  %s", self.contract_id)
 
     @_catch_http_errors
     @_log_call
@@ -213,8 +214,7 @@ class NodeContractApi(Api):
     @_log_call
     async def update(self, rate):
         """Requests the pab to update the NodeFeed"""
-        await self._request(
-            "POST",
+        await self._post(
             self._get_endpoint_path("node-update"),
             rate
         )
@@ -225,7 +225,7 @@ class NodeContractApi(Api):
     @_log_call
     async def aggregate(self):
         """Requests the pab to aggregate the OracleFeed"""
-        await self._request("POST", self._get_endpoint_path("aggregate"), [])
+        await self._post( self._get_endpoint_path("aggregate"), [])
 
     @_require_activated
     @_await_status
@@ -233,8 +233,7 @@ class NodeContractApi(Api):
     @_log_call
     async def update_aggregate(self, rate):
         """Request the pab to perform an update aggregate"""
-        await self._request(
-            "POST",
+        await self._post(
             self._get_endpoint_path("update-aggregate"),
             rate
         )
@@ -245,15 +244,14 @@ class NodeContractApi(Api):
     @_log_call
     async def collect(self):
         """Requests the pab to collect the aquired c3"""
-        await self._request("POST", self._get_endpoint_path("node-collect"), [])
+        await self._post( self._get_endpoint_path("node-collect"), [])
 
     @_require_activated
     @_catch_http_errors
     @_log_call
     async def status(self):
         """Requests the pab for the status of the contract"""
-        resp = await self._request(
-            "GET",
+        resp = await self._get(
             f"/contract/instance/{self.contract_id}/status"
         )
         return resp
@@ -263,8 +261,7 @@ class NodeContractApi(Api):
     @_log_call
     async def stop(self):
         """Stops the contract"""
-        await self._request(
-            "PUT",
+        await self._put(
             f"/contract/instance/{self.contract_id}/stop")
 
 class NotActivated(Exception):

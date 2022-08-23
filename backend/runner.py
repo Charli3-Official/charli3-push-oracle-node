@@ -173,10 +173,11 @@ class FeedUpdater():
         """check total nodes updated after last Aggregation"""
         updated = len(nodes_datum)
         ofeed = oracle_datum.oracle_feed
+        time_ms = time.time_ns()*1e-6
         if ofeed.has_value():
             for dat in nodes_datum:
                 timediff = dat.node_feed.timestamp - ofeed.timestamp
-                delta_update = time.time() - dat.node_feed.timestamp
+                delta_update = time_ms - dat.node_feed.timestamp
                 if not (0 < timediff
                         and delta_update < self.oracle_settings.node_expiry):
                     updated -= 1
