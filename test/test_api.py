@@ -26,7 +26,14 @@ class TestApiMethods(Api):
                 **{"Content-Type": "application/json"})
 
         for i in methods:
-            data = await self._request(i.upper(), f"/{i}", data={"request": i})
+            if i.upper() == "GET":
+                data = await self._get(f"/{i}", data={"request": i})
+            if i.upper() == "POST":
+                data = await self._post(f"/{i}", data={"request": i})
+            if i.upper() == "PUT":
+                data = await self._put(f"/{i}", data={"request": i})
+            if i.upper() == "DELETE":
+                data = await self._delete(f"/{i}", data={"request": i})
             data.json.should.equal({"response": i})
             assert bytes(i, encoding="utf-8") in httpretty.last_request.body
         httpretty.latest_requests.should.have.length_of(4)
