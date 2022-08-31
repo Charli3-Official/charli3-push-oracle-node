@@ -44,3 +44,9 @@ token=
 [rate]
 type=binance
 symbol=ADAUSDT
+
+[logger]
+region_name=your_region_name
+aws_access_key_id=your_aws_access_key_id
+aws_secret_access_key=your_aws_secret_access_key
+firehose_resource=your_bucket

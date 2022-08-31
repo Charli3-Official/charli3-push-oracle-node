@@ -1,0 +1,56 @@
+Updater:
+  update_inter: 600
+  verbosity: INFO
+  awslogger:
+    region_name: us-east-1
+    aws_access_key_id: xxx
+    aws_secret_access_key: xxx
+    delivery_stream_name: xxx
+
+
+OracleSettings:
+  node_pkhs:
+    - xxx
+    - xxx
+  required_nodes: 3500
+  node_expiry: 300000
+  aggregate_time: 720000
+  aggregate_change: 500
+  mad_mult: 20000
+  divergence: 1500
+  percent_resolution: 10000
+
+Oracle:
+  oracle_owner: xxx
+  oracle_curr: xxx
+  fee_asset_currency: xxx
+  fee_asset_name: CHARLI3
+
+NodeContractApi:
+  pkh: xxx
+  wallet_id: xxx
+  api_url: http://localhost:9080/api
+
+ChainQuery:
+  type: blockfrost
+  api_url: xxx
+  token: xxx
+
+Rate:
+  type: binance
+  symbol: ADAUSDT
+  #type: generic
+  #api_url: https://api.kucoin.com
+  #path: /api/v1/prices?currencies=ADA
+  #json_path:
+    #- data
+    #- ADA
+  #key:
+
+PostgresConfig:
+  #host: xxx
+  #port: xxx
+  #user: xxx
+  #password: xxx
+  #database: xxx
+  #notify_channel: test
