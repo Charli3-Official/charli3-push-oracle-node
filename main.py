@@ -31,6 +31,7 @@ ini_oracle = configyaml['Oracle']
 oracle = Oracle(
     ini_oracle['oracle_owner'],
     ini_oracle['oracle_curr'],
+    ini_oracle['oracle_address'],
     (ini_oracle['fee_asset_currency'], ini_oracle['fee_asset_name'])
 )
 

@@ -10,6 +10,7 @@ from .datums import NodeDatum, OracleDatum
 
 logger = logging.getLogger("ChainQuery")
 
+
 class ChainQuery(Api):
     """ Chain Query Abstract Methods """
     async def get_oracle_datum(self, oracle_nft):
@@ -21,6 +22,7 @@ class ChainQuery(Api):
 
 class ChainQueryIndex(ChainQuery):
     """chainQuery PAB Methods"""
+
     def __init__(self, api_url):
         self.api_url = api_url
 
@@ -46,7 +48,7 @@ class ChainQueryIndex(ChainQuery):
         )
         if resp.is_ok:
             utxos = resp.json['page']['pageItems']
-            logger.debug("Utxos: %s",utxos)
+            logger.debug("Utxos: %s", utxos)
             return utxos
         return None
 
@@ -80,7 +82,7 @@ class ChainQueryIndex(ChainQuery):
     async def get_oracle_datum(self, oracle_nft):
         logger.info("Getting oracle datum for %s", oracle_nft[0])
         utxo = await self.get_currency_utxos(oracle_nft)
-        if len(utxo) > 0 :
+        if len(utxo) > 0:
             datum = await self.get_datum(utxo[0])
             if datum != "":
                 return OracleDatum.from_cbor(datum)
@@ -89,7 +91,7 @@ class ChainQueryIndex(ChainQuery):
         logger.info("Getting node datums for %s", node_nft[0])
         result = []
         utxos = await self.get_currency_utxos(node_nft)
-        if len(utxos) > 0 :
+        if len(utxos) > 0:
             for utxo in utxos:
                 node_datum = await self.get_datum(utxo)
                 if node_datum != "":
@@ -101,9 +103,9 @@ class ChainQueryIndex(ChainQuery):
         """Get Tx status"""
 
 
-
 class ChainQueryBlockfrost(ChainQuery):
     """chainQuery methods"""
+
     def __init__(self, token, api_url):
         self.api = BlockFrostApi(
             project_id=token,
@@ -130,7 +132,7 @@ class ChainQueryBlockfrost(ChainQuery):
         """Get Oracle Datum from Oracle utxo"""
         logger.info("Getting oracle datum for %s", oracle_nft[0])
         utxo = self._get_asset_utxo(oracle_nft)
-        if len(utxo) > 0 :
+        if len(utxo) > 0:
             datum = self._get_datum(utxo[0])
             return OracleDatum.from_blockfrost(datum)
 
@@ -147,6 +149,21 @@ class ChainQueryBlockfrost(ChainQuery):
                 result.append(NodeDatum.from_blockfrost(node_datum))
         logger.debug("Found %d nodes", len(result))
         return result
+
+    async def feed_balance(self, aggstate_nft, fee_asset, oracle_address):
+        """ retrieve feed C3 balance """
+        agg_state_nft = self._get_blockfrost_asset(aggstate_nft)
+        fee_asset_currency = self._get_blockfrost_asset(fee_asset)
+
+        feed_balance = sum(float(utxo.quantity) for utxo in ((
+            self.api.address_utxos_asset(address=oracle_address,
+                                         asset=agg_state_nft))[0]).amount
+                           if utxo.unit == fee_asset_currency)
+
+        logger.info("Feed Balance: Funds available on feed %s", feed_balance, extra={
+                    'feed_balance': feed_balance, 'tag': 'C3_feed_balance'})
+        return feed_balance
+
 
 chainQueryTypes = {
     "blockfrost": ChainQueryBlockfrost,
