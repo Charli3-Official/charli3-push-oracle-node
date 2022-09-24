@@ -65,7 +65,10 @@ ini_updater = configyaml['Updater']
 ini_chainquery = configyaml['ChainQuery']
 
 tp = ini_chainquery["type"]
-del ini_chainquery["type"]
+if ini_chainquery["type"] == 'blockfrost':
+    ini_chainquery["oracle_address"] = ini_oracle['oracle_address']
+del ini_chainquery["type"] 
+
 
 chain = chainQueryTypes[tp](**ini_chainquery)
 

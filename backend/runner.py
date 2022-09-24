@@ -47,7 +47,7 @@ class FeedUpdater():
                     self.rate.get_rate(),
                     self.chain.get_nodes_datum(self.node_nft),
                     self.chain.get_oracle_datum(self.oracle_nft),
-                    self.chain.feed_balance(self.aggstate_nft,self.fee_asset,self.oracle_address)
+                    self.chain.get_feed_balance(self.aggstate_nft, self.fee_asset)
                 ]
 
                 data = await asyncio.gather(*data_coro)

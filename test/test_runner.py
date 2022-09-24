@@ -61,7 +61,8 @@ MOCK_RATE_CLASS =  apiTypes['binance'](** {'symbol': 'ADAUSDT'})
 
 MOCK_CHAIN_QUERY = chainQueryTypes['blockfrost'](**{
     'api_url': 'https://cardano-testnet.blockfrost.io/api',
-    'token': 'tokenblockfrost'
+    'token': 'tokenblockfrost',
+    'oracle_address': 'xxxxx'
 })
 
 #@pytest.fixture
