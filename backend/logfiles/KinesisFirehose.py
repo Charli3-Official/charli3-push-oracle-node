@@ -1,34 +1,28 @@
 """Class implementation to push logs to AWS"""
 import logging
-import yaml
 import json
 import boto3
 
-logger = logging.getLogger("aws_log_push")
+logger = logging.getLogger("KinesisFirehose")
 
-with open('config.yml', "r", encoding='UTF-8') as ymlfile:
-    configyaml = yaml.load(ymlfile, Loader=yaml.FullLoader)
-
-botoconfigured = boto3.Session(
-   region_name=configyaml['Updater']['awslogger']['region_name'],
-   aws_access_key_id=configyaml['Updater']['awslogger']['aws_access_key_id'],
-   aws_secret_access_key=configyaml['Updater']['awslogger']['aws_secret_access_key']
-)
-
-class KinesisFirehoseDeliveryStreamHandler(logging.StreamHandler):
+class DeliveryStreamHandler(logging.StreamHandler):
     """Class that handdle log pushing to AWS"""
-    def __init__(self):
+    def __init__(self,configyml):
         # By default, logging.StreamHandler uses sys.stderr if stream parameter is not specified
-        logging.StreamHandler.__init__(self)
+        logging.StreamHandler.__init__(self,configyml)
 
+        self.boto = boto3.Session(
+                region_name=configyml['region_name'],
+                aws_access_key_id=configyml['aws_access_key_id'],
+                aws_secret_access_key=configyml['aws_secret_access_key']
+                )
         self.__firehose = None
         self.__stream_buffer = {}
-        self.__firehose = None
-        self.__delivery_stream_name = configyaml['Updater']['awslogger']['delivery_stream_name']
+        self.__delivery_stream_name = configyml['delivery_stream_name']
 
     def emit(self, record):
         if self.__firehose is None:
-            self.__firehose = botoconfigured.client('firehose')
+            self.__firehose = self.boto.client('firehose')
 
         mmmsg = self.format(record)
 
@@ -44,9 +38,7 @@ class KinesisFirehoseDeliveryStreamHandler(logging.StreamHandler):
         else:
             json_data['severity'] = 'severity'
 
-        msg = self.format(record)
-
-        msg = json.loads(msg)
+        msg = json.loads(self.format(record))
 
         msg['node'] = msg['node'][0]
         msg['feed'] = msg['feed'][0]

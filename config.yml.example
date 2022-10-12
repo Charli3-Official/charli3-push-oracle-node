@@ -1,11 +1,6 @@
 Updater:
   update_inter: 180
   verbosity: INFO
-  awslogger:
-    region_name: us-east-1
-    aws_access_key_id: xxx
-    aws_secret_access_key: xxx
-    delivery_stream_name: xxx
 
 
 OracleSettings:
@@ -59,3 +54,9 @@ PostgresConfig:
   password: postgres
   database: pab
   notify_channel: test
+
+awslogger:
+  region_name: us-east-1
+  aws_access_key_id: xxx
+  aws_secret_access_key: xxx
+  delivery_stream_name: xxx

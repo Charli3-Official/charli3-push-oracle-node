@@ -2,13 +2,11 @@
 import logging
 import asyncio
 import argparse
+from logging import config
 import yaml
-
 from backend.api import NodeContractApi, chainQueryTypes, apiTypes
 from backend.core.oracle import Oracle, OracleSettings
 from backend.runner import FeedUpdater
-
-from logging import config
 
 parser = argparse.ArgumentParser(
     prog='Charli3 Backends for Node Operator',
@@ -67,7 +65,7 @@ ini_chainquery = configyaml['ChainQuery']
 tp = ini_chainquery["type"]
 if ini_chainquery["type"] == 'blockfrost':
     ini_chainquery["oracle_address"] = ini_oracle['oracle_address']
-del ini_chainquery["type"] 
+del ini_chainquery["type"]
 
 
 chain = chainQueryTypes[tp](**ini_chainquery)
@@ -96,7 +94,8 @@ logconfig = {
     "disable_existing_loggers": False,
     "formatters": {
         "standard": {
-            "format": "%(level_color)s[%(name)s:%(levelname)s]%(end_color)s [%(asctime)s] %(message)s",
+            "format":
+                "%(level_color)s[%(name)s:%(levelname)s]%(end_color)s [%(asctime)s] %(message)s",
             "datefmt": "%Y-%m-%dT%H:%M:%S%z",
             "level": getattr(logging, ini_updater["verbosity"], None),
             "level_colors": level_colors
@@ -111,19 +110,23 @@ logconfig = {
         "standard": {
             "class": "logging.StreamHandler",
             "formatter": "standard"
-        },
-        "kinesis": {
-            "class": "kinesisdirehosedeliverystreamhandler.KinesisFirehoseDeliveryStreamHandler",
-            "formatter": "json"
         }
     },
     "loggers": {
         "": {
-            "handlers": ["standard", "kinesis"],
+            "handlers": ["standard"],
             "level": logging.INFO
         }
     }
 }
+
+if 'awslogger' in configyaml:
+    logconfig['handlers']['kinesis'] = {
+        "class": "backend.logfiles.KinesisFirehose.DeliveryStreamHandler",
+        "formatter": "json", "configyml": configyaml['awslogger']
+    }
+    logconfig['loggers']['']['handlers'].append('kinesis')
+
 
 logging.config.dictConfig(logconfig)
 
@@ -132,8 +135,8 @@ old_factory = logging.getLogRecordFactory()
 
 def _record_factory(*args, **kwargs):
     record = old_factory(*args, **kwargs)
-    record.node = ini_oracle['oracle_curr'],
-    record.feed = ini_oracle['fee_asset_currency'],
+    record.node = ini_oracle['oracle_curr']
+    record.feed = ini_oracle['fee_asset_currency']
     record.level_color = level_colors[record.levelno//10]
     record.end_color = "\033[0m"
     return record
