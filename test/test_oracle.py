@@ -11,8 +11,9 @@ class TestOracle():
         """Testing the to_json method"""
         pkh = "PubKeyHash"
         ocurr = "OralcleCurrency"
+        oaddress= "addr_test1wzk0kq5llrne68rusc2zj480xgj3fxsny2kmupha53vegdgz6rzg6"
         charli3 = ("Charli3Currency", "CHARLI3")
-        oracle = Oracle(pkh, ocurr, charli3)
+        oracle = Oracle(pkh, ocurr, oaddress, charli3)
 
         valid_json = {
             "feeToken": {

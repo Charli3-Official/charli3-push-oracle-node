@@ -30,6 +30,9 @@ class FeedUpdater():
         self.chain = chain
         self.node_nft = self.node.oracle.get_node_feed_nft()
         self.oracle_nft = self.node.oracle.get_oracle_feed_nft()
+        self.aggstate_nft = self.node.oracle.get_aggstate_nft()
+        self.fee_asset = self.node.oracle.get_fee_asset()
+        self.oracle_address = self.node.oracle.get_oracle_address()
 
     async def run(self):
         """Checks and if necesary updates and/or aggregates the contract"""
@@ -43,8 +46,10 @@ class FeedUpdater():
                 data_coro = [
                     self.rate.get_rate(),
                     self.chain.get_nodes_datum(self.node_nft),
-                    self.chain.get_oracle_datum(self.oracle_nft)
+                    self.chain.get_oracle_datum(self.oracle_nft),
+                    self.chain.get_feed_balance(self.aggstate_nft, self.fee_asset)
                 ]
+
                 data = await asyncio.gather(*data_coro)
 
                 # Prepare the rate for uploading
@@ -67,6 +72,8 @@ class FeedUpdater():
                     nodes_datum,
                     oracle_datum)
                 req_nodes = self.oracle_settings.required_nodes_num()
+                node_fee = self.oracle_settings.node_fee
+                feed_balance = data[3]
 
                 # Logging times.
                 data_time = time.time()
@@ -80,11 +87,14 @@ class FeedUpdater():
                     str(req_nodes)
                 )
 
+
                 # Update - Aggregate or Update Aggregate
                 called = await self.feed_operate(
                     nodes_updated,
                     req_nodes,
                     new_rate,
+                    feed_balance,
+                    node_fee,
                     own_feed,
                     oracle_datum.oracle_feed
                 )
@@ -111,7 +121,7 @@ class FeedUpdater():
                 "Loop took: %ss",
                 str(timedelta(seconds=time_elapsed))
             )
-            await asyncio.sleep(max(self.update_inter-time_elapsed,0))
+            await asyncio.sleep(max(self.update_inter-time_elapsed, 0))
 
     async def initialize_feed(self):
         """Check that our feed is initialized and do if its not"""
@@ -127,6 +137,16 @@ class FeedUpdater():
     def _calculate_rate(rate):
         return ceil(rate*1000000)
 
+    def check_feed_has_balance(
+        self,
+        feed_balance,
+        node_fee,
+        nodes_updated
+    ) -> bool:
+        """Validates if feed balance is enough in order to pay next update"""
+
+        return node_fee*nodes_updated < feed_balance
+
     def check_rate_change(
             self,
             new_rate: int,
@@ -134,7 +154,7 @@ class FeedUpdater():
         """check rate change condition"""
         res = self.oracle_settings.percent_resolution
         change = abs((new_rate*res)/prev_rate-res)
-        res = change>self.oracle_settings.aggregate_change
+        res = change > self.oracle_settings.aggregate_change
         logger.info(
             "check_rate_change: %s by %s",
             str(res),
@@ -157,7 +177,7 @@ class FeedUpdater():
     def _is_expired(self, last_time, valid_time):
         time_ms = time.time_ns()*1e-6
         timediff = time_ms-last_time
-        res = timediff>valid_time
+        res = timediff > valid_time
         logger.info(
             "%s: %s by %s",
             inspect.stack()[1].function,
@@ -189,24 +209,28 @@ class FeedUpdater():
             pkh: str) -> NodeDatum:
         """get node's last update information."""
         for dat in nodes_datum:
-            if dat.node_operator==pkh:
+            if dat.node_operator == pkh:
                 return dat
         return None
 
     async def feed_operate(self,
-            nodes_updated: int,
-            req_nodes: int,
-            new_rate: int,
-            own_feed: Feed,
-            oracle_feed: Feed):
+                           nodes_updated: int,
+                           req_nodes: int,
+                           new_rate: int,
+                           feed_balance: int,
+                           node_fee: int,
+                           own_feed: Feed,
+                           oracle_feed: Feed):
         """Main logic of the runnner"""
 
         can_aggregate = (not oracle_feed.has_value() or
                           (self.check_rate_change(new_rate, oracle_feed.value)
                            or self.agg_is_expired(oracle_feed.timestamp)))
 
+        get_paid = self.check_feed_has_balance(feed_balance,node_fee,nodes_updated+1)
+
         if (self.check_rate_change(new_rate, own_feed.value)
-            or self.node_is_expired(own_feed.timestamp)):
+                or self.node_is_expired(own_feed.timestamp)) and get_paid :
 
             # Our node is not updated
             if (nodes_updated >= req_nodes-1) and can_aggregate:
@@ -215,7 +239,7 @@ class FeedUpdater():
             else:
                 # More nodes are required before aggregating
                 await self.node.update(new_rate)
-        elif (nodes_updated+1 >= req_nodes) and can_aggregate:
+        elif (nodes_updated+1 >= req_nodes) and can_aggregate and get_paid :
             # Our node is updated
             await self.node.aggregate()
         else:

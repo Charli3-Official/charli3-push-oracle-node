@@ -4,11 +4,13 @@ import json
 from dataclasses import dataclass
 from math import ceil
 
+
 @dataclass
 class Oracle:
     """Oracle data class"""
     oracle_owner: str
     oracle_curr: str
+    oracle_address: str
     fee_asset: tuple[str, str]
 
     def to_json(self):
@@ -21,19 +23,27 @@ class Oracle:
 
     def get_oracle_feed_nft(self):
         """Get the OracleFeed NFT"""
-        return (self.oracle_curr,"OracleFeed")
+        return (self.oracle_curr, "OracleFeed")
 
     def get_aggstate_nft(self):
         """Get the aggstate nft"""
-        return (self.oracle_curr,"AggState")
+        return (self.oracle_curr, "AggState")
 
     def get_node_feed_nft(self):
         """Get the NodeFeed token"""
-        return (self.oracle_curr,"NodeFeed")
+        return (self.oracle_curr, "NodeFeed")
+
+    def get_fee_asset(self):
+        """Get Fee (c3) asset token"""
+        return self.fee_asset
+
+    def get_oracle_address(self):
+        """Get Oracle Address"""
+        return self.oracle_address
 
     def to_dict(self):
         """Generate and cache a dict for the pab"""
-        if not hasattr(self,"_dict"):
+        if not hasattr(self, "_dict"):
             # pylint: disable=attribute-defined-outside-init
             self._dict = {
                 "feeToken": self._asset_class(*self.fee_asset),
@@ -62,6 +72,7 @@ class Oracle:
         }
         return data
 
+
 @dataclass
 class OracleSettings:
     """Data class to store OracleSettings"""
@@ -73,6 +84,7 @@ class OracleSettings:
     mad_mult: int
     divergence: int
     percent_resolution: int
+    node_fee: int
 
     def required_nodes_num(self):
         """Number of nodes required"""

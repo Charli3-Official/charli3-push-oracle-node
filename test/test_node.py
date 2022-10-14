@@ -22,11 +22,13 @@ MOCK_ORACLE_CURR = "OracleCurr"
 MOCK_CHARLI3_TOKEN = ("Charli3Curr", "Charli3Tkn")
 MOCK_TXID = "MockLastTxId"
 MOCK_UPDATE_AMMOUNT = 123
+MOCK_ORACLE_ADDRESS = "address"
 
 # Mock classes
 MOCK_ORACLE = Oracle(
     MOCK_OWNER_PKH,
     MOCK_ORACLE_CURR,
+    MOCK_ORACLE_ADDRESS,
     MOCK_CHARLI3_TOKEN
 )
 

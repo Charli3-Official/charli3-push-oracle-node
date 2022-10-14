@@ -1,5 +1,4 @@
 """Test for backend runner"""
-
 import pytest
 
 from backend.api import NodeContractApi, chainQueryTypes, apiTypes
@@ -32,6 +31,7 @@ class NodeMock(NodeContractApi):
 MOCK_ORACLE = Oracle(
     'ef097309136a1242669c29bf772b32efad68af0405f406e92a2e1ac0',
     'de031116866f1688d288b8eb42d1c321c0a2ecaf4acb05bbf7757c02',
+    'addr_test1wzk0kq5llrne68rusc2zj480xgj3fxsny2kmupha53vegdgz6rzg6',
     ('716e6a0dc6ade9c74eae49bfb3f006e809a131d9e5f201f631f8b7d4', 'CHARLI3')
 )
 MOCK_NODEMOCK = {
@@ -53,14 +53,16 @@ MOCK_ORACLE_SETTINGS = OracleSettings(**{
     'aggregate_change': 500,
     'mad_mult': 20000,
     'divergence': 1500,
-    'percent_resolution': 10000
+    'percent_resolution': 10000,
+    'node_fee': 15000
 })
 
 MOCK_RATE_CLASS =  apiTypes['binance'](** {'symbol': 'ADAUSDT'})
 
 MOCK_CHAIN_QUERY = chainQueryTypes['blockfrost'](**{
     'api_url': 'https://cardano-testnet.blockfrost.io/api',
-    'token': 'tokenblockfrost'
+    'token': 'tokenblockfrost',
+    'oracle_address': 'xxxxx'
 })
 
 #@pytest.fixture
@@ -69,6 +71,8 @@ MOCKED_RUNNER_CASES = [
         'nodes_updated': 0,
         'req_nodes': 3,
         'new_rate': 465210,
+        'feed_balance':1,
+        'node_fee':0,
         'own_feed': Feed(
             value=466087,
             timestamp=1657297865999,
@@ -89,6 +93,8 @@ MOCKED_RUNNER_CASES = [
         'nodes_updated': 2,
         'req_nodes': 3,
         'new_rate': 465210,
+        'feed_balance':1,
+        'node_fee':0,
         'own_feed': Feed(
             value=466087,
             timestamp=1657297865999,
@@ -116,6 +122,7 @@ class TestFeedUpdaterClass():
         await self._feed_operate(MOCKED_RUNNER_CASES[0])
 
     async def test_update_aggregate(self):
+        """Oracle for an update aggregate trigger"""
         await self._feed_operate(MOCKED_RUNNER_CASES[1])
 
     async def _feed_operate(self, case):
@@ -134,6 +141,8 @@ class TestFeedUpdaterClass():
         update_aggregate_calls = case['expected_results']['update_aggregate_calls']
 
         del case['expected_results']
+
+
 
         await feed_updater.feed_operate(**case) # pylint: disable = E1123
 
