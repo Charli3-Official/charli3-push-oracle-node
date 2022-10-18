@@ -135,8 +135,8 @@ old_factory = logging.getLogRecordFactory()
 
 def _record_factory(*args, **kwargs):
     record = old_factory(*args, **kwargs)
-    record.node = ini_oracle['oracle_curr']
-    record.feed = ini_oracle['fee_asset_currency']
+    record.node = ini_nodecontractapi['pkh']
+    record.feed = ini_oracle['oracle_curr']
     record.level_color = level_colors[record.levelno//10]
     record.end_color = "\033[0m"
     return record

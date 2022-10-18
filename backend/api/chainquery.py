@@ -169,8 +169,6 @@ class ChainQueryBlockfrost(ChainQuery):
             address_utxos_asset).amount
             if utxo.unit == fee_asset_currency)
 
-        logger.info("Feed Balance: Funds available on feed %s", feed_balance, extra={
-                    'feed_balance': feed_balance, 'tag': 'C3_feed_balance'})
         return feed_balance
 
 
