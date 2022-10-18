@@ -40,9 +40,6 @@ class DeliveryStreamHandler(logging.StreamHandler):
 
         msg = json.loads(self.format(record))
 
-        msg['node'] = msg['node'][0]
-        msg['feed'] = msg['feed'][0]
-
         if 'end_color' in msg:
             del msg['end_color']
 
