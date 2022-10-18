@@ -58,7 +58,7 @@ class FeedUpdater():
                 # Prepare the rate for uploading
                 new_rate = self._calculate_rate(data[0])
                 # Getting Oracle settings
-                self.oracle_settings.agg_state_datum = (data[4])
+                self.oracle_settings.agg_state_datum = data[4]
                 # Get the current node datum
                 node_own_datum = self.get_node_info(data[1], self.node.pkh)
 
@@ -74,7 +74,7 @@ class FeedUpdater():
                             'expires_on':
                             self.timestamp_to_asc(
                                 self.node_datum.node_feed.timestamp +
-                                self.oracle_settings.node_expiry
+                                self.oracle_settings.agg_state_datum.node_expiry
                             ),
                             'datum_timestamp':self.timestamp_to_asc(
                                 self.node_datum.node_feed.timestamp),
@@ -92,7 +92,8 @@ class FeedUpdater():
                     'datum_timestamp':self.timestamp_to_asc(
                         self.node_datum.node_feed.timestamp),
                     'expires_on':self.timestamp_to_asc(
-                        self.node_datum.node_feed.timestamp + self.oracle_settings.node_expiry)})
+                        self.node_datum.node_feed.timestamp +
+                        self.oracle_settings.agg_state_datum.node_expiry)})
 
                 # Remove all uninitialized nodes
                 nodes_datum = list(filter(
@@ -123,7 +124,7 @@ class FeedUpdater():
                             'feed_value':oracle_datum.oracle_feed.value,
                             'expires_on':self.timestamp_to_asc(
                                 self.oracle_datum.oracle_feed.timestamp
-                                + self.oracle_settings.node_expiry),
+                                + self.oracle_settings.agg_state_datum.node_expiry),
                             'datum_timestamp':self.timestamp_to_asc(
                                 self.oracle_datum.oracle_feed.timestamp),
                             'datum_timestamp_prev':self.timestamp_to_asc(
@@ -140,7 +141,8 @@ class FeedUpdater():
                     'feed_value':oracle_datum.oracle_feed.value,
                     'datum_timestamp':self.timestamp_to_asc(oracle_datum.oracle_feed.timestamp),
                     'expires_on':self.timestamp_to_asc(
-                        oracle_datum.oracle_feed.timestamp + self.oracle_settings.node_expiry)})
+                        oracle_datum.oracle_feed.timestamp +
+                        self.oracle_settings.agg_state_datum.node_expiry)})
 
                 # Logging times.
                 data_time = time.time()
