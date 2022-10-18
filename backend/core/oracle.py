@@ -3,6 +3,7 @@
 import json
 from dataclasses import dataclass
 from math import ceil
+from backend.api.datums import AggStateDatum
 
 
 @dataclass
@@ -76,17 +77,11 @@ class Oracle:
 @dataclass
 class OracleSettings:
     """Data class to store OracleSettings"""
-    node_pkhs: list[str]
-    required_nodes: int
-    node_expiry: int
-    aggregate_time: int
-    aggregate_change: float
-    mad_mult: int
-    divergence: int
     percent_resolution: int
-    node_fee: int
+    agg_state_datum: AggStateDatum
+    agg_state_datum_hash: str
 
     def required_nodes_num(self):
         """Number of nodes required"""
-        n_nodes = len(self.node_pkhs)
-        return ceil(self.required_nodes*n_nodes/self.percent_resolution)
+        n_nodes = len(self.agg_state_datum.node_pkhs)
+        return ceil(self.agg_state_datum.required_nodes*n_nodes/self.percent_resolution)

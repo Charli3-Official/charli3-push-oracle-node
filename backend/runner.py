@@ -49,13 +49,16 @@ class FeedUpdater():
                     self.rate.get_rate(),
                     self.chain.get_nodes_datum(self.node_nft),
                     self.chain.get_oracle_datum(self.oracle_nft),
-                    self.chain.get_feed_balance(self.aggstate_nft, self.fee_asset)
+                    self.chain.get_feed_balance(self.aggstate_nft, self.fee_asset),
+                    self.chain.get_aggstate_datum(self.aggstate_nft,self.oracle_settings)
                 ]
 
                 data = await asyncio.gather(*data_coro)
 
                 # Prepare the rate for uploading
                 new_rate = self._calculate_rate(data[0])
+                # Getting Oracle settings
+                self.oracle_settings.agg_state_datum = (data[4])
                 # Get the current node datum
                 node_own_datum = self.get_node_info(data[1], self.node.pkh)
 
@@ -107,7 +110,7 @@ class FeedUpdater():
                     nodes_datum,
                     oracle_datum)
                 req_nodes = self.oracle_settings.required_nodes_num()
-                node_fee = self.oracle_settings.node_fee
+                node_fee = self.oracle_settings.agg_state_datum.node_fee
                 feed_balance = data[3]
 
                 if self.oracle_datum:
@@ -194,6 +197,9 @@ class FeedUpdater():
     async def initialize_feed(self):
         """Check that our feed is initialized and do if its not"""
         logger.info("Initializing feed")
+        self.oracle_settings.agg_state_datum = await (
+                    self.chain.get_aggstate_datum(self.aggstate_nft,
+                        self.oracle_settings))
         datums = await self.chain.get_nodes_datum(self.node_nft)
         own_datum = self.get_node_info(datums, self.node.pkh)
         if not own_datum.node_feed.has_value():
@@ -226,7 +232,7 @@ class FeedUpdater():
         """check rate change condition"""
         res = self.oracle_settings.percent_resolution
         change = abs((new_rate*res)/prev_rate-res)
-        res = change > self.oracle_settings.aggregate_change
+        res = change > self.oracle_settings.agg_state_datum.aggregate_change
         logger.info(
             "check_rate_change: %s by %s",
             str(res),
@@ -238,13 +244,13 @@ class FeedUpdater():
             self,
             last_time: int) -> bool:
         """check time change condition for the node"""
-        return self._is_expired(last_time, self.oracle_settings.node_expiry)
+        return self._is_expired(last_time, self.oracle_settings.agg_state_datum.node_expiry)
 
     def agg_is_expired(
             self,
             last_time: int) -> bool:
         """check time change condition for the aggregation"""
-        return self._is_expired(last_time, self.oracle_settings.aggregate_time)
+        return self._is_expired(last_time, self.oracle_settings.agg_state_datum.aggregate_time)
 
     def _is_expired(self, last_time, valid_time):
         time_ms = time.time_ns()*1e-6
@@ -275,7 +281,7 @@ class FeedUpdater():
                 timediff = dat.node_feed.timestamp - ofeed.timestamp
                 delta_update = time_ms - dat.node_feed.timestamp
                 if not (0 < timediff
-                        and delta_update < self.oracle_settings.node_expiry):
+                        and delta_update < self.oracle_settings.agg_state_datum.node_expiry):
                     updated -= 1
         return updated
 

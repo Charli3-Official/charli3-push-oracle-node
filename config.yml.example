@@ -4,20 +4,22 @@ Updater:
 
 
 OracleSettings:
-  node_pkhs:
-    - 253aaa40bc3dee48fa41d50fb451ccf044916dc054f3041868a6ecfe
-    - f3fd66efbe0f22a66e815112c26b492edb27bda2dcd16da81832dce0
-    - 1e5d17616b1a98b8314412c980ae1feaa95b1e441ffc350b756ef8c5
-    - 3a1314fa60a312d41eaf203378a6a92b5fca5c6649580e0c3e4fa707
-    - b2ff7b709174bfc6c65b7be977b8d7320c03f0eaa8e2f5305d1b9aad
-  required_nodes: 6000
-  node_expiry: 600000
-  aggregate_time: 600000
-  aggregate_change: 500
-  mad_mult: 20000
-  divergence: 1500
   percent_resolution: 10000
-  node_fee: 1500000
+  agg_state_datum_hash: ''
+  agg_state_datum:
+    node_pkhs:
+      - 253aaa40bc3dee48fa41d50fb451ccf044916dc054f3041868a6ecfe
+      - f3fd66efbe0f22a66e815112c26b492edb27bda2dcd16da81832dce0
+      - 1e5d17616b1a98b8314412c980ae1feaa95b1e441ffc350b756ef8c5
+      - 3a1314fa60a312d41eaf203378a6a92b5fca5c6649580e0c3e4fa707
+      - b2ff7b709174bfc6c65b7be977b8d7320c03f0eaa8e2f5305d1b9aad
+    required_nodes: 6000
+    node_expiry: 600000
+    aggregate_time: 600000
+    aggregate_change: 500
+    mad_mult: 20000
+    divergence: 1500
+    node_fee: 1500000
 
 Oracle:
   oracle_owner: ef097309136a1242669c29bf772b32efad68af0405f406e92a2e1ac0
