@@ -2,7 +2,7 @@
 import pytest
 
 from backend.api import NodeContractApi, chainQueryTypes, apiTypes
-from backend.api.datums import Feed
+from backend.api.datums import Feed, AggStateDatum
 from backend.core.oracle import Oracle, OracleSettings
 from backend.runner import FeedUpdater
 
@@ -40,7 +40,9 @@ MOCK_NODEMOCK = {
     'api_url': 'http://localhost:9080/api'
 }
 
-MOCK_ORACLE_SETTINGS = OracleSettings(**{
+MOCK_ORACLE_SETTINGS = OracleSettings(
+    percent_resolution= 10000,
+    agg_state_datum=AggStateDatum(**{
     'node_pkhs': [
         'node1',
         'node2',
@@ -53,9 +55,11 @@ MOCK_ORACLE_SETTINGS = OracleSettings(**{
     'aggregate_change': 500,
     'mad_mult': 20000,
     'divergence': 1500,
-    'percent_resolution': 10000,
     'node_fee': 15000
-})
+    }),
+    agg_state_datum_hash= ''
+
+)
 
 MOCK_RATE_CLASS =  apiTypes['binance'](** {'symbol': 'ADAUSDT'})
 

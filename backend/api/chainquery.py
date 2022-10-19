@@ -6,7 +6,7 @@ from base64 import b16encode
 from blockfrost import BlockFrostApi
 
 from .api import Api
-from .datums import NodeDatum, OracleDatum
+from .datums import NodeDatum, OracleDatum, AggStateDatum
 
 logger = logging.getLogger("ChainQuery")
 
@@ -21,6 +21,9 @@ class ChainQuery(Api):
 
     async def get_feed_balance(self, aggstate_nft, fee_asset):
         """ retrieve feed C3 balance """
+
+    async def get_aggstate_datum_with_hash(self, aggstate_nft, oracle_settings):
+        """ retrieves datum for agg state """
 
 
 class ChainQueryIndex(ChainQuery):
@@ -129,9 +132,27 @@ class ChainQueryBlockfrost(ChainQuery):
         ).lower()
 
     def _get_asset_utxo(self, asset):
+        """ retrieves asset UTXO """
 
         asset = self._get_blockfrost_asset(asset)
         return self.api.address_utxos_asset(self.oracle_address, asset)
+
+    async def get_aggstate_datum_with_hash(self, aggstate_nft, oracle_settings):
+        """ retrieves datum for agg state """
+
+        logger.info("Getting aggstate datum for %s", aggstate_nft[0])
+        # Validates Oracle Settings
+        current_agg_state_utxo = self._get_asset_utxo(aggstate_nft)[0]
+
+        if oracle_settings.agg_state_datum is None or (oracle_settings.agg_state_datum_hash !=
+                                                       current_agg_state_utxo.data_hash):
+            agg_state_datum_hash = current_agg_state_utxo.data_hash
+            agg_state = AggStateDatum.from_blockfrost(self._get_datum(current_agg_state_utxo))
+        else:
+            agg_state_datum_hash = oracle_settings.agg_state_datum_hash
+            agg_state = oracle_settings.agg_state_datum
+
+        return (agg_state_datum_hash ,agg_state)
 
     async def get_oracle_datum(self, oracle_nft):
 
@@ -169,8 +190,6 @@ class ChainQueryBlockfrost(ChainQuery):
             address_utxos_asset).amount
             if utxo.unit == fee_asset_currency)
 
-        logger.info("Feed Balance: Funds available on feed %s", feed_balance, extra={
-                    'feed_balance': feed_balance, 'tag': 'C3_feed_balance'})
         return feed_balance
 
 

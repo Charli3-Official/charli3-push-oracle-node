@@ -1,5 +1,5 @@
 """Main updater class"""
-from datetime import timedelta
+from datetime import timedelta, datetime
 import time
 import asyncio
 import logging
@@ -33,6 +33,8 @@ class FeedUpdater():
         self.aggstate_nft = self.node.oracle.get_aggstate_nft()
         self.fee_asset = self.node.oracle.get_fee_asset()
         self.oracle_address = self.node.oracle.get_oracle_address()
+        self.node_datum = None
+        self.oracle_datum = None
 
     async def run(self):
         """Checks and if necesary updates and/or aggregates the contract"""
@@ -47,15 +49,52 @@ class FeedUpdater():
                     self.rate.get_rate(),
                     self.chain.get_nodes_datum(self.node_nft),
                     self.chain.get_oracle_datum(self.oracle_nft),
-                    self.chain.get_feed_balance(self.aggstate_nft, self.fee_asset)
+                    self.chain.get_feed_balance(self.aggstate_nft, self.fee_asset),
+                    self.chain.get_aggstate_datum_with_hash(self.aggstate_nft,self.oracle_settings)
                 ]
 
                 data = await asyncio.gather(*data_coro)
 
                 # Prepare the rate for uploading
                 new_rate = self._calculate_rate(data[0])
+                # Getting Oracle settings
+                self.oracle_settings.agg_state_datum_hash, self.oracle_settings.agg_state_datum = data[4]
                 # Get the current node datum
                 node_own_datum = self.get_node_info(data[1], self.node.pkh)
+
+                #Logs own datum information
+                if self.node_datum:
+                    if self.node_datum.node_feed.timestamp < node_own_datum.node_feed.timestamp:
+                        previous = self.node_datum
+                        self.node_datum = node_own_datum
+                        logger.info('Updating Feed Runner Own Datum',
+                            extra={'tag':'node_own_datum',
+                            'context':'datum_update',
+                            'feed_value':node_own_datum.node_feed.value,
+                            'expires_on':
+                            self.timestamp_to_asc(
+                                self.node_datum.node_feed.timestamp +
+                                self.oracle_settings.agg_state_datum.node_expiry
+                            ),
+                            'datum_timestamp':self.timestamp_to_asc(
+                                self.node_datum.node_feed.timestamp),
+                            'datum_timestamp_prev':self.timestamp_to_asc(
+                                self.node_datum.node_feed.timestamp),
+                            'feed_value_prev':previous.node_feed.value,
+                            'datum_delta':self.node_datum.node_feed.timestamp
+                            - previous.node_feed.timestamp
+                            })
+                else:
+                    self.node_datum = node_own_datum
+                    logger.info('Updating Feed Runner Own Datum',extra={'tag':'node_own_datum',
+                    'context':'runner init',
+                    'feed_value':self.node_datum.node_feed.value,
+                    'datum_timestamp':self.timestamp_to_asc(
+                        self.node_datum.node_feed.timestamp),
+                    'expires_on':self.timestamp_to_asc(
+                        self.node_datum.node_feed.timestamp +
+                        self.oracle_settings.agg_state_datum.node_expiry)})
+
                 # Remove all uninitialized nodes
                 nodes_datum = list(filter(
                     lambda x: x.node_feed.has_value(),
@@ -72,21 +111,54 @@ class FeedUpdater():
                     nodes_datum,
                     oracle_datum)
                 req_nodes = self.oracle_settings.required_nodes_num()
-                node_fee = self.oracle_settings.node_fee
+                node_fee = self.oracle_settings.agg_state_datum.node_fee
                 feed_balance = data[3]
+
+                if self.oracle_datum:
+                    if self.oracle_datum.oracle_feed.timestamp < oracle_datum.oracle_feed.timestamp:
+                        previous = self.oracle_datum
+                        self.oracle_datum = oracle_datum
+                        logger.info('Updating Feed Runner Oracle Datum',
+                        extra={'tag':'oracle_datum',
+                            'context':'datum_update',
+                            'feed_value':oracle_datum.oracle_feed.value,
+                            'expires_on':self.timestamp_to_asc(
+                                self.oracle_datum.oracle_feed.timestamp
+                                + self.oracle_settings.agg_state_datum.node_expiry),
+                            'datum_timestamp':self.timestamp_to_asc(
+                                self.oracle_datum.oracle_feed.timestamp),
+                            'datum_timestamp_prev':self.timestamp_to_asc(
+                                previous.oracle_feed.timestamp),
+                            'feed_value_prev': previous.oracle_feed.value,
+                            'datum_delta':self.oracle_datum.oracle_feed.timestamp
+                                - previous.oracle_feed.timestamp
+                            })
+
+                else:
+                    self.oracle_datum = oracle_datum
+                    logger.info('Updating Feed Runner Oracle Datum',extra={'tag':'oracle_datum',
+                    'context':'runner init',
+                    'feed_value':oracle_datum.oracle_feed.value,
+                    'datum_timestamp':self.timestamp_to_asc(oracle_datum.oracle_feed.timestamp),
+                    'expires_on':self.timestamp_to_asc(
+                        oracle_datum.oracle_feed.timestamp +
+                        self.oracle_settings.agg_state_datum.node_expiry)})
 
                 # Logging times.
                 data_time = time.time()
                 logger.info(
                     "Data gathering took: %s",
-                    str(timedelta(seconds=data_time-start_time))
+                    str(timedelta(seconds=data_time-start_time)),
+                    extra={
+                    'tag': 'data_gathering','timedelta':timedelta(seconds=data_time-start_time)}
                 )
                 logger.info(
                     "Nodes updated: %s from %s",
                     str(nodes_updated),
-                    str(req_nodes)
+                    str(req_nodes),
+                    extra={
+                    'tag': 'nodes_updated','nodes_updated':nodes_updated,'req_nodes':req_nodes}
                 )
-
 
                 # Update - Aggregate or Update Aggregate
                 called = await self.feed_operate(
@@ -103,7 +175,8 @@ class FeedUpdater():
                 if called:
                     logger.info(
                         "Operation took: %ss",
-                        str(timedelta(seconds=time.time()-data_time))
+                        str(timedelta(seconds=time.time()-data_time)),
+                        extra={'operation_time':time.time()-data_time}
                     )
 
             except (UnsuccessfulResponse) as exc:
@@ -126,6 +199,9 @@ class FeedUpdater():
     async def initialize_feed(self):
         """Check that our feed is initialized and do if its not"""
         logger.info("Initializing feed")
+        self.oracle_settings.agg_state_datum_hash, self.oracle_settings.agg_state_datum = await (
+                    self.chain.get_aggstate_datum_with_hash(self.aggstate_nft,
+                        self.oracle_settings))
         datums = await self.chain.get_nodes_datum(self.node_nft)
         own_datum = self.get_node_info(datums, self.node.pkh)
         if not own_datum.node_feed.has_value():
@@ -144,6 +220,10 @@ class FeedUpdater():
         nodes_updated
     ) -> bool:
         """Validates if feed balance is enough in order to pay next update"""
+        logger.info("Feed Balance: Funds available on feed %s", feed_balance, extra={
+                    'tag': 'feed_balance','feed_balance': feed_balance,
+                    'node_fee':node_fee, 'node_fee*nodes_updated':node_fee*nodes_updated,
+                    'feed_balance_available':feed_balance-node_fee*nodes_updated})
 
         return node_fee*nodes_updated < feed_balance
 
@@ -154,7 +234,7 @@ class FeedUpdater():
         """check rate change condition"""
         res = self.oracle_settings.percent_resolution
         change = abs((new_rate*res)/prev_rate-res)
-        res = change > self.oracle_settings.aggregate_change
+        res = change > self.oracle_settings.agg_state_datum.aggregate_change
         logger.info(
             "check_rate_change: %s by %s",
             str(res),
@@ -166,13 +246,13 @@ class FeedUpdater():
             self,
             last_time: int) -> bool:
         """check time change condition for the node"""
-        return self._is_expired(last_time, self.oracle_settings.node_expiry)
+        return self._is_expired(last_time, self.oracle_settings.agg_state_datum.node_expiry)
 
     def agg_is_expired(
             self,
             last_time: int) -> bool:
         """check time change condition for the aggregation"""
-        return self._is_expired(last_time, self.oracle_settings.aggregate_time)
+        return self._is_expired(last_time, self.oracle_settings.agg_state_datum.aggregate_time)
 
     def _is_expired(self, last_time, valid_time):
         time_ms = time.time_ns()*1e-6
@@ -185,6 +265,10 @@ class FeedUpdater():
             str(timediff)
         )
         return res
+
+    def timestamp_to_asc(self, timest):
+        """transform timestamp on logger readeable format"""
+        return str(datetime.utcfromtimestamp(timest/1000).strftime('%Y-%m-%dT%H:%M:%S%z'))
 
     def total_nodes_updated(
             self,
@@ -199,7 +283,7 @@ class FeedUpdater():
                 timediff = dat.node_feed.timestamp - ofeed.timestamp
                 delta_update = time_ms - dat.node_feed.timestamp
                 if not (0 < timediff
-                        and delta_update < self.oracle_settings.node_expiry):
+                        and delta_update < self.oracle_settings.agg_state_datum.node_expiry):
                     updated -= 1
         return updated
 

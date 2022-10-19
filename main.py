@@ -4,6 +4,7 @@ import asyncio
 import argparse
 from logging import config
 import yaml
+from backend.api.datums import AggStateDatum
 from backend.api import NodeContractApi, chainQueryTypes, apiTypes
 from backend.core.oracle import Oracle, OracleSettings
 from backend.runner import FeedUpdater
@@ -45,12 +46,19 @@ node = NodeContractApi(
 )
 
 ini_oraclesettings = configyaml['OracleSettings']
-for key, value in ini_oraclesettings.items():
-    try:
-        if key != 'node_pkhs':
-            ini_oraclesettings[key] = int(value)
-    except ValueError:
-        ini_oraclesettings[key] = value
+if 'agg_state_datum' in ini_oraclesettings and (ini_oraclesettings['agg_state_datum']):
+    for key, value in ini_oraclesettings['agg_state_datum'].items():
+        try:
+            if key != 'node_pkhs':
+                ini_oraclesettings['agg_state_datum'][key] = int(value)
+        except ValueError:
+            ini_oraclesettings['agg_state_datum'][key] = value
+    ini_oraclesettings['agg_state_datum'] = AggStateDatum(**ini_oraclesettings['agg_state_datum'])
+else:
+    ini_oraclesettings['agg_state_datum'] = None
+
+if 'agg_state_datum_hash' not in ini_oraclesettings:
+    ini_oraclesettings['agg_state_datum_hash'] = None
 
 sett = OracleSettings(**ini_oraclesettings)
 
@@ -135,8 +143,8 @@ old_factory = logging.getLogRecordFactory()
 
 def _record_factory(*args, **kwargs):
     record = old_factory(*args, **kwargs)
-    record.node = ini_oracle['oracle_curr']
-    record.feed = ini_oracle['fee_asset_currency']
+    record.node = ini_nodecontractapi['pkh']
+    record.feed = ini_oracle['oracle_curr']
     record.level_color = level_colors[record.levelno//10]
     record.end_color = "\033[0m"
     return record

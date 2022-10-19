@@ -110,3 +110,31 @@ class NodeDatum():
         )
 
         return cls(node_operator, node_feed)
+
+@dataclass
+class AggStateDatum():
+    """ Retrieves from blockchain feed + oracle parameters for runer """
+    node_pkhs: list[bytes]
+    required_nodes: int
+    node_expiry: int
+    aggregate_time: int
+    aggregate_change: int
+    node_fee: int
+    mad_mult: int
+    divergence: int
+
+    @classmethod
+    def from_blockfrost(cls, data):
+        """ Parses blockfrost response into datums """
+        agg_state = data
+        node_pkhs= agg_state.fields[0].fields[0].fields[0].list
+        required_nodes= agg_state.fields[0].fields[0].fields[1].int
+        node_expiry= agg_state.fields[0].fields[0].fields[2].int
+        aggregate_time= agg_state.fields[0].fields[0].fields[3].int
+        aggregate_change= agg_state.fields[0].fields[0].fields[4].int
+        node_fee= agg_state.fields[0].fields[0].fields[5].fields[0].int
+        mad_mult= agg_state.fields[0].fields[0].fields[6].int
+        divergence= agg_state.fields[0].fields[0].fields[7].int
+
+        return cls(node_pkhs,required_nodes, node_expiry, aggregate_time,
+            aggregate_change, node_fee, mad_mult, divergence)
