@@ -50,7 +50,7 @@ class FeedUpdater():
                     self.chain.get_nodes_datum(self.node_nft),
                     self.chain.get_oracle_datum(self.oracle_nft),
                     self.chain.get_feed_balance(self.aggstate_nft, self.fee_asset),
-                    self.chain.get_aggstate_datum(self.aggstate_nft,self.oracle_settings)
+                    self.chain.get_aggstate_datum_with_hash(self.aggstate_nft,self.oracle_settings)
                 ]
 
                 data = await asyncio.gather(*data_coro)
@@ -58,7 +58,7 @@ class FeedUpdater():
                 # Prepare the rate for uploading
                 new_rate = self._calculate_rate(data[0])
                 # Getting Oracle settings
-                self.oracle_settings.agg_state_datum = data[4]
+                self.oracle_settings.agg_state_datum_hash, self.oracle_settings.agg_state_datum = data[4]
                 # Get the current node datum
                 node_own_datum = self.get_node_info(data[1], self.node.pkh)
 
@@ -199,8 +199,8 @@ class FeedUpdater():
     async def initialize_feed(self):
         """Check that our feed is initialized and do if its not"""
         logger.info("Initializing feed")
-        self.oracle_settings.agg_state_datum = await (
-                    self.chain.get_aggstate_datum(self.aggstate_nft,
+        self.oracle_settings.agg_state_datum_hash, self.oracle_settings.agg_state_datum = await (
+                    self.chain.get_aggstate_datum_with_hash(self.aggstate_nft,
                         self.oracle_settings))
         datums = await self.chain.get_nodes_datum(self.node_nft)
         own_datum = self.get_node_info(datums, self.node.pkh)
