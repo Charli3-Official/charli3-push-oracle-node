@@ -1,0 +1,10 @@
+cbor==1.0.0
+certifi==2022.5.18.1
+charset-normalizer==2.0.12
+httpretty==1.0.5
+idna==3.3
+mock==4.0.3
+requests==2.27.1
+six==1.16.0
+sure==2.0.0
+urllib3==1.26.9
