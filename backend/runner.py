@@ -6,7 +6,7 @@ import logging
 import inspect
 from math import ceil
 
-from .api import NodeContractApi, CoinRate, ChainQuery
+from .api import NodeContractApi, AggregatedCoinRate, ChainQuery
 from .api.api import UnsuccessfulResponse
 from .api.datums import Feed, NodeDatum, OracleDatum
 from .api.node import FailedOperation, PABTimeout
@@ -21,7 +21,7 @@ class FeedUpdater():
                  update_inter: int,
                  oracle_settings: OracleSettings,
                  node: NodeContractApi,
-                 rate: CoinRate,
+                 rate: AggregatedCoinRate,
                  chain: ChainQuery):
         self.update_inter = update_inter
         self.oracle_settings = oracle_settings
@@ -46,7 +46,7 @@ class FeedUpdater():
             try:
                 # Run all of the requests simultaneously
                 data_coro = [
-                    self.rate.get_rate(),
+                    self.rate.get_aggregated_rate(),
                     self.chain.get_nodes_datum(self.node_nft),
                     self.chain.get_oracle_datum(self.oracle_nft),
                     self.chain.get_feed_balance(self.aggstate_nft, self.fee_asset),
@@ -178,7 +178,7 @@ class FeedUpdater():
                         str(timedelta(seconds=time.time()-data_time)),
                         extra={'operation_time':time.time()-data_time}
                     )
-
+            
             except (UnsuccessfulResponse) as exc:
                 logger.error(repr(exc))
 

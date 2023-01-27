@@ -5,7 +5,7 @@ import argparse
 from logging import config
 import yaml
 from backend.api.datums import AggStateDatum
-from backend.api import NodeContractApi, chainQueryTypes, apiTypes
+from backend.api import NodeContractApi, chainQueryTypes, AggregatedCoinRate
 from backend.core.oracle import Oracle, OracleSettings
 from backend.runner import FeedUpdater
 
@@ -62,10 +62,13 @@ if 'agg_state_datum_hash' not in ini_oraclesettings:
 
 sett = OracleSettings(**ini_oraclesettings)
 
-ini_rate = configyaml['Rate']
-rrate_tp = ini_rate['type']
-del ini_rate['type']
-rateclass = apiTypes[rrate_tp](**ini_rate)
+rateclass = AggregatedCoinRate()
+
+for provider in configyaml['Rate']:
+    feed_type = configyaml['Rate'][provider]['type']
+    del configyaml['Rate'][provider]['type']
+
+    rateclass.add_data_provider(feed_type,provider,configyaml['Rate'][provider])
 
 ini_updater = configyaml['Updater']
 ini_chainquery = configyaml['ChainQuery']

@@ -1,7 +1,7 @@
 """Test for backend runner"""
 import pytest
 
-from backend.api import NodeContractApi, chainQueryTypes, apiTypes
+from backend.api import NodeContractApi, chainQueryTypes, AggregatedCoinRate
 from backend.api.datums import Feed, AggStateDatum
 from backend.core.oracle import Oracle, OracleSettings
 from backend.runner import FeedUpdater
@@ -61,7 +61,9 @@ MOCK_ORACLE_SETTINGS = OracleSettings(
 
 )
 
-MOCK_RATE_CLASS =  apiTypes['binance'](** {'symbol': 'ADAUSDT'})
+MOCK_RATE_CLASS =  AggregatedCoinRate()
+MOCK_RATE_CLASS.add_data_provider('generic','kraken', {"symbol": "ADAUSD", "api_url": "https://api.kraken.com", "path": "/0/public/Ticker?pair=", "json_path": ["result", "ADAUSD", "o"], "key": {}})
+MOCK_RATE_CLASS.add_data_provider('generic','kucoin', {"symbol": "BTC-USDT", "api_url": "https://openapi-sandbox.kucoin.com", "path": "/api/v1/market/orderbook/level1?symbol=", "json_path": ["data", "price"], "key": {}})
 
 MOCK_CHAIN_QUERY = chainQueryTypes['blockfrost'](**{
     'api_url': 'https://cardano-testnet.blockfrost.io/api',
