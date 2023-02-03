@@ -2,153 +2,134 @@
 import logging
 import asyncio
 import argparse
-from logging import config
+from logging.config import dictConfig
 import yaml
-from backend.api.datums import AggStateDatum
-from backend.api import NodeContractApi, chainQueryTypes, AggregatedCoinRate
-from backend.core.oracle import Oracle, OracleSettings
+from pycardano import (
+    Network,
+    Address,
+    PaymentVerificationKey,
+    PaymentSigningKey,
+    ExtendedSigningKey,
+    ScriptHash,
+    AssetName,
+    MultiAsset,
+    HDWallet,
+)
+from backend.api import Node, ChainQuery, AggregatedCoinRate
 from backend.runner import FeedUpdater
+from backend.logfiles.logging_config import get_log_config, LEVEL_COLORS
 
+
+# Loads configuration file
 parser = argparse.ArgumentParser(
-    prog='Charli3 Backends for Node Operator',
-    description='Charli3 Backends for Node Opetor.'
+    prog="Charli3 Backends for Node Operator",
+    description="Charli3 Backends for Node Opetor.",
 )
 
 parser.add_argument(
-    '-c', '--configfile',
-    help='Specify a file to override default configuration',
-    default="config.yml"
+    "-c",
+    "--configfile",
+    help="Specify a file to override default configuration",
+    default="config.yml",
 )
 
 arguments = parser.parse_args()
 
-with open(arguments.configfile, "r", encoding='UTF-8') as ymlfile:
+with open(arguments.configfile, "r", encoding="UTF-8") as ymlfile:
     configyaml = yaml.load(ymlfile, Loader=yaml.FullLoader)
 
-ini_oracle = configyaml['Oracle']
+ini_updater = configyaml["Updater"]
+ini_node = configyaml["Node"]
+ini_chainquery = configyaml["ChainQuery"]
 
-oracle = Oracle(
-    ini_oracle['oracle_owner'],
-    ini_oracle['oracle_curr'],
-    ini_oracle['oracle_address'],
-    (ini_oracle['fee_asset_currency'], ini_oracle['fee_asset_name'])
-)
+# Generates instances of classes from configuration file
 
-ini_nodecontractapi = configyaml['NodeContractApi']
+if ini_node:
+    if ini_chainquery["network"] == "TESTNET":
+        network = Network.TESTNET
+    elif ini_chainquery["network"] == "MAINNET":
+        network = Network.MAINNET
 
-PGCONF = None
-if "PostgresConfig" in configyaml:
-    PGCONF = configyaml['PostgresConfig']
-node = NodeContractApi(
-    oracle,
-    **ini_nodecontractapi,
-    pgconfig=PGCONF
-)
+    context = ChainQuery(
+        ini_chainquery["project_id"],
+        network,
+        ini_chainquery["base_url"],
+        ini_node["oracle_addr"],
+    )
 
-ini_oraclesettings = configyaml['OracleSettings']
-if 'agg_state_datum' in ini_oraclesettings and (ini_oraclesettings['agg_state_datum']):
-    for key, value in ini_oraclesettings['agg_state_datum'].items():
-        try:
-            if key != 'node_pkhs':
-                ini_oraclesettings['agg_state_datum'][key] = int(value)
-        except ValueError:
-            ini_oraclesettings['agg_state_datum'][key] = value
-    ini_oraclesettings['agg_state_datum'] = AggStateDatum(**ini_oraclesettings['agg_state_datum'])
-else:
-    ini_oraclesettings['agg_state_datum'] = None
+    oracle_nft_hash = ScriptHash.from_primitive(ini_node["oracle_curr"])
 
-if 'agg_state_datum_hash' not in ini_oraclesettings:
-    ini_oraclesettings['agg_state_datum_hash'] = None
+    node_nft = MultiAsset.from_primitive(
+        {oracle_nft_hash.payload: {bytes(ini_node["node_nft"], "utf-8"): 1}}
+    )
+    oracle_nft = MultiAsset.from_primitive(
+        {oracle_nft_hash.payload: {bytes(ini_node["oracle_nft"], "utf-8"): 1}}
+    )
+    aggstate_nft = MultiAsset.from_primitive(
+        {oracle_nft_hash.payload: {bytes(ini_node["aggstate_nft"], "utf-8"): 1}}
+    )
 
-sett = OracleSettings(**ini_oraclesettings)
+    if 'mnemonic' in ini_node and ini_node["mnemonic"]:
+        hdwallet = HDWallet.from_mnemonic(ini_node["mnemonic"])
+        hdwallet_spend = hdwallet.derive_from_path("m/1852'/1815'/0'/0/0")
+        spend_public_key = hdwallet_spend.public_key
+        node_vk = PaymentVerificationKey.from_primitive(spend_public_key)
+        node_sk = ExtendedSigningKey.from_hdwallet(hdwallet_spend)
+
+    elif ini_node["signing_key"] and ini_node["verification_key"]:
+        node_sk = PaymentSigningKey.load(ini_node["signing_key"])
+        node_vk = PaymentVerificationKey.load(ini_node["verification_key"])
+
+    node = Node(
+        network,
+        context,
+        node_sk,
+        node_vk,
+        node_nft,
+        aggstate_nft,
+        oracle_nft,
+        Address.from_primitive(ini_node["oracle_addr"]),
+        ScriptHash.from_primitive(ini_node["c3_token_hash"]),
+        AssetName(bytes(ini_node["c3_token_name"], "utf-8")),
+    )
 
 rateclass = AggregatedCoinRate()
 
-for provider in configyaml['Rate']:
-    feed_type = configyaml['Rate'][provider]['type']
-    del configyaml['Rate'][provider]['type']
+for provider in configyaml["Rate"]:
+    feed_type = configyaml["Rate"][provider]["type"]
+    del configyaml["Rate"][provider]["type"]
 
-    rateclass.add_data_provider(feed_type,provider,configyaml['Rate'][provider])
-
-ini_updater = configyaml['Updater']
-ini_chainquery = configyaml['ChainQuery']
-
-tp = ini_chainquery["type"]
-if ini_chainquery["type"] == 'blockfrost':
-    ini_chainquery["oracle_address"] = ini_oracle['oracle_address']
-del ini_chainquery["type"]
-
-
-chain = chainQueryTypes[tp](**ini_chainquery)
+    rateclass.add_data_provider(feed_type, provider, configyaml["Rate"][provider])
 
 updater = FeedUpdater(
-    int(ini_updater['update_inter']),
-    sett,
+    int(ini_updater["update_inter"]),
+    int(ini_updater["percent_resolution"]),
     node,
     rateclass,
-    chain
+    context,
 )
 
-numeric_level = getattr(logging, ini_updater["verbosity"], None)
+logconfig = get_log_config(ini_updater)
 
-level_colors = [
-    "\033[0m",  # No Set
-    "\033[36m",  # Debug
-    "\033[34m",  # Info
-    "\033[33m",  # Warning
-    "\033[31m",  # Error
-    "\033[1;31m"  # Critical
-]
-
-logconfig = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {
-        "standard": {
-            "format":
-                "%(level_color)s[%(name)s:%(levelname)s]%(end_color)s [%(asctime)s] %(message)s",
-            "datefmt": "%Y-%m-%dT%H:%M:%S%z",
-            "level": getattr(logging, ini_updater["verbosity"], None),
-            "level_colors": level_colors
-        },
-        "json": {
-            "format": "%(asctime)s %(name)s %(levelname)s %(message)fs",
-            "datefmt": "%Y-%m-%dT%H:%M:%S%z",
-            "class": "pythonjsonlogger.jsonlogger.JsonFormatter"
-        }
-    },
-    "handlers": {
-        "standard": {
-            "class": "logging.StreamHandler",
-            "formatter": "standard"
-        }
-    },
-    "loggers": {
-        "": {
-            "handlers": ["standard"],
-            "level": logging.INFO
-        }
-    }
-}
-
-if 'awslogger' in configyaml:
-    logconfig['handlers']['kinesis'] = {
+if "awslogger" in configyaml:
+    logconfig["handlers"]["kinesis"] = {
         "class": "backend.logfiles.KinesisFirehose.DeliveryStreamHandler",
-        "formatter": "json", "configyml": configyaml['awslogger']
+        "formatter": "json",
+        "configyml": configyaml["awslogger"],
     }
-    logconfig['loggers']['']['handlers'].append('kinesis')
+    logconfig["loggers"][""]["handlers"].append("kinesis")
 
 
-logging.config.dictConfig(logconfig)
+dictConfig(logconfig)
 
 old_factory = logging.getLogRecordFactory()
 
 
 def _record_factory(*args, **kwargs):
     record = old_factory(*args, **kwargs)
-    record.node = ini_nodecontractapi['pkh']
-    record.feed = ini_oracle['oracle_curr']
-    record.level_color = level_colors[record.levelno//10]
+    record.node = node.pub_key_hash
+    record.feed = node.oracle_nft
+    record.level_color = LEVEL_COLORS[record.levelno // 10]
     record.end_color = "\033[0m"
     return record
 

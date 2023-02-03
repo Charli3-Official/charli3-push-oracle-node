@@ -159,3 +159,7 @@ cython_debug/
 # Ignore all config files
 config*.ini
 config*.yml
+
+node*.skey
+node*.vkey
+mint_script.plutus

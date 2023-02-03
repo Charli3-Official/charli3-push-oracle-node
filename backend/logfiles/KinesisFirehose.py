@@ -24,8 +24,6 @@ class DeliveryStreamHandler(logging.StreamHandler):
         if self.__firehose is None:
             self.__firehose = self.boto.client('firehose')
 
-        mmmsg = self.format(record)
-
         json_data = {}
         for attr in filter(lambda attr: not attr.endswith("__"), dir(record)):
             if attr in ['asctime','levelName','message']:
