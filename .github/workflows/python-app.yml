@@ -29,9 +29,8 @@ jobs:
       run: |
         poetry run pytest
     - name: Send job status to Slack workflow
-      if: always()
       id: slack
-      uses: slackapi/slack-github-action@v1.18.0
+      uses: slackapi/slack-github-action@v1.23.0
       with:
         payload: |
           {
