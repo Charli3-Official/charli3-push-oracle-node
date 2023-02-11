@@ -1,292 +1,300 @@
-"""Node contract class"""
-
-import re
-import asyncio
+"""Node contract transactions class"""
+import time
 import logging
-import json
+from copy import deepcopy
+from typing import List, Union
+from pycardano import (
+    Network,
+    Address,
+    PaymentVerificationKey,
+    PaymentSigningKey,
+    ExtendedSigningKey,
+    AssetName,
+    TransactionOutput,
+    TransactionBuilder,
+    Redeemer,
+    RedeemerTag,
+    Asset,
+    MultiAsset,
+    UTxO,
+    ScriptHash,
+    Value,
+)
+from backend.core.datums import (
+    NodeDatum,
+    NodeInfo,
+    PriceFeed,
+    DataFeed,
+    AggDatum,
+    OracleDatum,
+    PriceData,
+)
+from backend.core.redeemers import (
+    NodeUpdate,
+    Aggregate,
+    UpdateAndAggregate,
+    NodeCollect,
+)
+from backend.core.aggregate_conditions import aggregation_conditions
+from .chainquery import ChainQuery, ApiError
+from .oraclechecks import check_utxo_asset_balance, get_oracle_utxos_with_datums
 
-import asyncpg
+logger = logging.getLogger("Node")
 
-from backend.core import Oracle
-from .api import Api, UnsuccessfulResponse
 
-logger = logging.getLogger("NodeContract")
+class Node:
+    """node transaction implementation"""
 
-TRIGGER_QUERY = ("""
-CREATE EXTENSION IF NOT EXISTS plpgsql;
-CREATE OR REPLACE FUNCTION on_update_instance() RETURNS trigger as $$
-  DECLARE
-	state jsonb := jsonb_object_agg(
-	    'lastState',
-	    NEW.instance_state::json->'lastState'
-	);
-	cid jsonb := jsonb_object_agg(
-	    'instance_id',
-	    NEW.instance_id
-	);
-  BEGIN
-    PERFORM pg_notify(
-        '{channel}',
-        (cid || state)::text);
-    RETURN NEW;
-  END;
-$$ LANGUAGE plpgsql;
-CREATE OR REPLACE TRIGGER update_row
-	AFTER UPDATE
-	ON instances
-	FOR EACH ROW
-	WHEN (OLD IS DISTINCT FROM NEW)
-	EXECUTE FUNCTION on_update_instance();"""
- )
+    def __init__(
+        self,
+        network: Network,
+        context: ChainQuery,
+        signing_key: Union[PaymentSigningKey, ExtendedSigningKey],
+        verification_key: PaymentVerificationKey,
+        node_nft: MultiAsset,
+        aggstate_nft: MultiAsset,
+        oracle_nft: MultiAsset,
+        oracle_addr: Address,
+        c3_token_hash: ScriptHash,
+        c3_token_name: AssetName,
+    ) -> None:
+        self.network = network
+        self.context = context
+        self.signing_key = signing_key
+        self.verification_key = verification_key
+        self.pub_key_hash = self.verification_key.hash()
+        self.address = Address(payment_part=self.pub_key_hash, network=self.network)
+        self.node_nft = node_nft
+        self.aggstate_nft = aggstate_nft
+        self.oracle_nft = oracle_nft
+        self.node_info = NodeInfo(bytes.fromhex(str(self.pub_key_hash)))
+        self.oracle_addr = oracle_addr
+        self.c3_token_hash = c3_token_hash
+        self.c3_token_name = c3_token_name
+        self.oracle_script_hash = self.oracle_addr.payment_part
 
-def _log_call(func):
-    def wrapper(self, *args, **kwargs):
-        logger.info("Called PAB %s", func.__name__)
-        return func(self, *args, **kwargs)
-    return wrapper
+    async def update(self, rate: int):
+        """build's partial node update tx."""
+        logger.info("node update called: %d", rate)
+        oracle_utxos = self.context.utxos(str(self.oracle_addr))
+        node_own_utxo = self.get_node_own_utxo(oracle_utxos)
+        time_ms = round(time.time_ns() * 1e-6)
+        new_node_feed = PriceFeed(DataFeed(rate, time_ms))
 
-def _require_activated(func):
-    def wrapper(self, *args, **kwargs):
-        if not self.is_activated():
-            raise NotActivated("Contract not activated")
-        return func(self, *args, **kwargs)
-    return wrapper
+        node_own_utxo.output.datum.node_state.node_feed = new_node_feed
 
-def _listen_status(event, cid):
-    # pylint: disable=W0613
-    async def listener(connection, pid, channel, payload):
-        payload = json.loads(payload)
-        payload_cid = payload["instance_id"]
-        if payload_cid == cid:
-            state = payload["lastState"]
-            if state and state["status"]["tag"] != "Empty":
-                event.set(state)
-    return listener
+        node_update_redeemer = Redeemer(RedeemerTag.SPEND, NodeUpdate())
 
-def _await_status(func):
-    async def wrapper(self, *args, **kwargs):
-        await func(self, *args, **kwargs)
-        if self.pgcon is not None:
-            event = _ValuedEvent()
-            listener = _listen_status(event, self.contract_id)
-            await self.pgcon.add_listener(self.channel, listener)
-            try:
-                resp = await asyncio.wait_for(event.wait(), timeout=60)
-            except asyncio.TimeoutError:
-                raise PABTimeout("Operation Timed Out") from None
-            await self.pgcon.remove_listener(self.channel, listener)
-        else:
-            await asyncio.sleep(1)
-            resp = await self.status()
-            resp = resp.json["cicCurrentState"]["observableState"]
-            tries = 1
-            while resp["status"]["tag"]=="Empty" and resp:
-                if tries>=18:
-                    raise PABTimeout("Operation Timed Out")
-                tries += 1
-                await asyncio.sleep(10)
-                resp = await self.status()
-                resp = resp.json["cicCurrentState"]["observableState"]
+        builder = TransactionBuilder(self.context)
 
-        if resp["status"]["tag"] == "Error":
-            _raise_error(resp)
-    return wrapper
+        (
+            builder.add_script_input(
+                node_own_utxo, redeemer=node_update_redeemer
+            ).add_output(node_own_utxo.output)
+        )
 
-def _raise_error(resp):
-    mess = resp["status"]["contents"]["contents"]["contents"]
-    rege = r"\\\"message\\\":\\\"(.*?)\\\""
-    match = re.findall(rege, mess, re.MULTILINE)
-    raise FailedOperation(match[0])
+        await self.submit_tx_builder(builder)
 
-def _catch_http_errors(func):
-    async def wrapper(self, *args, **kwargs):
-        try:
-            resp = await func(self, *args, **kwargs)
-        except UnsuccessfulResponse as e:
-            raise FailedOperation(
-                f"UnsuccesfulResponse from the PAB. Status={e.args[0]}"
-                ) from e
-        return resp
-    return wrapper
+    async def aggregate(self, rate: int = None, update_node_output: bool = False):
+        """build's partial node aggregate tx."""
+        oracle_utxos = self.context.utxos(str(self.oracle_addr))
+        curr_time_ms = round(time.time_ns() * 1e-6)
+        oraclefeed_utxo, aggstate_utxo, nodes_utxos = get_oracle_utxos_with_datums(
+            oracle_utxos, self.aggstate_nft, self.oracle_nft, self.node_nft
+        )
+        aggstate_datum: AggDatum = aggstate_utxo.output.datum
+        oraclefeed_datum: OracleDatum = oraclefeed_utxo.output.datum
+        total_nodes = len(aggstate_datum.aggstate.ag_settings.os_node_list)
+        single_node_fee = (
+            aggstate_datum.aggstate.ag_settings.os_node_fee_price.get_node_fee
+        )
+        min_c3_required = single_node_fee * total_nodes
 
-class NodeContractApi(Api):
-    """Abstracts the calls to the PAB API."""
+        # Handling update_aggregate logic here.
+        if update_node_output:
+            new_node_feed = PriceFeed(DataFeed(rate, curr_time_ms))
+            nodes_utxos = self.update_own_node_utxo(nodes_utxos, new_node_feed)
 
-    def __init__(self,
-                 oracle: Oracle,
-                 wallet_id: str,
-                 pkh: str,
-                 api_url: str,
-                 pgconfig: dict = None):
-        self.oracle = oracle
-        self.wallet_id = wallet_id
-        self.pkh = pkh
-        self.api_url = api_url
-        self.pgconfig = pgconfig
-        self.channel = None
-        if pgconfig:
-            self.channel = pgconfig["notify_channel"]
-            del self.pgconfig["notify_channel"]
-        self.contract_id = None
-        self.pgcon = None
+        # Calculations and Conditions check for aggregation.
+        if check_utxo_asset_balance(
+            aggstate_utxo, self.c3_token_hash, self.c3_token_name, min_c3_required
+        ):
 
-    def is_activated(self):
-        """Returns if the instance is activated"""
-        return hasattr(self, "contract_id") and self.contract_id is not None
-
-    def is_stuck(self):
-        """Check if the PAB is broken"""
-        try:
-            self.status()
-        except UnsuccessfulResponse:
-            return True
-        return False
-
-    @_catch_http_errors
-    @_log_call
-    async def instance_activation(self):
-        "Instance activation instance itselve"
-        data = {
-            "caID": {
-                "tag": "ConnectNode",
-                "contents": self.oracle.to_dict()
-            },
-            "caWallet": {
-                "getWalletId": self.wallet_id
-            }
-        }
-
-        resp = await self._post("/contract/activate", data)
-
-        self.contract_id = resp.json["unContractInstanceId"]
-        logger.info("Instance activated:  %s", self.contract_id)
-
-    @_catch_http_errors
-    @_log_call
-    async def activate(self):
-        """Activate the contract using the provided arguments"""
-
-        if self.is_activated():
-            return
-
-        if self.pgconfig:
-            self.pgcon = await asyncpg.connect(**self.pgconfig)
-            await self.pgcon.execute(
-                TRIGGER_QUERY.format(channel=self.channel)
+            valid_nodes, agg_value = aggregation_conditions(
+                aggstate_datum.aggstate.ag_settings,
+                oraclefeed_datum,
+                bytes(self.pub_key_hash),
+                curr_time_ms,
+                nodes_utxos,
             )
 
-        resp = await self.get_instances_by_status('active')
+            if len(valid_nodes) > 0 and set(valid_nodes).issubset(set(nodes_utxos)):
 
-        for instance in resp.json:
+                c3_fees = len(valid_nodes) * single_node_fee
+                oracle_feed_expiry = (
+                    curr_time_ms + aggstate_datum.aggstate.ag_settings.os_aggregate_time
+                )
 
-            if (instance['cicWallet']['getWalletId'] == self.wallet_id and
-                instance['cicDefinition']['contents'] == self.oracle.to_dict()):
+                if update_node_output:
+                    aggregate_redeemer = Redeemer(
+                        RedeemerTag.SPEND,
+                        UpdateAndAggregate(pub_key_hash=bytes(self.pub_key_hash)),
+                    )
+                else:
+                    logger.info("aggregate called with agg_value: %d", agg_value)
+                    aggregate_redeemer = Redeemer(RedeemerTag.SPEND, Aggregate())
 
-                # If i find an active instance use that for running the feed
-                self.contract_id = instance['cicContract']['unContractInstanceId']
+                builder = TransactionBuilder(self.context)
 
-                return
+                aggstate_tx_output = deepcopy(aggstate_utxo.output)
+                aggstate_tx_output.amount.multi_asset[self.c3_token_hash][
+                    self.c3_token_name
+                ] -= c3_fees
 
-        await self.instance_activation()
+                oraclefeed_tx_output = deepcopy(oraclefeed_utxo.output)
+                oraclefeed_tx_output.datum = OracleDatum(
+                    PriceData.set_price_map(agg_value, curr_time_ms, oracle_feed_expiry)
+                )
 
-    @_catch_http_errors
-    @_log_call
-    async def re_activate(self):
-        """ Forces node re activation """
-        logger.info("Instance reactivation. Turned off :  %s", self.contract_id)
-        await self.stop()
+                (
+                    builder.add_script_input(
+                        aggstate_utxo, redeemer=deepcopy(aggregate_redeemer)
+                    )
+                    .add_script_input(
+                        oraclefeed_utxo, redeemer=deepcopy(aggregate_redeemer)
+                    )
+                    .add_output(aggstate_tx_output)
+                    .add_output(oraclefeed_tx_output)
+                )
 
-        await self.instance_activation()
-        logger.info("Instance reactivation. Turned on :  %s", self.contract_id)
+                for utxo in valid_nodes:
+                    builder.add_script_input(
+                        utxo, redeemer=deepcopy(aggregate_redeemer)
+                    )
+                    tx_output = deepcopy(utxo.output)
+                    if (
+                        self.c3_token_hash in tx_output.amount.multi_asset
+                        and self.c3_token_name
+                        in tx_output.amount.multi_asset[self.c3_token_hash]
+                    ):
+                        tx_output.amount.multi_asset[self.c3_token_hash][
+                            self.c3_token_name
+                        ] += single_node_fee
+                    else:
+                        # Handle the case where the key does not exist
+                        # For example, set the value to a default value
+                        c3_asset = MultiAsset(
+                            {
+                                self.c3_token_hash: Asset(
+                                    {self.c3_token_name: single_node_fee}
+                                )
+                            }
+                        )
+                        tx_output.amount.multi_asset += c3_asset
 
+                    builder.add_output(tx_output)
 
-    async def get_instances_by_status(self,status):
-        """Retrieves al running instances on PAB by status"""
+                await self.submit_tx_builder(builder)
+            else:
+                logger.error(
+                    "The required minimum number of nodes for aggregation has not been met. \
+                     aggregation conditions failed."
+                )
 
-        return await self._get(f"/contract/instances?status={status}")
+        else:
+            logger.error("Not enough C3s to perform aggregation")
 
-    def _get_endpoint_path(self, endpoint):
-        return f"/contract/instance/{self.contract_id}/endpoint/{endpoint}"
+    async def update_aggregate(self, rate: int):
+        """build's partial node update_aggregate tx."""
+        logger.info("update-aggregate called: %d ", rate)
+        await self.aggregate(rate=rate, update_node_output=True)
 
-    @_require_activated
-    @_await_status
-    @_catch_http_errors
-    @_log_call
-    async def update(self, rate):
-        """Requests the pab to update the NodeFeed"""
-        await self._post(
-            self._get_endpoint_path("node-update"),
-            rate
-        )
-
-    @_require_activated
-    @_await_status
-    @_catch_http_errors
-    @_log_call
-    async def aggregate(self):
-        """Requests the pab to aggregate the OracleFeed"""
-        await self._post( self._get_endpoint_path("aggregate"), [])
-
-    @_require_activated
-    @_await_status
-    @_catch_http_errors
-    @_log_call
-    async def update_aggregate(self, rate):
-        """Request the pab to perform an update aggregate"""
-        await self._post(
-            self._get_endpoint_path("update-aggregate"),
-            rate
-        )
-
-    @_require_activated
-    @_await_status
-    @_catch_http_errors
-    @_log_call
     async def collect(self):
-        """Requests the pab to collect the aquired c3"""
-        await self._post( self._get_endpoint_path("node-collect"), [])
+        """build's partial node collect tx."""
+        oracle_utxos = self.context.utxos(str(self.oracle_addr))
+        node_own_utxo = self.get_node_own_utxo(oracle_utxos)
 
-    @_require_activated
-    @_catch_http_errors
-    @_log_call
-    async def status(self):
-        """Requests the pab for the status of the contract"""
-        resp = await self._get(
-            f"/contract/instance/{self.contract_id}/status"
+        # preparing multiasset.
+        c3_amount = node_own_utxo.output.amount.multi_asset[self.c3_token_hash][
+            self.c3_token_name
+        ]
+
+        c3_asset = MultiAsset(
+            {self.c3_token_hash: Asset({self.c3_token_name: c3_amount})}
         )
-        return resp
 
-    @_require_activated
-    @_catch_http_errors
-    @_log_call
-    async def stop(self):
-        """Stops the contract"""
-        await self._put(
-            f"/contract/instance/{self.contract_id}/stop")
+        tx_output = deepcopy(node_own_utxo.output)
+        tx_output.amount.multi_asset -= c3_asset
 
-class NotActivated(Exception):
-    """Used when calling and endpoint while the contract is not activated"""
+        node_collect_redeemer = Redeemer(RedeemerTag.SPEND, NodeCollect())
 
-class FailedOperation(Exception):
-    """Used when a Contract operation fails"""
+        builder = TransactionBuilder(self.context)
 
-class PABTimeout(Exception):
-    """Used when the PAB fails to respond in a timely manner"""
+        (
+            builder.add_script_input(node_own_utxo, redeemer=node_collect_redeemer)
+            .add_output(tx_output)
+            .add_output(TransactionOutput(self.address, Value(2000000, c3_asset)))
+        )
 
-class _ValuedEvent(asyncio.Event):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.value = None
+        await self.submit_tx_builder(builder)
 
-    async def wait(self):
-        await super().wait()
-        return self.value
+    async def submit_tx_builder(self, builder: TransactionBuilder):
+        """adds collateral and signers to tx , sign and submit tx."""
+        # abstracting common inputs here.
+        builder.add_input_address(self.address)
+        builder.add_output(TransactionOutput(self.address, 5000000))
 
-    def set(self, value): # pylint: disable=arguments-differ
-        self.value = value
-        super().set()
+        try:
+            non_nft_utxo = await self.context.find_collateral(self.address)
 
-    def clear(self):
-        super().clear()
-        self.value = None
+            if non_nft_utxo is None:
+                await self.context.create_collateral(self.address, self.signing_key)
+                non_nft_utxo = await self.context.find_collateral(self.address)
 
+            if non_nft_utxo is not None:
+                builder.collaterals.append(non_nft_utxo)
+                builder.required_signers = [self.pub_key_hash]
+
+                signed_tx = builder.build_and_sign(
+                    [self.signing_key], change_address=self.address
+                )
+                await self.context.submit_tx_with_print(signed_tx)
+            else:
+                logger.error("collateral utxo is None.")
+
+        except ApiError as err:
+            if err.status_code == 404:
+                logger.error("No utxos found at the node address, fund the wallet.")
+
+    def get_node_own_utxo(self, oracle_utxos: List[UTxO]) -> UTxO:
+        """returns node's own utxo from list of oracle UTxOs"""
+        nodes_utxos = self.filter_utxos_by_asset(oracle_utxos, self.node_nft)
+        return self.filter_node_utxos_by_node_info(nodes_utxos)
+
+    def filter_utxos_by_asset(self, utxos: List[UTxO], asset: MultiAsset) -> List[UTxO]:
+        """filter list of UTxOs by given asset"""
+        return list(filter(lambda x: x.output.amount.multi_asset >= asset, utxos))
+
+    def filter_node_utxos_by_node_info(self, nodes_utxo: List[UTxO]) -> UTxO:
+        """filter list of UTxOs by given node_info"""
+        if len(nodes_utxo) > 0:
+            for utxo in nodes_utxo:
+                if utxo.output.datum:
+
+                    if utxo.output.datum.cbor:
+                        utxo.output.datum = NodeDatum.from_cbor(utxo.output.datum.cbor)
+
+                    if utxo.output.datum.node_state.node_operator == self.node_info:
+                        return utxo
+        return None
+
+    def update_own_node_utxo(
+        self, nodes_utxo: List[UTxO], updated_node_feed: PriceFeed
+    ) -> List[UTxO]:
+        """update own node utxo and return node utxos"""
+        if len(nodes_utxo) > 0:
+            for utxo in nodes_utxo:
+                if utxo.output.datum.node_state.node_operator == self.node_info:
+                    utxo.output.datum.node_state.node_feed = updated_node_feed
+
+        return nodes_utxo

@@ -1,12 +1,17 @@
 # syntax=docker/dockerfile:1
 
-FROM python:3.10.4-buster
+FROM python:3.10.4-slim-buster
 
 WORKDIR /app
 
-COPY requirements.txt requirements.txt
-RUN pip3 install -r requirements.txt
+COPY pyproject.toml pyproject.toml
+COPY poetry.lock poetry.lock
 
-COPY . .
+RUN pip3 install poetry \
+  && poetry config virtualenvs.create false \
+  && poetry install --no-dev --no-interaction --no-ansi
+
+COPY backend/ /app/backend/
+COPY main.py /app/
 
 CMD [ "python3", "main.py"]

@@ -10,9 +10,9 @@ from mocket.plugins.httpretty import httpretty
 from backend.api.coinrate import BinanceApi, CoingeckoApi, Generic
 
 coinApis = {
-    "binance_adausd": BinanceApi("ADAUSDT"),
-    "coingecko_adausd": CoingeckoApi("cardano", "usd"),
-    "coinmarketcap_adausd": Generic(
+    "binance_adausd": BinanceApi("ADA","ADAUSDT"),
+    "coingecko_adausd": CoingeckoApi("ADA","cardano", "usd"),
+    "coinmarketcap_adausd": Generic("adausdt","coinmarkecap",
         "https://pro-api.coinmarketcap.com",
         "/v1/cryptocurrency/quotes/latest?symbol=ADA",
         ["data","ADA","quote","USD","price"],

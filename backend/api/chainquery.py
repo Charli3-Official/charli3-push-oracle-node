@@ -1,199 +1,99 @@
 #!/usr/bin/env python3
 """Abstracts the calls to the chain index API."""
 import logging
-from base64 import b16encode
-
-from blockfrost import BlockFrostApi
-
-from .api import Api
-from .datums import NodeDatum, OracleDatum, AggStateDatum
+import asyncio
+from blockfrost import ApiError
+from pycardano import (
+    BlockFrostChainContext,
+    Network,
+    Transaction,
+    TransactionOutput,
+    TransactionBuilder,
+)
 
 logger = logging.getLogger("ChainQuery")
 
 
-class ChainQuery(Api):
-    """ Chain Query Abstract Methods """
-    async def get_oracle_datum(self, oracle_nft):
-        """Get Oracle Datum from Oracle utxo"""
-
-    async def get_nodes_datum(self, node_nft):
-        """Get Node Datum list from Node utxos"""
-
-    async def get_feed_balance(self, aggstate_nft, fee_asset):
-        """ retrieve feed C3 balance """
-
-    async def get_aggstate_datum_with_hash(self, aggstate_nft, oracle_settings):
-        """ retrieves datum for agg state """
-
-
-class ChainQueryIndex(ChainQuery):
-    """chainQuery PAB Methods"""
-
-    def __init__(self, api_url):
-        self.api_url = api_url
-
-    async def get_currency_utxos(self, nft: tuple[str, str]) -> list[dict]:
-        """Get utxos list from the nft currency symbol."""
-        logger.info("Getting utxos with %s", nft)
-        query_path = "utxo-with-currency"
-        req = {
-            "currency": {
-                "unAssetClass": [
-                    {
-                        "unCurrencySymbol": nft[0]
-                    },
-                    {
-                        "unTokenName": nft[1]
-                    }
-                ]
-            }
-        }
-        resp = await self._post(
-            query_path,
-            req,
-        )
-        if resp.is_ok:
-            utxos = resp.json['page']['pageItems']
-            logger.debug("Utxos: %s", utxos)
-            return utxos
-        return None
-
-    async def get_datum(self, utxo):
-        """Get Datum from utxo"""
-        query_path = "unspent-tx-out"
-        resp = await self._post(
-            query_path,
-            utxo,
-        )
-        if resp.is_ok:
-            data = resp.json['_ciTxOutDatum']
-            if "Right" in data:
-                return data['Right']
-            if "Left" in data:
-                return await self.get_datum_from_hash(data['Left'])
-        else:
-            return None
-
-    async def get_datum_from_hash(self, datum_hash):
-        """Get Datum from hash"""
-        query_path = "from-hash/datum"
-        resp = await self._post(
-            query_path,
-            datum_hash,
-        )
-        if resp.is_ok:
-            return resp.json
-        return None
-
-    async def get_oracle_datum(self, oracle_nft):
-        logger.info("Getting oracle datum for %s", oracle_nft[0])
-        utxo = await self.get_currency_utxos(oracle_nft)
-        if len(utxo) > 0:
-            datum = await self.get_datum(utxo[0])
-            if datum != "":
-                return OracleDatum.from_cbor(datum)
-
-    async def get_nodes_datum(self, node_nft):
-        logger.info("Getting node datums for %s", node_nft[0])
-        result = []
-        utxos = await self.get_currency_utxos(node_nft)
-        if len(utxos) > 0:
-            for utxo in utxos:
-                node_datum = await self.get_datum(utxo)
-                if node_datum != "":
-                    result.append(NodeDatum.from_cbor(node_datum))
-        logger.debug("Found %d nodes", len(result))
-        return result
-
-    def get_tx_status(self, txid):
-        """Get Tx status"""
-
-
-class ChainQueryBlockfrost(ChainQuery):
+class ChainQuery(BlockFrostChainContext):
     """chainQuery methods"""
 
-    def __init__(self, token, api_url, oracle_address):
-        self.api = BlockFrostApi(
-            project_id=token,
-            base_url=api_url,
-        )
+    def __init__(
+        self,
+        project_id: str,
+        network: Network = Network.TESTNET,
+        base_url: str = None,
+        oracle_address: str = None,
+    ):
+        super().__init__(project_id=project_id, network=network, base_url=base_url)
         self.oracle_address = oracle_address
 
-    def _get_datum(self, utxo):
+    async def get_utxos(self):
+        """get utxos from oracle address."""
+        return self.utxos(str(self.oracle_address))
 
-        return self.api.script_datum(utxo.data_hash).json_value
+    async def wait_for_tx(self, tx_id):
+        """
+        Waits for a transaction with the given ID to be confirmed.
+        Retries the API call every 20 seconds if the transaction is not found.
+        Stops retrying after a certain number of attempts.
+        """
+        retries = 0
+        max_retries = 10
 
-    def _get_blockfrost_asset(self, asset):
-        return asset[0]+str(
-            b16encode(bytes(
-                asset[1],
-                encoding="utf-8")
-            ), encoding="utf-8"
-        ).lower()
+        while retries < max_retries:
+            try:
+                # Make the API call to check the status of the transaction
+                response = self.api.transaction(tx_id)
+                logger.info("Transaction submitted with tx_id: %s", str(tx_id))
+                return response
+            except ApiError as err:
+                if err.status_code == 404:
+                    logger.info(
+                        "Waiting for transaction confirmation: %s. Retrying in 20 seconds",
+                        str(tx_id),
+                    )
+                    retries += 1
+                    await asyncio.sleep(20)
+                else:
+                    raise err
+        logger.error("Transaction not found after %d retries. Giving up.", max_retries)
 
-    def _get_asset_utxo(self, asset):
-        """ retrieves asset UTXO """
+    async def submit_tx_with_print(self, tx: Transaction):
+        """submitting the tx."""
+        logger.info("Submitting transaction: %s", str(tx.id))
+        logger.debug("tx: %s", tx)
+        self.submit_tx(tx.to_cbor())
+        await self.wait_for_tx(str(tx.id))
 
-        asset = self._get_blockfrost_asset(asset)
-        return self.api.address_utxos_asset(self.oracle_address, asset)
+    async def find_collateral(self, target_address):
+        """method to find collateral utxo."""
+        try:
+            for utxo in self.utxos(str(target_address)):
+                # A collateral should contain no multi asset
+                if not utxo.output.amount.multi_asset:
+                    if utxo.output.amount < 10000000:
+                        if utxo.output.amount.coin >= 5000000:
+                            return utxo
+        except ApiError as err:
+            if err.status_code == 404:
+                logger.info("No utxos found")
+                raise err
+            else:
+                logger.warning(
+                    "Requirements for collateral couldn't be satisfied. need an utxo of >= 5000000\
+                    and < 10000000, %s",
+                    err,
+                )
+        return None
 
-    async def get_aggstate_datum_with_hash(self, aggstate_nft, oracle_settings):
-        """ retrieves datum for agg state """
+    async def create_collateral(self, target_address, skey):
+        """create collateral utxo"""
+        logger.info("creating collateral UTxO.")
+        collateral_builder = TransactionBuilder(self)
 
-        logger.info("Getting aggstate datum for %s", aggstate_nft[0])
-        # Validates Oracle Settings
-        current_agg_state_utxo = self._get_asset_utxo(aggstate_nft)[0]
+        collateral_builder.add_input_address(target_address)
+        collateral_builder.add_output(TransactionOutput(target_address, 5000000))
 
-        if oracle_settings.agg_state_datum is None or (oracle_settings.agg_state_datum_hash !=
-                                                       current_agg_state_utxo.data_hash):
-            agg_state_datum_hash = current_agg_state_utxo.data_hash
-            agg_state = AggStateDatum.from_blockfrost(self._get_datum(current_agg_state_utxo))
-        else:
-            agg_state_datum_hash = oracle_settings.agg_state_datum_hash
-            agg_state = oracle_settings.agg_state_datum
-
-        return (agg_state_datum_hash ,agg_state)
-
-    async def get_oracle_datum(self, oracle_nft):
-
-        """Get Oracle Datum from Oracle utxo"""
-        logger.info("Getting oracle datum for %s", oracle_nft[0])
-        utxo = self._get_asset_utxo(oracle_nft)
-
-        if len(utxo) > 0:
-            datum = self._get_datum(utxo[0])
-            return OracleDatum.from_blockfrost(datum)
-
-    async def get_nodes_datum(self, node_nft):
-        """Get Node Datum list from Node utxos"""
-        logger.info("Getting node datums for %s", node_nft[0])
-        result = []
-        asset = self._get_blockfrost_asset(node_nft)
-        utxos = self.api.address_utxos_asset(self.oracle_address, asset)
-
-        if len(utxos) > 0:
-            for utxo in utxos:
-                node_datum = self._get_datum(utxo)
-                result.append(NodeDatum.from_blockfrost(node_datum))
-        logger.debug("Found %d nodes", len(result))
-        return result
-
-    async def get_feed_balance(self, aggstate_nft, fee_asset):
-        """ retrieve feed C3 balance """
-        agg_state_nft = self._get_blockfrost_asset(aggstate_nft)
-        fee_asset_currency = self._get_blockfrost_asset(fee_asset)
-
-        address_utxos_asset = self.api.address_utxos_asset(address=self.oracle_address,
-                                                           asset=agg_state_nft)[0]
-
-        feed_balance = sum(float(utxo.quantity) for utxo in (
-            address_utxos_asset).amount
-            if utxo.unit == fee_asset_currency)
-
-        return feed_balance
-
-
-chainQueryTypes = {
-    "blockfrost": ChainQueryBlockfrost,
-    "chain-index": ChainQueryIndex
-}
+        await self.submit_tx_with_print(
+            collateral_builder.build_and_sign([skey], target_address)
+        )

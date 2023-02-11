@@ -18,6 +18,7 @@ class TestApiMethods(Api):
     async def test_httpbin(self):
         """Test that the values returned are correct"""
         methods = ["get", "post", "put", "delete"]
+        data = None
         for i in methods:
             httpretty.register_uri(
                 getattr(httpretty, i.upper()),
