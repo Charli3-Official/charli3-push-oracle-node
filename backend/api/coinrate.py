@@ -41,7 +41,7 @@ class Generic(CoinRate):
 
     async def get_rate(self):
         try:
-            logger.info("Getting %s rate", self.provider)
+            logger.info("Getting %s %s rate", self.provider, self.symbol)
             resp = await self._get(self.path, headers=self.key)
             data = resp.json
             for key in self.json_path:
