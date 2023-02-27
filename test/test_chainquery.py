@@ -1,43 +1,65 @@
-#!/usr/bin/env python3
 """Chain query class testing."""
-
 import json
 
-import pytest
-import sure  # pylint: disable=unused-import
+from test.helper.mocked_data import (
+    MOCKED_ORACLE_ADDRESS,
+    MOCKED_BLOCKFROST_API_CALL,
+    MOCKED_CHAIN_QUERY_CONTEXT,
+    MOCKED_UTXOS_RESPONSE,
+    get_mocked_utxos,
+    register_api_uri,
+)
+
 from mocket import async_mocketize
 from mocket.plugins.httpretty import httpretty
-from backend.api.chainquery import ChainQuery
+import pytest
 
-# Variables
-ORACLE_NFT = (
-    "24c19e34702eb1bafa2f7598570992d79b91de7d3e38790f6cfaa221", "OracleFeed")
-ORACLE_UTXO = {
-    "txOutRefId": {
-        "getTxId": "4288e6fe0a20c9daf9548dae36211d78b707eea75267418e6d16ab934d304ec3"
-    },
-    "txOutRefIdx": 3
-}
-DATUM_HASH = "47f37db205ebdc6cbe4ff9318d26768c6b222f471b8809a521d2c2517cce9cbb"
-DATUM = ("d87b9fd8799fd8799fd8799f1a000b85381b00000180f77"
-         "ed897ffffd8799f1b00000180f789d517ff80d87a80ffff")
+from backend.api import ChainQuery
+
 
 @pytest.mark.asyncio
-class TestChainQueryClasse():
+class TestChainQueryClass:
     """Test ChainQuery Class"""
 
-    api = ChainQuery('http://54.177.190.73:9080/')
-
     def register_api_uri(self, url, body):
-        """SETTING UP MOCK url responses."""
+        """Helper method to mock http endpoints"""
         httpretty.register_uri(
-            httpretty.POST,
+            httpretty.GET,
             url,
             body=json.dumps(body),
-            **{"Content-Type": "application/json"}
+            **{
+                "Content-Type": "application/json",
+                "project_id": MOCKED_CHAIN_QUERY_CONTEXT[0],
+            },
         )
 
+    @async_mocketize(strict_mode=True)
+    async def test_get_utxos(self, monkeypatch):
+        """test_get_utxos"""
 
+        chainquery = await self.get_chain_query(monkeypatch)
 
+        utxos = await chainquery.get_utxos()
 
-# mock response of get_currency_utxos
+        assert utxos == MOCKED_UTXOS_RESPONSE
+
+    @async_mocketize(strict_mode=True)
+    async def test_find_collateral(self, monkeypatch):
+        """test_get_utxos"""
+
+        chainquery = await self.get_chain_query(monkeypatch)
+
+        assert MOCKED_UTXOS_RESPONSE[3] == await chainquery.find_collateral(
+            MOCKED_ORACLE_ADDRESS
+        )
+
+    @async_mocketize()
+    async def get_chain_query(self, monkeypatch):
+        """Runner 1st api call: blockchain context"""
+        register_api_uri(
+            MOCKED_BLOCKFROST_API_CALL["api_url"],
+            **MOCKED_BLOCKFROST_API_CALL["api_call"]["v0_epochs_latest"],
+        )
+
+        monkeypatch.setattr(ChainQuery, "utxos", get_mocked_utxos)
+        return ChainQuery(*MOCKED_CHAIN_QUERY_CONTEXT)

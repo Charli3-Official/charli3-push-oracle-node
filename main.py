@@ -128,7 +128,7 @@ old_factory = logging.getLogRecordFactory()
 def _record_factory(*args, **kwargs):
     record = old_factory(*args, **kwargs)
     record.node = node.pub_key_hash
-    record.feed = node.oracle_nft
+    record.feed = ini_node["oracle_curr"]
     record.level_color = LEVEL_COLORS[record.levelno // 10]
     record.end_color = "\033[0m"
     return record

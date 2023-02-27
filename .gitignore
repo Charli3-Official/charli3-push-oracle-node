@@ -163,3 +163,4 @@ config*.yml
 node*.skey
 node*.vkey
 mint_script.plutus
+.pylintrc
