@@ -14,7 +14,7 @@ aiohttp = "^3.8.4"
 python-json-logger = "^2.0.4"
 
 [tool.poetry.group.dev.dependencies]
-mocket = "^3.10.9"
+mocket = "^3.11.0"
 pytest = "^7.2.1"
 boto3 = "^1.26.63"
 pylint = "^2.16.1"
