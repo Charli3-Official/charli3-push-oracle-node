@@ -7,7 +7,15 @@ import sure  # pylint: disable=unused-import
 from mocket import async_mocketize
 from mocket.plugins.httpretty import httpretty
 
-from backend.api.coinrate import BinanceApi, CoingeckoApi, Generic
+from backend.api.coinrate import (
+    BinanceApi,
+    CoingeckoApi,
+    Generic,
+    SundaeswapApi,
+    MinswapApi,
+    MuesliswapApi,
+    WingridersApi,
+)
 
 coinApis = {
     "binance_adausd": BinanceApi("ADA", "ADAUSDT"),
@@ -19,6 +27,25 @@ coinApis = {
         "/v1/cryptocurrency/quotes/latest?symbol=ADA",
         ["data", "ADA", "quote", "USD", "price"],
         {"X-CMC_PRO_API_KEY": "asdf"},
+    ),
+    "sundaeswap_adausd": SundaeswapApi("ADA", "ADAUSDT"),
+    "minswap_adausd": MinswapApi(
+        "ADA",
+        "ADAUSDT",
+        "8e51398904a5d3fc129fbf4f1589701de23c7824d5c90fdb9490e15a",
+        "434841524c4933",
+    ),
+    "muesliswap_adausd": MuesliswapApi(
+        "ADA",
+        "ADAUSDT",
+        "8e51398904a5d3fc129fbf4f1589701de23c7824d5c90fdb9490e15a",
+        "434841524c4933",
+    ),
+    "wingriders_adausd": WingridersApi(
+        "ADA",
+        "ADAUSDT",
+        "8e51398904a5d3fc129fbf4f1589701de23c7824d5c90fdb9490e15a",
+        "434841524c4933",
     ),
 }
 
@@ -34,6 +61,15 @@ class TestCoinRateClasses:
         """Helper method to mock http endpoints"""
         httpretty.register_uri(
             httpretty.GET,
+            url,
+            body=json.dumps(body),
+            **{"Content-Type": "application/json"},
+        )
+
+    def register_post_api_uri(self, url, body):
+        """Helper method to mock http endpoints"""
+        httpretty.register_uri(
+            httpretty.POST,
             url,
             body=json.dumps(body),
             **{"Content-Type": "application/json"},
@@ -130,4 +166,52 @@ class TestCoinRateClasses:
         api = coinApis["coinmarketcap_adausd"]
         self.register_api_uri(f"{api.api_url}{api.get_path()}", bod)
         data = await api.get_rate()
-        data.should.equal(self.ex_price_double)
+        data.should.equal(round(self.ex_price_double, 8))
+
+    @async_mocketize(strict_mode=True)
+    async def test_sundaeswap(self):
+        """Sundaeswap correct functionality test"""
+        api = coinApis["sundaeswap_adausd"]
+        self.register_post_api_uri(
+            f"{api.api_url}{api.get_path()}",
+            {
+                "data": {
+                    "pools": [
+                        {
+                            "quantityA": "765813062249",
+                            "quantityB": "1874892638060",
+                        },
+                    ]
+                }
+            },
+        )
+        data = await api.get_rate()
+        data.should.equal(round(float(765813062249 / 1874892638060), 8))
+
+    @async_mocketize(strict_mode=True)
+    async def test_muesliswap(self):
+        """Muesliswap correct functionality test"""
+        api = coinApis["muesliswap_adausd"]
+        self.register_api_uri(
+            f"{api.api_url}{api.get_path()}", {"price": str(self.ex_price)}
+        )
+        data = await api.get_rate()
+        data.should.equal(self.ex_price)
+
+    @async_mocketize(strict_mode=True)
+    async def test_minswap(self):
+        """Minswap correct functionality test"""
+        api = coinApis["minswap_adausd"]
+        self.register_post_api_uri(
+            f"{api.api_url}{api.get_path()}",
+            {
+                "data": {
+                    "poolByPair": {
+                        "reserveA": 276854305370,
+                        "reserveB": 684608590969,
+                    }
+                }
+            },
+        )
+        data = await api.get_rate()
+        data.should.equal(round(float(276854305370 / 684608590969), 8))

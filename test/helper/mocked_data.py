@@ -308,7 +308,7 @@ async def async_get_mocked_utxos():
 
 
 MOCKED_RATE_CLASS = AggregatedCoinRate()
-MOCKED_RATE_CLASS.add_data_provider(
+MOCKED_RATE_CLASS.add_base_data_provider(
     "generic",
     "kraken",
     {
@@ -319,7 +319,7 @@ MOCKED_RATE_CLASS.add_data_provider(
         "key": {},
     },
 )
-MOCKED_RATE_CLASS.add_data_provider(
+MOCKED_RATE_CLASS.add_base_data_provider(
     "generic",
     "kucoin",
     {

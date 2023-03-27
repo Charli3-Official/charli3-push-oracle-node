@@ -20,23 +20,62 @@ ChainQuery:
   project_id: preprodp2R0hMUamkdkt0x8BKky2QWghU2zOXcz
 
 Rate:
-  binance:
-    type: binance
-    symbol: ADAUSDT
-  kucoin:
-    type: generic
-    symbol: ADA-USDT
-    api_url: https://api.kucoin.com/
-    path: /api/v1/prices?currencies=ADA
-    json_path: ["data","ADA"]
-    key: {}
-  kraken:
-    type: generic
-    symbol: ADAUSD
-    api_url: https://api.kraken.com
-    path: /0/public/Ticker?pair=ADAUSD
-    json_path: ["result","ADAUSD","o"]
-    key: {}
+  base_currency:
+    sundaeswap:
+      type: sundaeswap
+      symbol: Shen
+      quote_currency: True
+    minswap:
+      type: minswap
+      symbol: SHEN/ADA
+      currency_symbol: 8db269c3ec630e06ae29f74bc39edd1f87c819f1056206e879a1cd61
+      token_name: 5368656e4d6963726f555344
+      quote_currency: True
+    muesliswap:
+      type: muesliswap
+      symbol: SHEN/ADA
+      currency_symbol: 8db269c3ec630e06ae29f74bc39edd1f87c819f1056206e879a1cd61
+      token_name: 5368656e4d6963726f555344
+      quote_currency: True
+    bitrue:
+      type: generic
+      symbol: SHENUSDT
+      api_url: https://openapi.bitrue.com
+      path: /api/v1/ticker/price?symbol=shenusdt
+      json_path: ["price"]
+      key: {}
+  quote_currency:
+    binance:
+      type: binance
+      symbol: ADAUSDT
+    kucoin:
+      type: generic
+      symbol: ADA-USDT
+      api_url: https://api.kucoin.com
+      path: /api/v1/prices?currencies=ADA
+      json_path: ["data","ADA"]
+      key: {}
+    kraken:
+      type: generic
+      symbol: ADAUSD
+      api_url: https://api.kraken.com
+      path: /0/public/Ticker?pair=ADAUSD
+      json_path: ["result","ADAUSD","o"]
+      key: {}
+    bitrue:
+      type: generic
+      symbol: ADAUSDT
+      api_url: https://openapi.bitrue.com
+      path: /api/v1/ticker/price?symbol=adausdt
+      json_path: ["price"]
+      key: {}
+    coinbase:
+      type: generic
+      symbol: ADA-USD
+      api_url: https://api.exchange.coinbase.com
+      path: /products/ADA-USD/ticker/
+      json_path: ["price"]
+      key: {}
 
 # awslogger:
 #   region_name: us-west-1

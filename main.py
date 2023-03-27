@@ -92,14 +92,23 @@ if ini_node:
         ScriptHash.from_primitive(ini_node["c3_token_hash"]),
         AssetName(bytes(ini_node["c3_token_name"], "utf-8")),
     )
+if "quote_currency" in configyaml["Rate"] and configyaml["Rate"]["quote_currency"]:
+    rateclass = AggregatedCoinRate(quote_currency=True)
 
-rateclass = AggregatedCoinRate()
+    for provider in configyaml["Rate"]["quote_currency"]:
+        feed_type = configyaml["Rate"]["quote_currency"][provider]["type"]
+        del configyaml["Rate"]["quote_currency"][provider]["type"]
 
-for provider in configyaml["Rate"]:
-    feed_type = configyaml["Rate"][provider]["type"]
-    del configyaml["Rate"][provider]["type"]
+        rateclass.add_quote_data_provider(feed_type, provider, configyaml["Rate"]["quote_currency"][provider])
 
-    rateclass.add_data_provider(feed_type, provider, configyaml["Rate"][provider])
+else:
+    rateclass = AggregatedCoinRate()
+
+for provider in configyaml["Rate"]["base_currency"]:
+    feed_type = configyaml["Rate"]["base_currency"][provider]["type"]
+    del configyaml["Rate"]["base_currency"][provider]["type"]
+
+    rateclass.add_base_data_provider(feed_type, provider, configyaml["Rate"]["base_currency"][provider])
 
 updater = FeedUpdater(
     int(ini_updater["update_inter"]),
