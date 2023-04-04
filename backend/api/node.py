@@ -48,7 +48,7 @@ class Node:
     def __init__(
         self,
         network: Network,
-        context: ChainQuery,
+        chain_query: ChainQuery,
         signing_key: Union[PaymentSigningKey, ExtendedSigningKey],
         verification_key: PaymentVerificationKey,
         node_nft: MultiAsset,
@@ -59,7 +59,8 @@ class Node:
         c3_token_name: AssetName,
     ) -> None:
         self.network = network
-        self.context = context
+        self.chain_query = chain_query
+        self.context = self.chain_query.context
         self.signing_key = signing_key
         self.verification_key = verification_key
         self.pub_key_hash = self.verification_key.hash()
@@ -76,7 +77,7 @@ class Node:
     async def update(self, rate: int):
         """build's partial node update tx."""
         logger.info("node update called: %d", rate)
-        oracle_utxos = self.context.utxos(str(self.oracle_addr))
+        oracle_utxos = await self.chain_query.get_utxos(self.oracle_addr)
         node_own_utxo = self.get_node_own_utxo(oracle_utxos)
         time_ms = round(time.time_ns() * 1e-6)
         new_node_feed = PriceFeed(DataFeed(rate, time_ms))
@@ -97,7 +98,7 @@ class Node:
 
     async def aggregate(self, rate: int = None, update_node_output: bool = False):
         """build's partial node aggregate tx."""
-        oracle_utxos = self.context.utxos(str(self.oracle_addr))
+        oracle_utxos = await self.chain_query.get_utxos(self.oracle_addr)
         curr_time_ms = round(time.time_ns() * 1e-6)
         oraclefeed_utxo, aggstate_utxo, nodes_utxos = get_oracle_utxos_with_datums(
             oracle_utxos, self.aggstate_nft, self.oracle_nft, self.node_nft
@@ -119,7 +120,6 @@ class Node:
         if check_utxo_asset_balance(
             aggstate_utxo, self.c3_token_hash, self.c3_token_name, min_c3_required
         ):
-
             valid_nodes, agg_value = aggregation_conditions(
                 aggstate_datum.aggstate.ag_settings,
                 oraclefeed_datum,
@@ -129,7 +129,6 @@ class Node:
             )
 
             if len(valid_nodes) > 0 and set(valid_nodes).issubset(set(nodes_utxos)):
-
                 c3_fees = len(valid_nodes) * single_node_fee
                 oracle_feed_expiry = (
                     curr_time_ms + aggstate_datum.aggstate.ag_settings.os_aggregate_time
@@ -211,7 +210,7 @@ class Node:
 
     async def collect(self):
         """build's partial node collect tx."""
-        oracle_utxos = self.context.utxos(str(self.oracle_addr))
+        oracle_utxos = await self.chain_query.get_utxos(self.oracle_addr)
         node_own_utxo = self.get_node_own_utxo(oracle_utxos)
 
         # preparing multiasset.
@@ -245,11 +244,11 @@ class Node:
         builder.add_output(TransactionOutput(self.address, 5000000))
 
         try:
-            non_nft_utxo = await self.context.find_collateral(self.address)
+            non_nft_utxo = await self.chain_query.find_collateral(self.address)
 
             if non_nft_utxo is None:
-                await self.context.create_collateral(self.address, self.signing_key)
-                non_nft_utxo = await self.context.find_collateral(self.address)
+                await self.chain_query.create_collateral(self.address, self.signing_key)
+                non_nft_utxo = await self.chain_query.find_collateral(self.address)
 
             if non_nft_utxo is not None:
                 builder.collaterals.append(non_nft_utxo)
@@ -258,7 +257,7 @@ class Node:
                 signed_tx = builder.build_and_sign(
                     [self.signing_key], change_address=self.address
                 )
-                await self.context.submit_tx_with_print(signed_tx)
+                await self.chain_query.submit_tx_with_print(signed_tx)
             else:
                 logger.error("collateral utxo is None.")
 
@@ -280,7 +279,6 @@ class Node:
         if len(nodes_utxo) > 0:
             for utxo in nodes_utxo:
                 if utxo.output.datum:
-
                     if utxo.output.datum.cbor:
                         utxo.output.datum = NodeDatum.from_cbor(utxo.output.datum.cbor)
 

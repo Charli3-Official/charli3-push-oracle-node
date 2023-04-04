@@ -12,6 +12,8 @@ from pycardano import (
     PaymentVerificationKey,
     PlutusV2Script,
     ScriptHash,
+    BlockFrostChainContext,
+    OgmiosChainContext,
 )
 
 from backend.api import AggregatedCoinRate
@@ -33,10 +35,20 @@ MOCKED_SCRIPT_HASH = ScriptHash.from_primitive(
 
 MOCKED_API_URL = "http://localhost:9083/api"
 
-MOCKED_CHAIN_QUERY_CONTEXT = (
+MOCKED_BLOCKFROST_CONTEXT = (
     "preprodjxcUodunMUMtjBqnyQ0bLMnREkXHa6CN",
     Network.TESTNET,
     MOCKED_API_URL,
+)
+
+MOCKED_OGMIOS_CONTEXT = (
+    MOCKED_API_URL,
+    Network.TESTNET,
+)
+
+MOCKED_CHAIN_QUERY_CONTEXT = (
+    None,
+    OgmiosChainContext(*MOCKED_OGMIOS_CONTEXT),
     MOCKED_ORACLE_ADDRESS,
 )
 
@@ -291,7 +303,7 @@ MOCKED_UTXOS_RESPONSE[0].output.script = PlutusV2Script(
 )
 
 
-def get_mocked_utxos(*args, **kwargs):
+async def get_mocked_utxos(*args, **kwargs):
     """Overrides initalization. receives params, and returns utxos"""
 
     if args or kwargs:
