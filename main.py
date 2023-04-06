@@ -14,6 +14,8 @@ from pycardano import (
     AssetName,
     MultiAsset,
     HDWallet,
+    TransactionInput,
+    TransactionId,
     BlockFrostChainContext,
     OgmiosChainContext,
 )
@@ -102,6 +104,14 @@ if ini_node:
         node_sk = PaymentSigningKey.load(ini_node["signing_key"])
         node_vk = PaymentVerificationKey.load(ini_node["verification_key"])
 
+    if 'reference_script_input' in ini_node and ini_node["reference_script_input"]:
+        tx_id_hex, index = ini_node["reference_script_input"].split("#")
+        tx_id = TransactionId(bytes.fromhex(tx_id_hex))
+        index = int(index)
+        reference_script_input = TransactionInput(tx_id, index)
+    else:
+        reference_script_input = None
+
     node = Node(
         network,
         chain_query,
@@ -113,6 +123,7 @@ if ini_node:
         Address.from_primitive(ini_node["oracle_addr"]),
         ScriptHash.from_primitive(ini_node["c3_token_hash"]),
         AssetName(bytes(ini_node["c3_token_name"], "utf-8")),
+        reference_script_input,
     )
 if "quote_currency" in configyaml["Rate"] and configyaml["Rate"]["quote_currency"]:
     rateclass = AggregatedCoinRate(quote_currency=True)

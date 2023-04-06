@@ -67,7 +67,7 @@ class ChainQuery:
                 except Exception as err:
                     raise err
 
-                wait_time = 5 if isinstance(context, OgmiosChainContext) else 20
+                wait_time = 10 if isinstance(context, OgmiosChainContext) else 20
                 logger.info(
                     "Waiting for transaction confirmation: %s. Retrying in %d seconds",
                     str(tx_id),
