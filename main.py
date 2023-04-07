@@ -14,6 +14,10 @@ from pycardano import (
     AssetName,
     MultiAsset,
     HDWallet,
+    TransactionInput,
+    TransactionId,
+    BlockFrostChainContext,
+    OgmiosChainContext,
 )
 from backend.api import Node, ChainQuery, AggregatedCoinRate
 from backend.runner import FeedUpdater
@@ -40,21 +44,41 @@ with open(arguments.configfile, "r", encoding="UTF-8") as ymlfile:
 
 ini_updater = configyaml["Updater"]
 ini_node = configyaml["Node"]
-ini_chainquery = configyaml["ChainQuery"]
+chain_query_config = configyaml["ChainQuery"]
 
 # Generates instances of classes from configuration file
 
 if ini_node:
-    if ini_chainquery["network"] == "TESTNET":
+    if chain_query_config["network"] == "TESTNET":
         network = Network.TESTNET
-    elif ini_chainquery["network"] == "MAINNET":
+    elif chain_query_config["network"] == "MAINNET":
         network = Network.MAINNET
 
-    context = ChainQuery(
-        ini_chainquery["project_id"],
-        network,
-        ini_chainquery["base_url"],
-        ini_node["oracle_addr"],
+    blockfrost_config = chain_query_config.get("blockfrost")
+    ogmios_config = chain_query_config.get("ogmios")
+
+    if blockfrost_config:
+        blockfrost_base_url = blockfrost_config["base_url"]
+        blockfrost_project_id = blockfrost_config["project_id"]
+
+        blockfrost_context = BlockFrostChainContext(
+            blockfrost_project_id,
+            network,
+            base_url=blockfrost_base_url,
+        )
+
+    if ogmios_config:
+        ogmios_ws_url = ogmios_config["ws_url"]
+
+        ogmios_context = OgmiosChainContext(
+            network=network,
+            ws_url=ogmios_ws_url,
+        )
+
+    chain_query = ChainQuery(
+        blockfrost_context=blockfrost_context if blockfrost_config else None,
+        ogmios_context=ogmios_context if ogmios_config else None,
+        oracle_address=ini_node["oracle_addr"],
     )
 
     oracle_nft_hash = ScriptHash.from_primitive(ini_node["oracle_curr"])
@@ -69,7 +93,7 @@ if ini_node:
         {oracle_nft_hash.payload: {bytes(ini_node["aggstate_nft"], "utf-8"): 1}}
     )
 
-    if 'mnemonic' in ini_node and ini_node["mnemonic"]:
+    if "mnemonic" in ini_node and ini_node["mnemonic"]:
         hdwallet = HDWallet.from_mnemonic(ini_node["mnemonic"])
         hdwallet_spend = hdwallet.derive_from_path("m/1852'/1815'/0'/0/0")
         spend_public_key = hdwallet_spend.public_key
@@ -80,9 +104,17 @@ if ini_node:
         node_sk = PaymentSigningKey.load(ini_node["signing_key"])
         node_vk = PaymentVerificationKey.load(ini_node["verification_key"])
 
+    if 'reference_script_input' in ini_node and ini_node["reference_script_input"]:
+        tx_id_hex, index = ini_node["reference_script_input"].split("#")
+        tx_id = TransactionId(bytes.fromhex(tx_id_hex))
+        index = int(index)
+        reference_script_input = TransactionInput(tx_id, index)
+    else:
+        reference_script_input = None
+
     node = Node(
         network,
-        context,
+        chain_query,
         node_sk,
         node_vk,
         node_nft,
@@ -91,6 +123,7 @@ if ini_node:
         Address.from_primitive(ini_node["oracle_addr"]),
         ScriptHash.from_primitive(ini_node["c3_token_hash"]),
         AssetName(bytes(ini_node["c3_token_name"], "utf-8")),
+        reference_script_input,
     )
 if "quote_currency" in configyaml["Rate"] and configyaml["Rate"]["quote_currency"]:
     rateclass = AggregatedCoinRate(quote_currency=True)
@@ -99,7 +132,9 @@ if "quote_currency" in configyaml["Rate"] and configyaml["Rate"]["quote_currency
         feed_type = configyaml["Rate"]["quote_currency"][provider]["type"]
         del configyaml["Rate"]["quote_currency"][provider]["type"]
 
-        rateclass.add_quote_data_provider(feed_type, provider, configyaml["Rate"]["quote_currency"][provider])
+        rateclass.add_quote_data_provider(
+            feed_type, provider, configyaml["Rate"]["quote_currency"][provider]
+        )
 
 else:
     rateclass = AggregatedCoinRate()
@@ -108,14 +143,16 @@ for provider in configyaml["Rate"]["base_currency"]:
     feed_type = configyaml["Rate"]["base_currency"][provider]["type"]
     del configyaml["Rate"]["base_currency"][provider]["type"]
 
-    rateclass.add_base_data_provider(feed_type, provider, configyaml["Rate"]["base_currency"][provider])
+    rateclass.add_base_data_provider(
+        feed_type, provider, configyaml["Rate"]["base_currency"][provider]
+    )
 
 updater = FeedUpdater(
     int(ini_updater["update_inter"]),
     int(ini_updater["percent_resolution"]),
     node,
     rateclass,
-    context,
+    chain_query,
 )
 
 logconfig = get_log_config(ini_updater)

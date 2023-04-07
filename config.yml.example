@@ -16,8 +16,11 @@ Node:
 
 ChainQuery:
   network: TESTNET
-  base_url: https://cardano-preprod.blockfrost.io/api
-  project_id: preprodp2R0hMUamkdkt0x8BKky2QWghU2zOXcz
+  blockfrost:
+    base_url: https://cardano-preprod.blockfrost.io/api
+    project_id: preprodVPAHdGNLvQtM3Ppkxtvd2oEVhHFxZ6MD
+  ogmios:
+    ws_url:  wss://ogmios-preprod-api-charli3-49bb04.us1.demeter.run
 
 Rate:
   base_currency:
@@ -76,9 +79,3 @@ Rate:
       path: /products/ADA-USD/ticker/
       json_path: ["price"]
       key: {}
-
-# awslogger:
-#   region_name: us-west-1
-#   aws_access_key_id: ***REMOVED***
-#   aws_secret_access_key: ***REMOVED***
-#   delivery_stream_name: PUT-S3-Charli3-logs

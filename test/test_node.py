@@ -30,7 +30,7 @@ class TestNodeClass:
 
         node = await self.get_node(monkeypatch)
 
-        utxos = await node.context.get_utxos()
+        utxos = await node.chain_query.get_utxos()
 
         node_own_utxo = node.get_node_own_utxo(utxos)
 
@@ -46,7 +46,7 @@ class TestNodeClass:
 
         node = await self.get_node(monkeypatch)
 
-        utxos = await node.context.get_utxos()
+        utxos = await node.chain_query.get_utxos()
 
         # Filter AGG_STATE_NFT
         aggstate_nft_utxo = node.filter_utxos_by_asset(utxos, node.aggstate_nft)[0]
@@ -69,7 +69,7 @@ class TestNodeClass:
         )
 
         node = await self.get_node(monkeypatch)
-        utxos = await node.context.get_utxos()
+        utxos = await node.chain_query.get_utxos()
 
         node_own_utxo = node.get_node_own_utxo(utxos)
 
@@ -90,8 +90,12 @@ class TestNodeClass:
         """Retuns node class test ussage"""
         monkeypatch.setattr(ChainQuery, "__init__", get_mocked_init)
 
-        mocked_node = Node(*node_config(ChainQuery(*MOCKED_CHAIN_QUERY_CONTEXT)))
+        mocked_chain_query = ChainQuery(*MOCKED_CHAIN_QUERY_CONTEXT)
 
-        monkeypatch.setattr(mocked_node.context, "get_utxos", async_get_mocked_utxos)
+        mocked_chain_query.context = MOCKED_CHAIN_QUERY_CONTEXT
+
+        mocked_node = Node(*node_config(mocked_chain_query))
+
+        monkeypatch.setattr(mocked_node.chain_query, "get_utxos", async_get_mocked_utxos)
 
         return mocked_node

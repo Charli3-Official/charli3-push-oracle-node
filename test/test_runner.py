@@ -118,7 +118,11 @@ class TestFeedOperateClass:
         monkeypatch.setattr(Node, "aggregate", aggregate)
         monkeypatch.setattr(Node, "update_aggregate", update_aggregate)
 
-        mocked_node = Node(*node_config(ChainQuery(*MOCKED_CHAIN_QUERY_CONTEXT)))
+        mocked_chain_query = ChainQuery(*MOCKED_CHAIN_QUERY_CONTEXT)
+
+        mocked_chain_query.context = MOCKED_CHAIN_QUERY_CONTEXT
+
+        mocked_node = Node(*node_config(mocked_chain_query))
 
         feed_updater = FeedUpdater(
             MOCKED_UPDATE_INTERVAL,

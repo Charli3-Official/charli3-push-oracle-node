@@ -61,5 +61,5 @@ class TestChainQueryClass:
             **MOCKED_BLOCKFROST_API_CALL["api_call"]["v0_epochs_latest"],
         )
 
-        monkeypatch.setattr(ChainQuery, "utxos", get_mocked_utxos)
+        monkeypatch.setattr(ChainQuery, "get_utxos", get_mocked_utxos)
         return ChainQuery(*MOCKED_CHAIN_QUERY_CONTEXT)
