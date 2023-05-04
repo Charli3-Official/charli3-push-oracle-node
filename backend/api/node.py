@@ -107,7 +107,7 @@ class Node:
 
         await self.submit_tx_builder(builder)
 
-    async def aggregate(self, rate: int = None, update_node_output: bool = False):
+    async def aggregate(self, rate: int = None, update_node_output: bool = False) -> bool:
         """build's partial node aggregate tx."""
         oracle_utxos = await self.chain_query.get_utxos(self.oracle_addr)
         curr_time_ms = round(time.time_ns() * 1e-6)
@@ -215,19 +215,23 @@ class Node:
                     builder.add_output(tx_output)
 
                 await self.submit_tx_builder(builder)
+                return True
             else:
                 logger.error(
                     "The required minimum number of nodes for aggregation has not been met. \
                      aggregation conditions failed."
                 )
-
+                return False
         else:
             logger.error("Not enough C3s to perform aggregation")
 
     async def update_aggregate(self, rate: int):
         """build's partial node update_aggregate tx."""
         logger.info("update-aggregate called: %d ", rate)
-        await self.aggregate(rate=rate, update_node_output=True)
+        aggregation_successful = await self.aggregate(rate=rate, update_node_output=True)
+        if not aggregation_successful:
+            logger.error("update-aggregate failed, calling update.")
+            await self.update(rate)
 
     async def collect(self):
         """build's partial node collect tx."""
