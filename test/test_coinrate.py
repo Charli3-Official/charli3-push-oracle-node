@@ -15,6 +15,7 @@ from backend.api.coinrate import (
     MinswapApi,
     MuesliswapApi,
     WingridersApi,
+    InverseCurrencyRate,
 )
 
 coinApis = {
@@ -47,6 +48,7 @@ coinApis = {
         "8e51398904a5d3fc129fbf4f1589701de23c7824d5c90fdb9490e15a",
         "434841524c4933",
     ),
+    "inverse_adausd": InverseCurrencyRate("ADA", "ADAUSDT"),
 }
 
 
@@ -215,3 +217,40 @@ class TestCoinRateClasses:
         )
         data = await api.get_rate()
         data.should.equal(round(float(276854305370 / 684608590969), 8))
+
+    @async_mocketize(strict_mode=True)
+    async def test_inverse_rate(self):
+        """Inverse rate test"""
+        api = coinApis["inverse_adausd"]
+        QUOTE_CURRENCY_RATE = 2.0  # pylint: disable=invalid-name
+        EXPECTED_RATE = 0.5  # 1 / 2.0 pylint: disable=invalid-name
+
+        data = await api.get_rate(quote_currency_rate=QUOTE_CURRENCY_RATE)
+
+        assert (
+            data == EXPECTED_RATE
+        ), f"Expected rate to be {EXPECTED_RATE}, but got {data}"
+
+    @async_mocketize(strict_mode=True)
+    async def test_inverse_rate_with_zero_quote_currency_rate(self):
+        """Inverse rate test with zero quote currency rate"""
+        api = coinApis["inverse_adausd"]
+        QUOTE_CURRENCY_RATE = 0.0
+
+        with pytest.raises(
+            ValueError,
+            match="quote_currency_rate cannot be zero when quote_currency is True",
+        ):
+            await api.get_rate(quote_currency_rate=QUOTE_CURRENCY_RATE)
+
+    @async_mocketize(strict_mode=True)
+    async def test_inverse_rate_with_int_zero_quote_currency_rate(self):
+        """Inverse rate test with int zero quote currency rate"""
+        api = coinApis["inverse_adausd"]
+        QUOTE_CURRENCY_RATE = 0
+
+        with pytest.raises(
+            ValueError,
+            match="quote_currency_rate cannot be zero when quote_currency is True",
+        ):
+            await api.get_rate(quote_currency_rate=QUOTE_CURRENCY_RATE)

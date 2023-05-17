@@ -60,6 +60,9 @@ class FeedUpdater:
 
                 rate, oracle_utxos = await asyncio.gather(*data_coro)
 
+                # add check to validate the final aggregated rate
+                if rate is None or rate <= 0:
+                    raise ValueError("Invalid Aggregated Rate")
                 # Prepare the rate for uploading
                 new_rate = self._calculate_rate(rate)
 
@@ -148,7 +151,10 @@ class FeedUpdater:
                         extra={"operation_time": time.time() - data_time},
                     )
 
-            except (UnsuccessfulResponse) as exc:
+            except UnsuccessfulResponse as exc:
+                logger.error(repr(exc))
+
+            except ValueError as exc:
                 logger.error(repr(exc))
 
             except Exception as exc:

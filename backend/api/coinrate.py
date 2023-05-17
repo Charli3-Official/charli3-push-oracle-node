@@ -1,4 +1,5 @@
 """Exchange Api classes."""
+from typing import Optional, List
 import logging
 import asyncio
 from .api import Api, UnsuccessfulResponse
@@ -29,7 +30,15 @@ class CoinRate(Api):
                 if rate_calculation_method == "multiply":
                     rate = base_rate * quote_currency_rate
                 elif rate_calculation_method == "divide":
+                    if quote_currency_rate == 0:
+                        raise ValueError(
+                            "quote_currency_rate cannot be zero when rate_calculation_method is 'divide'"
+                        )
                     rate = base_rate / quote_currency_rate
+            else:
+                raise ValueError(
+                    "quote_currency_rate cannot be zero when quote_currency is True"
+                )
         else:
             rate = base_rate
         rate = round(rate, 8)
@@ -78,7 +87,10 @@ class Generic(CoinRate):
                 )
                 logger.debug("Rate: %s", rate)
                 return rate
-        except UnsuccessfulResponse:
+        except UnsuccessfulResponse as e:  # pylint: disable=invalid-name
+            logger.error(
+                "Failed to get rate for %s %s: %s", self.provider, self.symbol, e
+            )
             return None
 
 
@@ -117,7 +129,8 @@ class BinanceApi(CoinRate):
                 )
                 logger.debug("%s Rate: %s", self.symbol, rate)
                 return rate
-        except UnsuccessfulResponse:
+        except UnsuccessfulResponse as e:  # pylint: disable=invalid-name
+            logger.error("Failed to get rate for Binance %s: %s", self.symbol, e)
             return None
 
 
@@ -158,7 +171,8 @@ class CoingeckoApi(CoinRate):
                 )
                 logger.debug("%s-%s Rate: %f", self.tid, self.vs_currency, rate)
                 return rate
-        except UnsuccessfulResponse:
+        except UnsuccessfulResponse as e:  # pylint: disable=invalid-name
+            logger.error("Failed to get rate for coingecko %s: %s", self.tid, e)
             return None
 
 
@@ -235,7 +249,8 @@ class SundaeswapApi(CoinRate):
                 )
                 logger.info("%s-%s Rate: %f", self.provider, self.symbol, rate)
                 return rate
-        except UnsuccessfulResponse:
+        except UnsuccessfulResponse as e:  # pylint: disable=invalid-name
+            logger.error("Failed to get rate for Sundaeswap %s: %s", self.symbol, e)
             return None
 
 
@@ -262,8 +277,8 @@ class MinswapApi(CoinRate):
         self.rate_calculation_method = rate_calculation_method
         self.query = {
             "query": """
-            query PoolByPair($pair: InputPoolByPair!, $useCache: Boolean) {
-              poolByPair(pair: $pair, useCache: $useCache) {
+            query PoolByPair($pair: InputPoolByPair!) {
+              poolByPair(pair: $pair) {
                 assetA {
                   currencySymbol
                   tokenName
@@ -315,7 +330,8 @@ class MinswapApi(CoinRate):
                 )
                 logger.info("%s-%s Rate: %f", self.provider, self.symbol, rate)
                 return rate
-        except UnsuccessfulResponse:
+        except UnsuccessfulResponse as e:  # pylint: disable=invalid-name
+            logger.error("Failed to get rate for Minswap %s: %s", self.symbol, e)
             return None
 
 
@@ -378,7 +394,8 @@ class WingridersApi(CoinRate):
                         return rate
                 logger.debug("%s-%s Rate: %f", self.provider, self.symbol, rate)
                 return rate
-        except UnsuccessfulResponse:
+        except UnsuccessfulResponse as e:  # pylint: disable=invalid-name
+            logger.error("Failed to get rate for Wingriders %s: %s", self.symbol, e)
             return None
 
 
@@ -426,6 +443,38 @@ class MuesliswapApi(CoinRate):
                 )
                 logger.info("%s-%s Rate: %f", self.provider, self.symbol, rate)
                 return rate
+        except UnsuccessfulResponse as e:  # pylint: disable=invalid-name
+            logger.error("Failed to get rate for Muesliswap %s: %s", self.symbol, e)
+            return None
+
+
+class InverseCurrencyRate(CoinRate):
+    """handle the inverse of the currency rate"""
+
+    def __init__(
+        self,
+        provider: str,
+        symbol: str,
+        quote_currency: bool = True,
+        rate_calculation_method: str = "divide",
+    ):
+        self.provider = provider
+        self.symbol = symbol
+        self.quote_currency = quote_currency
+        self.rate_calculation_method = rate_calculation_method
+
+    async def get_rate(self, quote_currency_rate: float = None):
+        try:
+            logger.info("Getting %s rate", self.symbol)
+            if quote_currency_rate is not None:
+                rate = self._calculate_final_rate(
+                    self.quote_currency,
+                    base_rate=1,
+                    quote_currency_rate=quote_currency_rate,
+                    rate_calculation_method=self.rate_calculation_method,
+                )
+                logger.info("%s Rate: %f", self.symbol, rate)
+                return rate
         except UnsuccessfulResponse:
             return None
 
@@ -438,6 +487,7 @@ apiTypes = {
     "minswap": MinswapApi,
     "wingriders": WingridersApi,
     "muesliswap": MuesliswapApi,
+    "inverserate": InverseCurrencyRate,
 }
 
 
@@ -457,49 +507,53 @@ class AggregatedCoinRate:
         """add provider to list."""
         self.quote_data_providers.append(apiTypes[feed_type](provider, **pair))
 
+    async def get_rate_from_providers(
+        self, providers: List[CoinRate], quote_rate: Optional[float] = None
+    ) -> Optional[float]:
+        """Get rate from providers.
+
+        Args:
+            providers (List[CoinRate]): list of providers
+            quote_rate (Optional[float], optional): quote rate. Defaults to None.
+
+        Returns:
+            Optional[float]: rate
+        """
+        rates_to_get = [provider.get_rate(quote_rate) for provider in providers]
+        responses = await asyncio.gather(*rates_to_get, return_exceptions=True)
+
+        valid_responses = [
+            resp
+            for resp in responses
+            if resp is not None and not isinstance(resp, Exception)
+        ]
+        if not valid_responses:
+            logger.critical("No data prices are available to estimate the median")
+            return None
+
+        result = random_median(valid_responses)
+        logger.info("Aggregated rate calculated : %s from %s", result, valid_responses)
+        return result
+
     async def get_aggregated_rate(self):
         """calculate aggregated rate from list of data providers."""
 
-        base_rates_response = []
-        quote_rates_response = []
         quote_rate = None
         logger.info("get_aggregated_rate: fetching price from data providers")
 
+        # Fetch Median Quote Rate first if quote_currency is True
         if self.quote_currency:
             logger.info("fetching quote price from data providers")
-            quote_rates_to_get = [
-                provider.get_rate() for provider in self.quote_data_providers
-            ]
-            quote_rates_response = await asyncio.gather(*quote_rates_to_get)
-            valid_quote_response = list(filter(None, quote_rates_response))
-            if len(valid_quote_response) == 0:
-                logger.critical("No quote prices are available to estimate the median")
-                quote_rate = None
-            else:
-                quote_rate = random_median(valid_quote_response)
-            logger.info(
-                "Aggregated quote rate calculated : %s from %s",
-                quote_rate,
-                quote_rates_response,
-            )
+            quote_rate = await self.get_rate_from_providers(self.quote_data_providers)
+            if quote_rate is None:
+                logger.error("No valid quote rates available.")
 
-        base_rates_to_get = [
-            provider.get_rate(quote_rate) for provider in self.base_data_providers
-        ]
-
-        base_rates_response = await asyncio.gather(*base_rates_to_get)
-
-        valid_base_response = list(filter(None, base_rates_response))
-
-        if len(valid_base_response) == 0:
-            logger.critical("No data prices are available to estimate the median")
-            result = None
-        else:
-            result = random_median(valid_base_response)
-
-        logger.info(
-            "Aggregated rate calculated : %s from %s",
-            result,
-            valid_base_response,
+        # Fetch Median Base Rate with quote_rate calculation if quote_currency is enabled
+        base_rate = await self.get_rate_from_providers(
+            self.base_data_providers, quote_rate
         )
-        return result
+
+        if base_rate is None:
+            logger.error("No valid base rates available.")
+
+        return base_rate
