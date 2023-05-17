@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
 """Abstracts the calls to the chain index API."""
+from typing import List, Union
 import logging
 import asyncio
 from blockfrost import ApiError
 from pycardano import (
+    Address,
+    UTxO,
+    PaymentSigningKey,
+    ExtendedSigningKey,
     BlockFrostChainContext,
     OgmiosChainContext,
     Transaction,
     TransactionOutput,
     TransactionBuilder,
+    TransactionId,
 )
 
 logger = logging.getLogger("ChainQuery")
@@ -31,8 +37,16 @@ class ChainQuery:
         self.oracle_address = oracle_address
         self.context = blockfrost_context if blockfrost_context else ogmios_context
 
-    async def get_utxos(self, address=None):
-        """get utxos from oracle address."""
+    async def get_utxos(self, address: Union[str, Address, None] = None) -> List[UTxO]:
+        """
+        get utxos from oracle address.
+
+        Args:
+            address (str, Address, optional): The address to get the utxos from. Defaults to None.
+
+        Returns:
+            List[UTxO]: The list of utxos.
+        """
         if address is None:
             address = self.oracle_address
         if self.blockfrost_context is not None:
@@ -42,15 +56,38 @@ class ChainQuery:
             logger.info("Getting utxos from ogmios")
             return self.ogmios_context.utxos(str(address))
 
-    async def wait_for_tx(self, tx_id):
+    async def wait_for_tx(self, tx_id: TransactionId) -> Transaction:
         """
         Waits for a transaction with the given ID to be confirmed.
         Retries the API call every 20 seconds if the transaction is not found.
         Stops retrying after a certain number of attempts.
+
+        Args:
+            tx_id (TransactionId): The transaction ID to wait for.
+
+        Returns:
+            The transaction object if found, None otherwise.
         """
 
-        async def _wait_for_tx(context, tx_id, check_fn, retries=0, max_retries=10):
-            """Wait for a transaction to be confirmed."""
+        async def _wait_for_tx(
+            context: Union[BlockFrostChainContext, OgmiosChainContext],
+            tx_id: TransactionId,
+            check_fn: callable,
+            retries: int = 0,
+            max_retries: int = 10,
+        ) -> Transaction:
+            """Wait for a transaction to be confirmed.
+
+            Args:
+                context (Union[BlockFrostChainContext, OgmiosChainContext]): The chain context to use. # pylint: disable=line-too-long
+                tx_id (TransactionId): The transaction ID to wait for.
+                check_fn (callable): The function to use to check if the transaction is confirmed.
+                retries (int, optional): The number of retries. Defaults to 0.
+                max_retries (int, optional): The maximum number of retries. Defaults to 10.
+
+            Returns:
+                The transaction object if found, None otherwise.
+            """
             while retries < max_retries:
                 try:
                     response = await check_fn(context, tx_id)
@@ -80,10 +117,34 @@ class ChainQuery:
                 "Transaction not found after %d retries. Giving up.", max_retries
             )
 
-        async def check_blockfrost(context, tx_id):
+        async def check_blockfrost(
+            context: BlockFrostChainContext, tx_id: TransactionId
+        ) -> Transaction:
+            """
+            Check if the transaction is confirmed using the blockfrost API.
+
+            Args:
+                context (BlockFrostChainContext): The chain context to use.
+                tx_id (TransactionId): The transaction ID to wait for.
+
+            Returns:
+                The transaction object if found, None otherwise.
+            """
             return context.api.transaction(tx_id)
 
-        async def check_ogmios(context, tx_id):
+        async def check_ogmios(
+            context: OgmiosChainContext, tx_id: TransactionId
+        ) -> Transaction:
+            """
+            Check if the transaction is confirmed using the ogmios API.
+
+            Args:
+                context (OgmiosChainContext): The chain context to use.
+                tx_id (TransactionId): The transaction ID to wait for.
+
+            Returns:
+                The transaction object if found, None otherwise.
+            """
             response = context._query_utxos_by_tx_id(tx_id, 0)
             return response if response != [] else None
 
@@ -92,8 +153,16 @@ class ChainQuery:
         elif self.blockfrost_context:
             return await _wait_for_tx(self.blockfrost_context, tx_id, check_blockfrost)
 
-    async def submit_tx_with_print(self, tx: Transaction):
-        """submitting the tx."""
+    async def submit_tx_with_print(self, tx: Transaction) -> None:
+        """
+        This method submits a transaction to the chain and prints the transaction ID.
+
+        Args:
+            tx: The transaction to submit.
+
+        Returns:
+            None
+        """
         logger.info("Submitting transaction: %s", str(tx.id))
         logger.debug("tx: %s", tx)
 
@@ -106,8 +175,19 @@ class ChainQuery:
 
         await self.wait_for_tx(str(tx.id))
 
-    async def find_collateral(self, target_address):
-        """method to find collateral utxo."""
+    async def find_collateral(self, target_address: Union[str, Address]) -> UTxO:
+        """
+        This method finds a collateral utxo for the given address with the following requirements:
+        - amount >= 5000000 lovelaces
+        - amount < 10000000 lovelaces
+        - no multi asset
+
+        Args:
+            target_address (str, Address): The address to find the collateral for.
+
+        Returns:
+            UTxO: The collateral utxo if found, None otherwise.
+        """
         try:
             utxos = await self.get_utxos(address=target_address)
             for utxo in utxos:
@@ -128,8 +208,22 @@ class ChainQuery:
                 )
         return None
 
-    async def create_collateral(self, target_address, skey):
-        """create collateral utxo"""
+    async def create_collateral(
+        self,
+        target_address: Union[str, Address],
+        skey: Union[PaymentSigningKey, ExtendedSigningKey],
+    ) -> None:
+        """
+        This method creates a collateral utxo for the given address with the following requirements:
+        - amount = 5000000 lovelaces
+
+        Args:
+            target_address (str, Address): The address to create the collateral for.
+            skey (PaymentSigningKey, ExtendedSigningKey): The signing key to sign the transaction.
+
+        Returns:
+            None
+        """
         logger.info("creating collateral UTxO.")
         collateral_builder = TransactionBuilder(self)
 

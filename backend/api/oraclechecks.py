@@ -16,10 +16,21 @@ from backend.core.datums import (
 
 logger = logging.getLogger("oracle-checks")
 
+
 def filter_node_datums_by_node_info(
     node_datums: List[NodeDatum], node_info: NodeInfo
 ) -> NodeDatum:
-    """filter node datums by node info"""
+    """
+    filter node datums by node info
+
+    Args:
+        node_datums: A list of NodeDatum objects.
+        node_info: A NodeInfo object.
+
+    Returns:
+        A NodeDatum object.
+
+    """
     if len(node_datums) > 0:
         return next(
             (
