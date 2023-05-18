@@ -81,8 +81,18 @@ class Node:
         self.reference_script_input = reference_script_input
         self.oracle_script_hash = self.oracle_addr.payment_part
 
-    async def update(self, rate: int):
-        """build's partial node update tx."""
+    async def update(self, rate: int) -> None:
+        """build's partial node update tx.
+
+        This method is called by the node to update its own feed.
+
+        Args:
+            rate (int): price rate to be updated.
+
+        Returns:
+            None
+
+        """
         logger.info("node update called: %d", rate)
         oracle_utxos = await self.chain_query.get_utxos(self.oracle_addr)
         node_own_utxo = self.get_node_own_utxo(oracle_utxos)
@@ -107,8 +117,25 @@ class Node:
 
         await self.submit_tx_builder(builder)
 
-    async def aggregate(self, rate: int = None, update_node_output: bool = False):
-        """build's partial node aggregate tx."""
+    async def aggregate(
+        self, rate: int = None, update_node_output: bool = False
+    ) -> bool:
+        """build's partial node aggregate tx.
+
+        This method is called by the node to aggregate the oracle feed.
+
+        Args:
+            rate (int): price rate to be updated.
+            update_node_output (bool): if True, node's own output will be updated.
+                This flag is used when node is updating its own feed with aggregate tx and
+                when update_aggregate is called.
+
+        Returns:
+            bool : This flag indicates the transaction/operation status:
+                True: if transaction is successful and accepted by the network.
+                False: if transaction is failed or dropped from the mempool.
+
+        """
         oracle_utxos = await self.chain_query.get_utxos(self.oracle_addr)
         curr_time_ms = round(time.time_ns() * 1e-6)
         oraclefeed_utxo, aggstate_utxo, nodes_utxos = get_oracle_utxos_with_datums(
@@ -215,22 +242,50 @@ class Node:
                     builder.add_output(tx_output)
 
                 await self.submit_tx_builder(builder)
+                return True
             else:
                 logger.error(
                     "The required minimum number of nodes for aggregation has not been met. \
                      aggregation conditions failed."
                 )
-
+                return False
         else:
             logger.error("Not enough C3s to perform aggregation")
 
-    async def update_aggregate(self, rate: int):
-        """build's partial node update_aggregate tx."""
-        logger.info("update-aggregate called: %d ", rate)
-        await self.aggregate(rate=rate, update_node_output=True)
+    async def update_aggregate(self, rate: int) -> None:
+        """build's partial node update_aggregate tx.
 
-    async def collect(self):
-        """build's partial node collect tx."""
+        This method is called by the node to update the node feed and
+        aggregate the oracle feed in one transaction.
+
+        Args:
+            rate (int): The new rate to be updated in the node feed.
+
+        Returns:
+            None
+
+        """
+        logger.info("update-aggregate called: %d ", rate)
+        aggregation_successful = await self.aggregate(
+            rate=rate, update_node_output=True
+        )
+        if not aggregation_successful:
+            logger.error("update-aggregate failed, calling update.")
+            await self.update(rate)
+
+    async def collect(self) -> None:
+        """
+        build's partial node collect tx.
+
+        This method is called by the node to collect the C3s from the oracle feed.
+
+        Args:
+            None
+
+        Returns:
+            None
+
+        """
         oracle_utxos = await self.chain_query.get_utxos(self.oracle_addr)
         node_own_utxo = self.get_node_own_utxo(oracle_utxos)
 
@@ -258,8 +313,20 @@ class Node:
 
         await self.submit_tx_builder(builder)
 
-    async def submit_tx_builder(self, builder: TransactionBuilder):
-        """adds collateral and signers to tx , sign and submit tx."""
+    async def submit_tx_builder(self, builder: TransactionBuilder) -> None:
+        """
+        adds collateral and signers to tx , sign and submit tx.
+
+        Args:
+            builder (TransactionBuilder): The builder object to be submitted.
+
+        Returns:
+            None
+
+        excepts:
+            APIError: If No UTXOs are found in the node address.
+
+        """
         # abstracting common inputs here.
         builder.add_input_address(self.address)
         builder.add_output(TransactionOutput(self.address, 5000000))
@@ -287,16 +354,43 @@ class Node:
                 logger.error("No utxos found at the node address, fund the wallet.")
 
     def get_node_own_utxo(self, oracle_utxos: List[UTxO]) -> UTxO:
-        """returns node's own utxo from list of oracle UTxOs"""
+        """returns node's own utxo from list of oracle UTxOs
+
+        Args:
+            oracle_utxos (List[UTxO]): List of oracle UTxOs
+
+        Returns:
+            UTxO: node's own UTxO
+
+        """
         nodes_utxos = self.filter_utxos_by_asset(oracle_utxos, self.node_nft)
         return self.filter_node_utxos_by_node_info(nodes_utxos)
 
     def filter_utxos_by_asset(self, utxos: List[UTxO], asset: MultiAsset) -> List[UTxO]:
-        """filter list of UTxOs by given asset"""
+        """
+        filter list of UTxOs by given asset
+
+        Args:
+            utxos (List[UTxO]): List of UTxOs
+            asset (MultiAsset): asset to filter by
+
+        Returns:
+            List[UTxO]: List of UTxOs filtered by given asset
+
+        """
         return list(filter(lambda x: x.output.amount.multi_asset >= asset, utxos))
 
     def filter_node_utxos_by_node_info(self, nodes_utxo: List[UTxO]) -> UTxO:
-        """filter list of UTxOs by given node_info"""
+        """
+        filter list of UTxOs by given node_info
+
+        Args:
+            nodes_utxo (List[UTxO]): List of UTxOs
+
+        Returns:
+            UTxO: node's own UTxO filtered by given node_info
+
+        """
         if len(nodes_utxo) > 0:
             for utxo in nodes_utxo:
                 if utxo.output.datum:
@@ -310,7 +404,17 @@ class Node:
     def update_own_node_utxo(
         self, nodes_utxo: List[UTxO], updated_node_feed: PriceFeed
     ) -> List[UTxO]:
-        """update own node utxo and return node utxos"""
+        """
+        update own node utxo and return node utxos
+
+        Args:
+            nodes_utxo (List[UTxO]): List of UTxOs
+            updated_node_feed (PriceFeed): updated node feed
+
+        Returns:
+            List[UTxO]: List of UTxOs
+
+        """
         if len(nodes_utxo) > 0:
             for utxo in nodes_utxo:
                 if utxo.output.datum.node_state.node_operator == self.node_info:
@@ -319,7 +423,16 @@ class Node:
         return nodes_utxo
 
     def get_reference_script_utxo(self, utxos: List[UTxO]) -> UTxO:
-        """patch if no reference script found."""
+        """
+        patch if no reference script found.
+
+        Args:
+            utxos (List[UTxO]): List of UTxOs
+
+        Returns:
+            UTxO: reference script utxo
+
+        """
         if len(utxos) > 0:
             for utxo in utxos:
                 if utxo.input == self.reference_script_input:
@@ -328,7 +441,16 @@ class Node:
                     return utxo
 
     def get_plutus_script(self, scripthash: ScriptHash) -> PlutusV2Script:
-        """function to get plutus script and verify it's script hash"""
+        """
+        function to get plutus script and verify it's script hash
+
+        Args:
+            scripthash (ScriptHash): script hash of plutus script
+
+        Returns:
+            PlutusV2Script: plutus script if script hash matches else None
+
+        """
         plutus_script = self.context._get_script(str(scripthash))
         if plutus_script_hash(plutus_script) != scripthash:
             plutus_script = PlutusV2Script(cbor2.dumps(plutus_script))
