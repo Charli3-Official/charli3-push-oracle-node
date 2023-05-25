@@ -1,7 +1,9 @@
 name: Build and push Docker Image to ECR
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ develop ]
+  release:
+    types: [published]
   workflow_dispatch:
     branches: [ main ]
 
@@ -9,7 +11,8 @@ jobs:
   deploy_main:
     name: Deploy Main
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    # Only deploy when a release is published
+    if: github.event_name == 'release'
 
     steps:
     - name: Checkout
@@ -21,7 +24,7 @@ jobs:
         aws-access-key-id: ${{ secrets.ACCESS_KEY }}
         aws-secret-access-key: ${{ secrets.SECRET_KEY }}
         aws-region: us-west-1
-    
+
     - name: Login to Amazon ECR
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v1
@@ -31,7 +34,7 @@ jobs:
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         ECR_REPOSITORY: ${{ secrets.REPO_NAME }}
-        IMAGE_TAG: ${{ github.sha }}
+        IMAGE_TAG: ${{ github.ref }}
       run: |
         # Build a docker container and push it to ECR 
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
