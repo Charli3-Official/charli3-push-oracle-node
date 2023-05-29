@@ -17,6 +17,9 @@
     ogmios = {
       follows = "cardano-transaction-lib/ogmios";
     };
+    kupo-nixos = {
+      follows = "cardano-transaction-lib/kupo-nixos";
+    };
   };
 
   outputs = inputs @ { flake-parts, ... }:
@@ -33,6 +36,7 @@
               inputs'.cardano-transaction-lib.packages."plutip-server:exe:plutip-server"
               inputs'.ogmios.packages."ogmios:exe:ogmios"
               inputs'.cardano-node.packages.cardano-node
+              inputs'.kupo-nixos.packages.kupo
             ];
           };
       };

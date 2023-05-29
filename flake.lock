@@ -13032,6 +13032,10 @@
         ],
         "cardano-transaction-lib": "cardano-transaction-lib",
         "flake-parts": "flake-parts_2",
+        "kupo-nixos": [
+          "cardano-transaction-lib",
+          "kupo-nixos"
+        ],
         "nixpkgs": "nixpkgs_82",
         "ogmios": [
           "cardano-transaction-lib",
