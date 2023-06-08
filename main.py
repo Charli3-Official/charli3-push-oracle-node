@@ -92,6 +92,9 @@ if ini_node:
     aggstate_nft = MultiAsset.from_primitive(
         {oracle_nft_hash.payload: {bytes(ini_node["aggstate_nft"], "utf-8"): 1}}
     )
+    reward_nft = MultiAsset.from_primitive(
+        {oracle_nft_hash.payload: {bytes(ini_node["reward_nft"], "utf-8"): 1}}
+    )
 
     if "mnemonic" in ini_node and ini_node["mnemonic"]:
         hdwallet = HDWallet.from_mnemonic(ini_node["mnemonic"])
@@ -104,7 +107,7 @@ if ini_node:
         node_sk = PaymentSigningKey.load(ini_node["signing_key"])
         node_vk = PaymentVerificationKey.load(ini_node["verification_key"])
 
-    if 'reference_script_input' in ini_node and ini_node["reference_script_input"]:
+    if "reference_script_input" in ini_node and ini_node["reference_script_input"]:
         tx_id_hex, index = ini_node["reference_script_input"].split("#")
         tx_id = TransactionId(bytes.fromhex(tx_id_hex))
         index = int(index)
@@ -120,6 +123,7 @@ if ini_node:
         node_nft,
         aggstate_nft,
         oracle_nft,
+        reward_nft,
         Address.from_primitive(ini_node["oracle_addr"]),
         ScriptHash.from_primitive(ini_node["c3_token_hash"]),
         AssetName(bytes(ini_node["c3_token_name"], "utf-8")),

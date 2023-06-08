@@ -1,21 +1,15 @@
 """Datums implementation"""
 from dataclasses import dataclass
 from math import ceil
-from typing import Union, Optional
+from typing import Union, Optional, List
 from pycardano import PlutusData
 from pycardano.serialization import IndefiniteList
 
 
 @dataclass
-class NodeInfo(PlutusData):
-    """NodeInfo Datum"""
-    CONSTR_ID = 0
-    node_operator: bytes
-
-
-@dataclass
 class DataFeed(PlutusData):
     """DataFeed Datum"""
+
     CONSTR_ID = 0
     df_value: int
     df_last_update: int
@@ -24,6 +18,7 @@ class DataFeed(PlutusData):
 @dataclass
 class PriceFeed(PlutusData):
     """PriceFeed Datum"""
+
     CONSTR_ID = 0
     df: DataFeed
 
@@ -31,6 +26,7 @@ class PriceFeed(PlutusData):
 @dataclass
 class Nothing(PlutusData):
     """Nothing Datum"""
+
     CONSTR_ID = 1
 
 
@@ -38,6 +34,7 @@ class Nothing(PlutusData):
 @dataclass
 class Price(PlutusData):
     """Price Datum"""
+
     CONSTR_ID = 0
     value: int
 
@@ -73,8 +70,8 @@ class NodeState(PlutusData):
     """represents Node State of Node Datum"""
 
     CONSTR_ID = 0
-    node_operator: NodeInfo
-    node_feed: Union[PriceFeed, Nothing]
+    ns_operator: bytes
+    ns_feed: Union[PriceFeed, Nothing]
 
 
 @dataclass
@@ -88,29 +85,35 @@ class NodeDatum(PlutusData):
 @dataclass
 class OracleDatum(PlutusData):
     """OracleFeed Datum"""
+
     CONSTR_ID = 0
     price_data: Optional[PriceData] = None
 
 
 @dataclass
-class NodeFee(PlutusData):
-    """NodeFee Datum"""
+class PriceRewards(PlutusData):
+    """Node Fee parameters"""
+
     CONSTR_ID = 0
-    get_node_fee: int
+    node_fee: int
+    aggregate_fee: int
+    platform_fee: int
 
 
 @dataclass
 class OracleSettings(PlutusData):
     """OracleSettings Datum"""
+
     CONSTR_ID = 0
     os_node_list: IndefiniteList
     os_updated_nodes: int
     os_updated_node_time: int
     os_aggregate_time: int
     os_aggregate_change: int
-    os_node_fee_price: NodeFee
+    os_node_fee_price: PriceRewards
     os_mad_multiplier: int
     os_divergence: int
+    os_platform_pkh: bytes
 
     def required_nodes_num(self, percent_resolution: int = 10000) -> int:
         """Number of nodes required"""
@@ -121,6 +124,7 @@ class OracleSettings(PlutusData):
 @dataclass
 class AggState(PlutusData):
     """AggState Datum"""
+
     CONSTR_ID = 0
     ag_settings: OracleSettings
 
@@ -128,6 +132,7 @@ class AggState(PlutusData):
 @dataclass
 class AggDatum(PlutusData):
     """Agg Datum"""
+
     CONSTR_ID = 2
     aggstate: AggState
 
@@ -135,4 +140,31 @@ class AggDatum(PlutusData):
 @dataclass
 class InitialOracleDatum(PlutusData):
     """Initial Oracle Datum"""
+
     CONSTR_ID = 0
+
+
+@dataclass
+class RewardInfo(PlutusData):
+    """Reward Info parameters"""
+
+    CONSTR_ID = 0
+    reward_address: bytes
+    reward_amount: int
+
+
+@dataclass
+class OracleReward(PlutusData):
+    """Oracle Reward parameters"""
+
+    CONSTR_ID = 0
+    node_reward_list: List[RewardInfo]
+    platform_reward: RewardInfo
+
+
+@dataclass
+class RewardDatum(PlutusData):
+    """Oracle Reward Datum"""
+
+    CONSTR_ID = 3
+    reward_state: OracleReward

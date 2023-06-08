@@ -93,7 +93,7 @@ class TestAggregateConditions:
 
         assert check_node_consensus_condition(oracle_settings, nodes_utxo) == (
             nodes_utxo,
-            392015,
+            411500,
         )
 
         # CHECKS FIRST A FAKE ADDRESS AND AFTER A CORRECT ADDRESS
@@ -101,7 +101,7 @@ class TestAggregateConditions:
 
         assert check_aggregator_permission(
             oracle_settings,
-            nodes_utxo[0].output.datum.node_state.node_operator.node_operator,
+            nodes_utxo[0].output.datum.node_state.ns_operator,
         )
 
         # WRAPPING ALL TESTS TOGETHER
@@ -109,7 +109,7 @@ class TestAggregateConditions:
         assert aggregation_conditions(
             oracle_settings,
             oracle_datum,
-            nodes_utxo[0].output.datum.node_state.node_operator.node_operator,
+            nodes_utxo[0].output.datum.node_state.ns_operator,
             curr_time_ms,
             nodes_utxo,
         ) == ([], 0)

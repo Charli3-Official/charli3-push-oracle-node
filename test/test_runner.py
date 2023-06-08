@@ -2,19 +2,18 @@
 from datetime import datetime
 
 from test.helper.mocked_data import (
-    MOCKED_CHAIN_QUERY_CONTEXT,
     MOCKED_PERCENT_RESOLUTION,
     MOCKED_RATE_CLASS,
     MOCKED_UPDATE_INTERVAL,
     MOCKED_RUNNER_AGG_STATE,
-    get_mocked_init,
     async_get_mocked_utxos,
     node_config,
 )
 
 import pytest
+from mocket import async_mocketize
 
-from backend.api import ChainQuery, Node
+from backend.api import Node
 from backend.core.datums import (
     DataFeed,
     PriceFeed,
@@ -30,24 +29,12 @@ async def update(self, rate):
     else:
         self.update_calls = 0
     self.aggregate_calls = 0
-    self.update_aggregate_calls = 0
 
 
 async def aggregate(self):
     """aggregate calls counter"""
-    self.update_calls = 0
-    self.aggregate_calls = 1
-    self.update_aggregate_calls = 0
-
-
-async def update_aggregate(self, rate):
-    """Update-aggregate calls counter"""
-    self.update_calls = 0
+    self.update_calls = 1
     self.aggregate_calls = 0
-    if rate:
-        self.update_aggregate_calls = 1
-    else:
-        self.update_aggregate_calls = 0
 
 
 MOCKED_RUNNER_OPERATE_CASES = [
@@ -67,7 +54,6 @@ MOCKED_RUNNER_OPERATE_CASES = [
         "expected_results": {
             "update_calls": 1,
             "aggregate_calls": 0,
-            "update_aggregate_calls": 0,
         },
     },
     {
@@ -80,9 +66,8 @@ MOCKED_RUNNER_OPERATE_CASES = [
         ),
         "oracle_feed": (PriceData.set_price_map(466087, 1657297865999, 1657297865999)),
         "expected_results": {
-            "update_calls": 0,
+            "update_calls": 1,
             "aggregate_calls": 0,
-            "update_aggregate_calls": 1,
         },
     },
 ]
@@ -92,16 +77,18 @@ MOCKED_RUNNER_OPERATE_CASES = [
 class TestFeedOperateClass:
     """Class to Test Runner"""
 
-    async def test_mocked_cases(self, monkeypatch):
+    async def test_mocked_cases(self, monkeypatch, get_chain_query):
         """Loading case for an *CASE* trigger"""
 
+        chain_query = await get_chain_query
         for case in MOCKED_RUNNER_OPERATE_CASES:
-            await self._feed_operate(case, monkeypatch)
+            await self._feed_operate(case, monkeypatch, chain_query)
 
-    async def test_initialize_feed(self, monkeypatch):
+    async def test_initialize_feed(self, monkeypatch, get_chain_query):
         """Method to test if runner initializes with correct data"""
 
-        feed_updater = self.get_feed_updater(monkeypatch)
+        chain_query = await get_chain_query
+        feed_updater = await self.get_feed_updater(monkeypatch, chain_query)
 
         monkeypatch.setattr(feed_updater.context, "get_utxos", async_get_mocked_utxos)
 
@@ -109,18 +96,14 @@ class TestFeedOperateClass:
 
         assert feed_updater.agg_datum == MOCKED_RUNNER_AGG_STATE
 
-    def get_feed_updater(self, monkeypatch):
+    @async_mocketize
+    async def get_feed_updater(self, monkeypatch, chain_query):
         """Retuns feed updater for test ussage"""
-
-        monkeypatch.setattr(ChainQuery, "__init__", get_mocked_init)
 
         monkeypatch.setattr(Node, "update", update)
         monkeypatch.setattr(Node, "aggregate", aggregate)
-        monkeypatch.setattr(Node, "update_aggregate", update_aggregate)
 
-        mocked_chain_query = ChainQuery(*MOCKED_CHAIN_QUERY_CONTEXT)
-
-        mocked_chain_query.context = MOCKED_CHAIN_QUERY_CONTEXT
+        mocked_chain_query = chain_query
 
         mocked_node = Node(*node_config(mocked_chain_query))
 
@@ -129,21 +112,20 @@ class TestFeedOperateClass:
             MOCKED_PERCENT_RESOLUTION,
             mocked_node,
             MOCKED_RATE_CLASS,
-            ChainQuery(*MOCKED_CHAIN_QUERY_CONTEXT),
+            mocked_chain_query,
         )
 
         return feed_updater
 
-    async def _feed_operate(self, case, monkeypatch):
+    async def _feed_operate(self, case, monkeypatch, chain_query):
         """Method to test update - aggregate cases"""
 
-        feed_updater = self.get_feed_updater(monkeypatch)
+        feed_updater = await self.get_feed_updater(monkeypatch, chain_query)
 
         feed_updater.agg_datum = MOCKED_RUNNER_AGG_STATE
 
         update_calls = case["expected_results"]["update_calls"]
         aggregate_calls = case["expected_results"]["aggregate_calls"]
-        update_aggregate_calls = case["expected_results"]["update_aggregate_calls"]
 
         del case["expected_results"]
 
@@ -151,4 +133,3 @@ class TestFeedOperateClass:
 
         assert feed_updater.node.update_calls == update_calls
         assert feed_updater.node.aggregate_calls == aggregate_calls
-        assert feed_updater.node.update_aggregate_calls == update_aggregate_calls

@@ -7,6 +7,7 @@ from .datums import (
     OracleDatum,
     NodeDatum,
     Nothing,
+    PriceRewards,
 )
 from .consensus import aggregation
 
@@ -22,7 +23,7 @@ def check_oracle_settings(oset: OracleSettings) -> bool:
         and check_valid_percentage(oset.os_aggregate_change)
         and check_positive(oset.os_updated_node_time)
         and check_positive(oset.os_aggregate_time)
-        and check_positive(oset.os_node_fee_price.get_node_fee)
+        and check_non_negative(oset.os_node_fee_price)
         and check_positive(oset.os_mad_multiplier)
         and check_positive(oset.os_divergence)
     )
@@ -43,6 +44,14 @@ def check_positive(value: int) -> bool:
     return value > 0
 
 
+def check_non_negative(prewards: PriceRewards) -> bool:
+    """Check non negative values as payment fees"""
+    return all(
+        value >= 0
+        for value in [prewards.node_fee, prewards.aggregate_fee, prewards.platform_fee]
+    )
+
+
 def check_feed_last_update(
     upd_node_time: int, ofeed: OracleDatum, curr_time: int, node_feed: NodeDatum
 ) -> bool:
@@ -50,13 +59,15 @@ def check_feed_last_update(
     Check if the last update of a data feed succeeded after the last aggregation and
     it's inside the node time expiry window.
     """
-    if not isinstance(node_feed.node_state.node_feed, Nothing):
-        dfeed = node_feed.node_state.node_feed.df
+    if not isinstance(node_feed.node_state.ns_feed, Nothing):
+        dfeed = node_feed.node_state.ns_feed.df
         if (ofeed.price_data is None) or (
             dfeed.df_last_update > ofeed.price_data.get_timestamp()
         ):
-
-            node_update_range = (dfeed.df_last_update, dfeed.df_last_update + upd_node_time)
+            node_update_range = (
+                dfeed.df_last_update,
+                dfeed.df_last_update + upd_node_time,
+            )
 
             if node_update_range[0] <= curr_time <= node_update_range[1]:
                 return True
@@ -183,7 +194,7 @@ def check_node_consensus_condition(
     * The aggregated feed value.
     """
     updated_nodes_value = [
-        node.output.datum.node_state.node_feed.df.df_value for node in nodes
+        node.output.datum.node_state.ns_feed.df.df_value for node in nodes
     ]
     agg_value, _, lower, upper = aggregation(
         oset.os_mad_multiplier, oset.os_divergence, updated_nodes_value
@@ -192,7 +203,7 @@ def check_node_consensus_condition(
     valid_nodes = [
         node
         for node in nodes
-        if lower <= node.output.datum.node_state.node_feed.df.df_value <= upper
+        if lower <= node.output.datum.node_state.ns_feed.df.df_value <= upper
     ]
 
     return valid_nodes, agg_value

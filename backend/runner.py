@@ -9,9 +9,17 @@ from math import ceil
 
 from .api import Node, AggregatedCoinRate, ChainQuery
 from .api.api import UnsuccessfulResponse
-from .core.datums import PriceFeed, PriceData, NodeDatum, OracleDatum, Nothing, AggDatum
+from .core.datums import (
+    PriceFeed,
+    PriceData,
+    NodeDatum,
+    OracleDatum,
+    Nothing,
+    AggDatum,
+    RewardDatum,
+)
 from .api.oraclechecks import (
-    filter_node_datums_by_node_info,
+    filter_node_datums_by_node_operator,
     get_oracle_utxos_with_datums,
     check_utxo_asset_balance,
     get_oracle_datums_only,
@@ -38,15 +46,13 @@ class FeedUpdater:
         self.node = node
         self.rate = rate
         self.context = context
-        self.node_nft = self.node.node_nft
-        self.oracle_nft = self.node.oracle_nft
-        self.aggstate_nft = self.node.aggstate_nft
         self.fee_asset_hash = self.node.c3_token_hash
         self.fee_asset_name = self.node.c3_token_name
         self.oracle_address = self.node.oracle_addr
         self.node_datum: NodeDatum = None
         self.oracle_datum: OracleDatum = None
         self.agg_datum: AggDatum = None
+        self.reward_datum: RewardDatum = None
 
     async def run(self):
         """Checks and if necesary updates and/or aggregates the contract"""
@@ -70,31 +76,33 @@ class FeedUpdater:
                 (
                     oraclefeed_utxo,
                     aggstate_utxo,
+                    reward_utxo,
                     nodes_utxos,
                 ) = get_oracle_utxos_with_datums(
-                    oracle_utxos, self.aggstate_nft, self.oracle_nft, self.node_nft
+                    oracle_utxos,
+                    self.node.aggstate_nft,
+                    self.node.oracle_nft,
+                    self.node.reward_nft,
+                    self.node.node_nft,
                 )
 
                 self.agg_datum: AggDatum = aggstate_utxo.output.datum
+                self.reward_datum: RewardDatum = reward_utxo.output.datum
                 oracle_datum: OracleDatum = oraclefeed_utxo.output.datum
                 nodes_datum: List[NodeDatum] = [
                     node.output.datum for node in nodes_utxos
                 ]
 
                 # Get the current node datum
-                node_own_datum = filter_node_datums_by_node_info(
-                    nodes_datum, self.node.node_info
+                node_own_datum = filter_node_datums_by_node_operator(
+                    nodes_datum, self.node.node_operator
                 )
 
                 # Remove all uninitialized nodes
 
                 valid_nodes_datum = list(
-                    filter(lambda x: x.node_state.node_feed != Nothing(), nodes_datum)
+                    filter(lambda x: x.node_state.ns_feed != Nothing(), nodes_datum)
                 )
-
-                # We remove our node because it has to pass more checks than the
-                # rest. We assume that it doesn't when counting valid nodes.
-                valid_nodes_datum.remove(node_own_datum)
 
                 # Prepare the rest of the variables for the checks
 
@@ -102,14 +110,16 @@ class FeedUpdater:
                     valid_nodes_datum, oracle_datum
                 )
                 req_nodes = self.agg_datum.aggstate.ag_settings.required_nodes_num()
-                node_fee = (
-                    self.agg_datum.aggstate.ag_settings.os_node_fee_price.get_node_fee
-                )
+                fees = self.agg_datum.aggstate.ag_settings.os_node_fee_price
                 get_paid = check_utxo_asset_balance(
                     aggstate_utxo,
                     self.fee_asset_hash,
                     self.fee_asset_name,
-                    (nodes_updated + 1 * node_fee),
+                    (
+                        nodes_updated * fees.node_fee
+                        + fees.aggregate_fee
+                        + fees.platform_fee
+                    ),
                 )
 
                 # Logging times.
@@ -139,7 +149,7 @@ class FeedUpdater:
                     req_nodes,
                     new_rate,
                     get_paid,
-                    node_own_datum.node_state.node_feed,
+                    node_own_datum.node_state.ns_feed,
                     oracle_datum.price_data,
                 )
 
@@ -170,20 +180,29 @@ class FeedUpdater:
 
         oracle_utxos = await self.context.get_utxos()
 
-        _, self.agg_datum, nodes_datum = get_oracle_datums_only(
-            oracle_utxos, self.aggstate_nft, self.oracle_nft, self.node_nft
+        _, self.agg_datum, self.reward_datum, nodes_datum = get_oracle_datums_only(
+            oracle_utxos,
+            self.node.aggstate_nft,
+            self.node.oracle_nft,
+            self.node.reward_nft,
+            self.node.node_nft,
         )
 
         check_oracle_settings(self.agg_datum.aggstate.ag_settings)
 
-        node_own_datum = filter_node_datums_by_node_info(
-            nodes_datum, self.node.node_info
+        node_own_datum = filter_node_datums_by_node_operator(
+            nodes_datum, self.node.node_operator
         )
 
-        if node_own_datum is None or self.agg_datum is None or None in nodes_datum:
+        if (
+            node_own_datum is None
+            or self.agg_datum is None
+            or self.reward_datum is None
+            or None in nodes_datum
+        ):
             logger.critical("One or more relevant datums are missing")
 
-        if node_own_datum.node_state.node_feed == Nothing():
+        if node_own_datum.node_state.ns_feed == Nothing():
             rate = await self.rate.get_aggregated_rate()
             await self.node.update(self._calculate_rate(rate))
             await asyncio.sleep(60)
@@ -194,9 +213,13 @@ class FeedUpdater:
 
     def check_rate_change(self, new_rate: int, prev_rate: int) -> bool:
         """check rate change condition"""
-        change = round((abs(new_rate - prev_rate) / prev_rate) * self.percent_resolution)
+        change = round(
+            (abs(new_rate - prev_rate) / prev_rate) * self.percent_resolution
+        )
         res = change > self.agg_datum.aggstate.ag_settings.os_aggregate_change
-        logger.info("check_rate_change: %s by %s  (centi percentage)", str(res), str(change))
+        logger.info(
+            "check_rate_change: %s by %s  (centi percentage)", str(res), str(change)
+        )
         return res
 
     def node_is_expired(self, last_time: int) -> bool:
@@ -235,13 +258,13 @@ class FeedUpdater:
         time_ms = time.time_ns() * 1e-6
         if ofeed:
             for dat in nodes_datum:
-                if dat.node_state.node_feed == Nothing():
+                if dat.node_state.ns_feed == Nothing():
                     updated -= 1
                 else:
                     timediff = (
-                        dat.node_state.node_feed.df.df_last_update - ofeed.get_timestamp()
+                        dat.node_state.ns_feed.df.df_last_update - ofeed.get_timestamp()
                     )
-                    delta_update = time_ms - dat.node_state.node_feed.df.df_last_update
+                    delta_update = time_ms - dat.node_state.ns_feed.df.df_last_update
 
                     if not (
                         0 < timediff
@@ -271,15 +294,10 @@ class FeedUpdater:
             self.check_rate_change(new_rate, own_feed.df.df_value)
             or self.node_is_expired(own_feed.df.df_last_update)
         ) and get_paid:
-
-            # Our node is not updated
-            if (nodes_updated >= req_nodes - 1) and can_aggregate:
-                # Our update is the one missing for an aggregate
-                await self.node.update_aggregate(new_rate)
-            else:
-                # More nodes are required before aggregating
-                await self.node.update(new_rate)
-        elif (nodes_updated + 1 >= req_nodes) and can_aggregate and get_paid:
+          # Our node is not updated
+           # More nodes are required before aggregating
+            await self.node.update(new_rate)
+        elif (nodes_updated +1 >= req_nodes) and can_aggregate and get_paid:
             # Our node is updated
             await self.node.aggregate()
         else:

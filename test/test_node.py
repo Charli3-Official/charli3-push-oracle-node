@@ -1,9 +1,7 @@
 """Test for backend runner"""
 from test.helper import (
     MOCKED_BLOCKFROST_API_CALL,
-    MOCKED_CHAIN_QUERY_CONTEXT,
     async_get_mocked_utxos,
-    get_mocked_init,
     node_config,
     register_api_uri,
 )
@@ -12,7 +10,7 @@ from test.helper import (
 from mocket import async_mocketize
 import pytest
 
-from backend.api import Node, ChainQuery
+from backend.api import Node
 from backend.core.datums import DataFeed, PriceFeed
 
 
@@ -20,7 +18,7 @@ from backend.core.datums import DataFeed, PriceFeed
 class TestNodeClass:
     """Class to Test Runner"""
 
-    async def test_get_node_own_utxos(self, monkeypatch):
+    async def test_get_node_own_utxos(self, monkeypatch, get_chain_query):
         """Loading case for an *CASE* trigger"""
 
         register_api_uri(
@@ -28,15 +26,15 @@ class TestNodeClass:
             *MOCKED_BLOCKFROST_API_CALL["api_call"]["v0_epochs_latest"],
         )
 
-        node = await self.get_node(monkeypatch)
+        node = await self.get_node(monkeypatch, get_chain_query)
 
         utxos = await node.chain_query.get_utxos()
 
         node_own_utxo = node.get_node_own_utxo(utxos)
 
-        assert utxos[6] == node_own_utxo
+        assert utxos[1] == node_own_utxo
 
-    async def test_filter_utxos_by_asset(self, monkeypatch):
+    async def test_filter_utxos_by_asset(self, monkeypatch, get_chain_query):
         """Loading case for an *CASE* trigger"""
 
         register_api_uri(
@@ -44,23 +42,19 @@ class TestNodeClass:
             *MOCKED_BLOCKFROST_API_CALL["api_call"]["v0_epochs_latest"],
         )
 
-        node = await self.get_node(monkeypatch)
+        node = await self.get_node(monkeypatch, get_chain_query)
 
         utxos = await node.chain_query.get_utxos()
 
         # Filter AGG_STATE_NFT
         aggstate_nft_utxo = node.filter_utxos_by_asset(utxos, node.aggstate_nft)[0]
-        assert utxos[4] == aggstate_nft_utxo
+        assert utxos[6] == aggstate_nft_utxo
 
         # Filter ORACLE NFT
         oracle_nft_utxo = node.filter_utxos_by_asset(utxos, node.oracle_nft)[0]
-        assert utxos[5] == oracle_nft_utxo
+        assert utxos[7] == oracle_nft_utxo
 
-        nodes_nft_utxo = node.filter_utxos_by_asset(utxos, node.node_nft)
-
-        assert [utxos[0], utxos[6]] == nodes_nft_utxo
-
-    async def test_update_own_node_utxo(self, monkeypatch):
+    async def test_update_own_node_utxo(self, monkeypatch, get_chain_query):
         """Loading case for an *CASE* trigger"""
 
         register_api_uri(
@@ -68,34 +62,33 @@ class TestNodeClass:
             *MOCKED_BLOCKFROST_API_CALL["api_call"]["v0_epochs_latest"],
         )
 
-        node = await self.get_node(monkeypatch)
+        node = await self.get_node(monkeypatch, get_chain_query)
         utxos = await node.chain_query.get_utxos()
 
         node_own_utxo = node.get_node_own_utxo(utxos)
 
         new_node_feed = PriceFeed(DataFeed(8888888, 12312312312312))
-        node_own_utxo.output.datum.node_state.node_feed = new_node_feed
+        node_own_utxo.output.datum.node_state.ns_feed = new_node_feed
 
         updated_nodes_utxos = node.filter_utxos_by_asset(utxos, node.node_nft)
-        updated_node = [
+
+        updated_node = next(
             utxo
             for utxo in updated_nodes_utxos
-            if utxo.output.datum.node_state.node_operator == node.node_info
-        ]
+            if utxo.output.datum.node_state.ns_operator == node.node_operator
+        )
 
-        assert node_own_utxo == updated_node[0]
+        assert node_own_utxo == updated_node
 
     @async_mocketize
-    async def get_node(self, monkeypatch):
+    async def get_node(self, monkeypatch, get_chain_query):
         """Retuns node class test ussage"""
-        monkeypatch.setattr(ChainQuery, "__init__", get_mocked_init)
-
-        mocked_chain_query = ChainQuery(*MOCKED_CHAIN_QUERY_CONTEXT)
-
-        mocked_chain_query.context = MOCKED_CHAIN_QUERY_CONTEXT
+        mocked_chain_query = await get_chain_query
 
         mocked_node = Node(*node_config(mocked_chain_query))
 
-        monkeypatch.setattr(mocked_node.chain_query, "get_utxos", async_get_mocked_utxos)
+        monkeypatch.setattr(
+            mocked_node.chain_query, "get_utxos", async_get_mocked_utxos
+        )
 
         return mocked_node

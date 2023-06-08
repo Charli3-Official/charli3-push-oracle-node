@@ -7,39 +7,30 @@ from pycardano import (
     ScriptHash,
     AssetName,
 )
-from backend.core.datums import (
-    NodeDatum,
-    NodeInfo,
-    OracleDatum,
-    AggDatum,
-)
+from backend.core.datums import NodeDatum, OracleDatum, AggDatum, RewardDatum
 
 logger = logging.getLogger("oracle-checks")
 
 
-def filter_node_datums_by_node_info(
-    node_datums: List[NodeDatum], node_info: NodeInfo
-) -> NodeDatum:
+def filter_node_datums_by_node_operator(
+    node_datums: List[NodeDatum], node_operator: bytes
+):
     """
     filter node datums by node info
 
     Args:
         node_datums: A list of NodeDatum objects.
-        node_info: A NodeInfo object.
+        node_operator: A NodeInfo object.
 
     Returns:
         A NodeDatum object.
 
     """
     if len(node_datums) > 0:
-        return next(
-            (
-                datum
-                for datum in node_datums
-                if datum.node_state.node_operator == node_info
-            ),
-            None,
-        )
+        for node_datum in node_datums:
+            if node_datum.node_state.ns_operator == node_operator:
+                return node_datum
+    return None
 
 
 def check_utxo_asset_balance(
@@ -100,8 +91,9 @@ def get_oracle_utxos_with_datums(
     oracle_utxos: List[UTxO],
     aggstate_nft: MultiAsset,
     oracle_nft: MultiAsset,
+    reward_nft: MultiAsset,
     node_nft: MultiAsset,
-) -> Tuple[UTxO, UTxO, List[UTxO]]:
+) -> Tuple[UTxO, UTxO, UTxO, List[UTxO]]:
     """
     Given a list of UTxOs, filters them by asset and converts the data to the appropriate datum
     object.
@@ -110,11 +102,13 @@ def get_oracle_utxos_with_datums(
         - oracle_utxos (List[UTxO]): The list of UTxOs to filter and convert.
         - aggstate_nft (MultiAsset): The asset used to filter the UTxOs for the AggDatum object.
         - oracle_nft (MultiAsset): The asset used to filter the UTxOs for the OracleDatum object.
+        - reward_nft (MultiAsset): The asset used to filter the UTxOs for the RewardDatum object.
         - node_nft (MultiAsset): The asset used to filter the UTxOs for the NodeDatum objects.
 
     Returns:
-        Tuple[UTxO, UTxO, List[UTxO]] : A tuple containing the filtered and converted UTxOs for the
-        AggDatum, OracleDatum, and NodeDatum objects.
+        Tuple[UTxO, UTxO, UTxO, List[UTxO]] : A tuple containing the filtered and
+        converted UTxOs for the AggDatum, OracleDatum, RewardDatum, and
+        NodeDatum  objects.
     """
     aggstate_utxo = next(
         (
@@ -126,6 +120,10 @@ def get_oracle_utxos_with_datums(
     )
     oraclefeed_utxo = next(
         (utxo for utxo in oracle_utxos if utxo.output.amount.multi_asset >= oracle_nft),
+        None,
+    )
+    reward_utxo = next(
+        (utxo for utxo in oracle_utxos if utxo.output.amount.multi_asset >= reward_nft),
         None,
     )
     nodes_utxos = [
@@ -149,39 +147,58 @@ def get_oracle_utxos_with_datums(
     except Exception:
         logger.error("Invalid CBOR data for OracleDatum")
 
-    return (oraclefeed_utxo, aggstate_utxo, node_utxos_with_datum)
+    try:
+        if reward_utxo.output.datum:
+            reward_utxo.output.datum = RewardDatum.from_cbor(
+                reward_utxo.output.datum.cbor
+            )
+    except Exception:
+        print("Invalid CBOR data for RewardDatum")
+
+    return (
+        oraclefeed_utxo,
+        aggstate_utxo,
+        reward_utxo,
+        node_utxos_with_datum,
+    )
 
 
 def get_oracle_datums_only(
     oracle_utxos: List[UTxO],
     aggstate_nft: MultiAsset,
     oracle_nft: MultiAsset,
+    reward_nft: MultiAsset,
     node_nft: MultiAsset,
-) -> Tuple[OracleDatum, AggDatum, List[NodeDatum]]:
+) -> Tuple[OracleDatum, AggDatum, RewardDatum, List[NodeDatum]]:
     """
-    This function takes a list of oracle UTxOs, an aggstate NFT, an oracle NFT, and a node NFT as
-    inputs, and returns a tuple containing the oracle datum, the aggstate datum, and a list of
-    node datums.
+    This function takes a list of oracle UTxOs, an aggstate NFT, an oracle NFT,
+    a node NFT, and a reward NFT as inputs, and returns a tuple containing the
+    oracle datum, the aggstate datum, the reward datum, and a list of node datums.
     Parameters:
     - oracle_utxos (List[UTxO]): A list of oracle UTxOs.
     - aggstate_nft (MultiAsset): The aggstate NFT.
     - oracle_nft (MultiAsset): The oracle NFT.
+    - reward_nft (MultiAsset): The reward NFT.
     - node_nft (MultiAsset): The node NFT.
 
     Returns:
-    - Tuple[OracleDatum, AggDatum, List[NodeDatum]]: A tuple containing the oracle datum, the
-    aggstate datum, and a list of node datums.
+    - Tuple[OracleDatum, AggDatum, RewardDatum, List[NodeDatum]]: A tuple containing
+    the oracle datum, the aggstate datum, the reward datum and a list of node datums.
     """
 
     (
         oraclefeed_utxo,
         aggstate_utxo,
+        reward_utxo,
         node_utxos_with_datum,
-    ) = get_oracle_utxos_with_datums(oracle_utxos, aggstate_nft, oracle_nft, node_nft)
+    ) = get_oracle_utxos_with_datums(
+        oracle_utxos, aggstate_nft, oracle_nft, reward_nft, node_nft
+    )
 
     oracle_datum = oraclefeed_utxo.output.datum
     aggstate_datum = aggstate_utxo.output.datum
+    reward_datum = reward_utxo.output.datum
 
     node_datums = [node.output.datum for node in node_utxos_with_datum]
 
-    return (oracle_datum, aggstate_datum, node_datums)
+    return (oracle_datum, aggstate_datum, reward_datum, node_datums)

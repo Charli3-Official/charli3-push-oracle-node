@@ -6,14 +6,13 @@ from backend.core.datums import (
     NodeState,
     PriceFeed,
     DataFeed,
-    NodeInfo,
 )
 
 
 class TestDatums:
     """Tests for the datum classes"""
 
-    nodeDatum = "d87a9fd8799fd8799f581c37080314efda7753fa4ef1f8a19ec9b7e92376d06778e18d456b946dffd8799fd8799f1a0005e4921b00000185fba69d23ffffffff"
+    nodeDatum = "d87a9fd8799f581cc336a4d3ef39913b63e61f92008d5191556ed3c3c5c11b50764bc1e4d8799fd8799f1a0006476c1b00000188989d88deffffffff"  # pylint: disable=line-too-long
     oracleDatum = (
         "d8799fd87b9fa3001a0006110c011b00000185ffcd4c1b021b0000018600043a9bffff"
     )
@@ -27,21 +26,19 @@ class TestDatums:
 
     def test_node_datum(self):
         """Test the oracle datum with valid information"""
-        node_info = NodeInfo(
-            bytes.fromhex(
-                str("37080314efda7753fa4ef1f8a19ec9b7e92376d06778e18d456b946d")
-            )
+        node_operator = bytes.fromhex(
+            str("c336a4d3ef39913b63e61f92008d5191556ed3c3c5c11b50764bc1e4")
         )
         node_data = NodeDatum.from_cbor(self.nodeDatum)
-        assert node_data.node_state.node_operator == node_info
-        assert node_data.node_state.node_feed.df.df_value == 386194
-        assert node_data.node_state.node_feed.df.df_last_update == 1674964278563
+        assert node_data.node_state.ns_operator == node_operator
+        assert node_data.node_state.ns_feed.df.df_value == 411500
+        assert node_data.node_state.ns_feed.df.df_last_update == 1686187641054
 
     def test_node_state_attribute(self):
         """Test if the node_state attribute is correctly set in the NodeDatum class"""
         node_state = NodeState(
-            node_operator=b"operator1",
-            node_feed=PriceFeed(df=DataFeed(df_value=100, df_last_update=20210101)),
+            ns_operator=b"operator1",
+            ns_feed=PriceFeed(df=DataFeed(df_value=100, df_last_update=20210101)),
         )
         node_datum = NodeDatum(node_state=node_state)
         assert node_datum.node_state == node_state

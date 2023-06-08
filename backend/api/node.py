@@ -2,7 +2,7 @@
 import time
 import logging
 from copy import deepcopy
-from typing import List, Union
+from typing import List, Union, Tuple
 import cbor2
 from pycardano import (
     Network,
@@ -14,7 +14,6 @@ from pycardano import (
     TransactionOutput,
     TransactionBuilder,
     Redeemer,
-    RedeemerTag,
     Asset,
     MultiAsset,
     UTxO,
@@ -26,17 +25,16 @@ from pycardano import (
 )
 from backend.core.datums import (
     NodeDatum,
-    NodeInfo,
     PriceFeed,
     DataFeed,
     AggDatum,
     OracleDatum,
     PriceData,
+    RewardDatum,
 )
 from backend.core.redeemers import (
     NodeUpdate,
     Aggregate,
-    UpdateAndAggregate,
     NodeCollect,
 )
 from backend.core.aggregate_conditions import aggregation_conditions
@@ -58,6 +56,7 @@ class Node:
         node_nft: MultiAsset,
         aggstate_nft: MultiAsset,
         oracle_nft: MultiAsset,
+        reward_nft: MultiAsset,
         oracle_addr: Address,
         c3_token_hash: ScriptHash,
         c3_token_name: AssetName,
@@ -73,11 +72,11 @@ class Node:
         self.node_nft = node_nft
         self.aggstate_nft = aggstate_nft
         self.oracle_nft = oracle_nft
-        self.node_info = NodeInfo(bytes.fromhex(str(self.pub_key_hash)))
+        self.reward_nft = reward_nft
+        self.node_operator = bytes.fromhex(str(self.pub_key_hash))
         self.oracle_addr = oracle_addr
         self.c3_token_hash = c3_token_hash
         self.c3_token_name = c3_token_name
-        self.oracle_script_hash = self.oracle_addr.payment_part
         self.reference_script_input = reference_script_input
         self.oracle_script_hash = self.oracle_addr.payment_part
 
@@ -99,9 +98,9 @@ class Node:
         time_ms = round(time.time_ns() * 1e-6)
         new_node_feed = PriceFeed(DataFeed(rate, time_ms))
 
-        node_own_utxo.output.datum.node_state.node_feed = new_node_feed
+        node_own_utxo.output.datum.node_state.ns_feed = new_node_feed
 
-        node_update_redeemer = Redeemer(RedeemerTag.SPEND, NodeUpdate())
+        node_update_redeemer = Redeemer(NodeUpdate())
 
         builder = TransactionBuilder(self.context)
 
@@ -118,17 +117,14 @@ class Node:
         await self.submit_tx_builder(builder)
 
     async def aggregate(
-        self, rate: int = None, update_node_output: bool = False
-    ) -> bool:
+        self,
+    ):
         """build's partial node aggregate tx.
 
         This method is called by the node to aggregate the oracle feed.
 
         Args:
             rate (int): price rate to be updated.
-            update_node_output (bool): if True, node's own output will be updated.
-                This flag is used when node is updating its own feed with aggregate tx and
-                when update_aggregate is called.
 
         Returns:
             bool : This flag indicates the transaction/operation status:
@@ -138,21 +134,26 @@ class Node:
         """
         oracle_utxos = await self.chain_query.get_utxos(self.oracle_addr)
         curr_time_ms = round(time.time_ns() * 1e-6)
-        oraclefeed_utxo, aggstate_utxo, nodes_utxos = get_oracle_utxos_with_datums(
-            oracle_utxos, self.aggstate_nft, self.oracle_nft, self.node_nft
+        (
+            oraclefeed_utxo,
+            aggstate_utxo,
+            reward_utxo,
+            nodes_utxos,
+        ) = get_oracle_utxos_with_datums(
+            oracle_utxos,
+            self.aggstate_nft,
+            self.oracle_nft,
+            self.reward_nft,
+            self.node_nft,
         )
         aggstate_datum: AggDatum = aggstate_utxo.output.datum
         oraclefeed_datum: OracleDatum = oraclefeed_utxo.output.datum
+        reward_datum: RewardDatum = reward_utxo.output.datum
         total_nodes = len(aggstate_datum.aggstate.ag_settings.os_node_list)
-        single_node_fee = (
-            aggstate_datum.aggstate.ag_settings.os_node_fee_price.get_node_fee
+        fees = aggstate_datum.aggstate.ag_settings.os_node_fee_price
+        min_c3_required = (
+            fees.node_fee * total_nodes + fees.aggregate_fee + fees.platform_fee
         )
-        min_c3_required = single_node_fee * total_nodes
-
-        # Handling update_aggregate logic here.
-        if update_node_output:
-            new_node_feed = PriceFeed(DataFeed(rate, curr_time_ms))
-            nodes_utxos = self.update_own_node_utxo(nodes_utxos, new_node_feed)
 
         # Calculations and Conditions check for aggregation.
         if check_utxo_asset_balance(
@@ -167,19 +168,17 @@ class Node:
             )
 
             if len(valid_nodes) > 0 and set(valid_nodes).issubset(set(nodes_utxos)):
-                c3_fees = len(valid_nodes) * single_node_fee
+                c3_fees = (
+                    len(valid_nodes) * fees.node_fee
+                    + fees.aggregate_fee
+                    + fees.platform_fee
+                )
                 oracle_feed_expiry = (
                     curr_time_ms + aggstate_datum.aggstate.ag_settings.os_aggregate_time
                 )
 
-                if update_node_output:
-                    aggregate_redeemer = Redeemer(
-                        RedeemerTag.SPEND,
-                        UpdateAndAggregate(pub_key_hash=bytes(self.pub_key_hash)),
-                    )
-                else:
-                    logger.info("aggregate called with agg_value: %d", agg_value)
-                    aggregate_redeemer = Redeemer(RedeemerTag.SPEND, Aggregate())
+                logger.info("aggregate called with agg_value: %d", agg_value)
+                aggregate_redeemer = Redeemer(Aggregate())
 
                 script_utxo = (
                     self.get_reference_script_utxo(oracle_utxos)
@@ -214,66 +213,64 @@ class Node:
                     .add_output(oraclefeed_tx_output)
                 )
 
-                for utxo in valid_nodes:
-                    builder.add_script_input(
-                        utxo, script=script_utxo, redeemer=deepcopy(aggregate_redeemer)
-                    )
-                    tx_output = deepcopy(utxo.output)
-                    if (
-                        self.c3_token_hash in tx_output.amount.multi_asset
-                        and self.c3_token_name
-                        in tx_output.amount.multi_asset[self.c3_token_hash]
-                    ):
-                        tx_output.amount.multi_asset[self.c3_token_hash][
-                            self.c3_token_name
-                        ] += single_node_fee
-                    else:
-                        # Handle the case where the key does not exist
-                        # For example, set the value to a default value
-                        c3_asset = MultiAsset(
-                            {
-                                self.c3_token_hash: Asset(
-                                    {self.c3_token_name: single_node_fee}
-                                )
-                            }
-                        )
-                        tx_output.amount.multi_asset += c3_asset
+                # Managing reward output, updating each node's reward amount in reward datum.
+                aggregate_fee_added = False
 
-                    builder.add_output(tx_output)
+                for utxo in valid_nodes:
+                    node_operator = utxo.output.datum.node_state.ns_operator
+                    for reward_info in reward_datum.reward_state.node_reward_list:
+                        if reward_info.reward_address == node_operator:
+                            reward_info.reward_amount += fees.node_fee
+                        if (
+                            reward_info.reward_address == self.node_operator
+                            and not aggregate_fee_added
+                        ):
+                            reward_info.reward_amount += fees.aggregate_fee
+                            aggregate_fee_added = True
+
+                # add platform fee to reward datum
+                reward_datum.reward_state.platform_reward.reward_amount += (
+                    fees.platform_fee
+                )
+                reward_tx_output = deepcopy(reward_utxo.output)
+
+                if (
+                    self.c3_token_hash in reward_tx_output.amount.multi_asset
+                    and self.c3_token_name
+                    in reward_tx_output.amount.multi_asset[self.c3_token_hash]
+                ):
+                    reward_tx_output.amount.multi_asset[self.c3_token_hash][
+                        self.c3_token_name
+                    ] += c3_fees
+                else:
+                    # Handle the case where the key does not exist
+                    # For example, set the value to a default value
+                    c3_asset = MultiAsset(
+                        {self.c3_token_hash: Asset({self.c3_token_name: c3_fees})}
+                    )
+
+                    reward_tx_output.amount.multi_asset += c3_asset
+                reward_tx_output.datum = reward_datum
+
+                builder.add_script_input(
+                    reward_utxo, redeemer=deepcopy(aggregate_redeemer)
+                ).add_output(reward_tx_output)
+
+                # adding node utxos as reference inputs,
+                # all node utxos referenced as reference inputs.
+                builder.reference_inputs.update(nodes_utxos)
 
                 await self.submit_tx_builder(builder)
-                return True
             else:
-                logger.error(
+                print(
                     "The required minimum number of nodes for aggregation has not been met. \
                      aggregation conditions failed."
                 )
-                return False
+
         else:
-            logger.error("Not enough C3s to perform aggregation")
+            print("Not enough C3s to perform aggregation")
 
-    async def update_aggregate(self, rate: int) -> None:
-        """build's partial node update_aggregate tx.
-
-        This method is called by the node to update the node feed and
-        aggregate the oracle feed in one transaction.
-
-        Args:
-            rate (int): The new rate to be updated in the node feed.
-
-        Returns:
-            None
-
-        """
-        logger.info("update-aggregate called: %d ", rate)
-        aggregation_successful = await self.aggregate(
-            rate=rate, update_node_output=True
-        )
-        if not aggregation_successful:
-            logger.error("update-aggregate failed, calling update.")
-            await self.update(rate)
-
-    async def collect(self) -> None:
+    async def collect(self, reward_address: Address) -> None:
         """
         build's partial node collect tx.
 
@@ -287,28 +284,35 @@ class Node:
 
         """
         oracle_utxos = await self.chain_query.get_utxos(self.oracle_addr)
-        node_own_utxo = self.get_node_own_utxo(oracle_utxos)
+        reward_utxo, reward_datum = self._get_reward_utxo_and_datum(oracle_utxos)
 
         # preparing multiasset.
-        c3_amount = node_own_utxo.output.amount.multi_asset[self.c3_token_hash][
-            self.c3_token_name
-        ]
+        for reward_info in reward_datum.reward_state.node_reward_list:
+            if reward_info.reward_address == self.node_operator:
+                # get the reward amount and set it to 0
+                c3_amount = reward_info.reward_amount
+                reward_info.reward_amount = 0
+                break
+        if c3_amount == 0:
+            print("No reward to collect")
+            return
 
         c3_asset = MultiAsset(
             {self.c3_token_hash: Asset({self.c3_token_name: c3_amount})}
         )
 
-        tx_output = deepcopy(node_own_utxo.output)
+        tx_output = deepcopy(reward_utxo.output)
         tx_output.amount.multi_asset -= c3_asset
+        tx_output.datum = reward_datum
 
-        node_collect_redeemer = Redeemer(RedeemerTag.SPEND, NodeCollect())
+        node_collect_redeemer = Redeemer(NodeCollect())
 
         builder = TransactionBuilder(self.context)
 
         (
-            builder.add_script_input(node_own_utxo, redeemer=node_collect_redeemer)
+            builder.add_script_input(reward_utxo, redeemer=node_collect_redeemer)
             .add_output(tx_output)
-            .add_output(TransactionOutput(self.address, Value(2000000, c3_asset)))
+            .add_output(TransactionOutput(reward_address, Value(2000000, c3_asset)))
         )
 
         await self.submit_tx_builder(builder)
@@ -364,7 +368,7 @@ class Node:
 
         """
         nodes_utxos = self.filter_utxos_by_asset(oracle_utxos, self.node_nft)
-        return self.filter_node_utxos_by_node_info(nodes_utxos)
+        return self.filter_node_utxos_by_node_operator(nodes_utxos)
 
     def filter_utxos_by_asset(self, utxos: List[UTxO], asset: MultiAsset) -> List[UTxO]:
         """
@@ -380,15 +384,15 @@ class Node:
         """
         return list(filter(lambda x: x.output.amount.multi_asset >= asset, utxos))
 
-    def filter_node_utxos_by_node_info(self, nodes_utxo: List[UTxO]) -> UTxO:
+    def filter_node_utxos_by_node_operator(self, nodes_utxo: List[UTxO]) -> UTxO:
         """
-        filter list of UTxOs by given node_info
+        filter list of UTxOs by given node_operator
 
         Args:
             nodes_utxo (List[UTxO]): List of UTxOs
 
         Returns:
-            UTxO: node's own UTxO filtered by given node_info
+            UTxO: node's own UTxO filtered by given node_operator
 
         """
         if len(nodes_utxo) > 0:
@@ -397,7 +401,7 @@ class Node:
                     if utxo.output.datum.cbor:
                         utxo.output.datum = NodeDatum.from_cbor(utxo.output.datum.cbor)
 
-                    if utxo.output.datum.node_state.node_operator == self.node_info:
+                    if utxo.output.datum.node_state.ns_operator == self.node_operator:
                         return utxo
         return None
 
@@ -417,8 +421,8 @@ class Node:
         """
         if len(nodes_utxo) > 0:
             for utxo in nodes_utxo:
-                if utxo.output.datum.node_state.node_operator == self.node_info:
-                    utxo.output.datum.node_state.node_feed = updated_node_feed
+                if utxo.output.datum.node_state.ns_operator == self.node_operator:
+                    utxo.output.datum.node_state.ns_feed = updated_node_feed
 
         return nodes_utxo
 
@@ -458,3 +462,15 @@ class Node:
             return plutus_script
         else:
             logger.error("script hash mismatch")
+
+    def _get_reward_utxo_and_datum(
+        self, oracle_utxos: List[UTxO]
+    ) -> Tuple[UTxO, RewardDatum]:
+        """Get reward utxo and datum."""
+        rewardstate_utxo: UTxO = self.filter_utxos_by_asset(
+            oracle_utxos, self.reward_nft
+        )[0]
+        rewardstate_datum: RewardDatum = RewardDatum.from_cbor(
+            rewardstate_utxo.output.datum.cbor
+        )
+        return rewardstate_utxo, rewardstate_datum
