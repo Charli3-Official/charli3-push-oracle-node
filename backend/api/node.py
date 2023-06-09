@@ -347,7 +347,10 @@ class Node:
                 builder.required_signers = [self.pub_key_hash]
 
                 signed_tx = builder.build_and_sign(
-                    [self.signing_key], change_address=self.address
+                    [self.signing_key],
+                    change_address=self.address,
+                    auto_validity_start_offset=0,
+                    auto_ttl_offset=120,
                 )
                 await self.chain_query.submit_tx_with_print(signed_tx)
             else:
