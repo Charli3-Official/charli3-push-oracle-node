@@ -95,6 +95,8 @@ Options:
 
 The Rate section is responsible for configuring the base and quote currency settings for various exchanges and DEXes.
 
+For more details about the different adapters available, their usage, and configuration options, please refer to the [Adapters Guide](adapters_guide.md). This guide provides comprehensive information on how to effectively utilize each adapter in your currency rate configuration.
+
 Example configuration:
 ```yaml
 Rate: #SHENUSD Feed Config.

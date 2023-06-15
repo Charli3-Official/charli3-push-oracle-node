@@ -46,6 +46,8 @@ Refer to the [config.yml.example](config.yml.example) file for an example config
 
 For detailed information about customizing the `config.yml` file, including ChainQuery configurations, node and oracle settings, and data providers for base and quote currency rates, please refer to our comprehensive [Configuration Guide](docs/configuration_guide.md).
 
+For more details about the different adapters available, their usage, and configuration options, please refer to the [Adapters Guide](docs/adapters_guide.md). This guide provides comprehensive information on how to effectively utilize each adapter in your currency rate configuration.
+
 ## Functionality
 The Charli3 Node Operator Backend provides the following functionality:
 

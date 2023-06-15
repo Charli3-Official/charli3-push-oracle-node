@@ -58,6 +58,7 @@ class Generic(CoinRate):
         key: dict = None,
         quote_currency: bool = False,
         rate_calculation_method: str = "multiply",
+        token: Optional[str] = None,
     ):
         self.provider = provider
         self.symbol = symbol
@@ -67,14 +68,19 @@ class Generic(CoinRate):
         self.key = {} if not key else key
         self.quote_currency = quote_currency
         self.rate_calculation_method = rate_calculation_method
+        self.token = token
 
-    def get_path(self):
+    def get_path(self) -> str:
         return self.path
 
-    async def get_rate(self, quote_currency_rate: float = None):
+    async def get_rate(self, quote_currency_rate: float = None) -> Optional[float]:
         try:
             logger.info("Getting %s %s rate", self.provider, self.symbol)
-            resp = await self._get(self.path, headers=self.key)
+            headers = self.key
+            if self.token:
+                # handle bearer token
+                headers["Authorization"] = f"Bearer {self.token}"
+            resp = await self._get(self.path, headers=headers)
             data = resp.json
             for key in self.json_path:
                 data = data[key]
@@ -98,7 +104,7 @@ class BinanceApi(CoinRate):
     """Abstracts the binance API rate"""
 
     api_url = "https://api.binance.com"
-    path = "/api/v3/avgPrice?symbol="
+    path = "/api/v3/ticker/price?symbol="
 
     def __init__(
         self,
