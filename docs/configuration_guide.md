@@ -63,9 +63,11 @@ Node:
  
  ### ChainQuery
 
-The ChainQuery section is responsible for configuring ChainQuery settings, such as network type, BlockFrost settings, and Ogmios settings and contains settings related to the blockchain querying process.
+The ChainQuery section is responsible for configuring ChainQuery settings, such as network type, BlockFrost settings, and Ogmios settings and contains settings related to the blockchain querying process. It also now supports an optional Kupo configuration.
 
 It can work with any one option from blockfrost and ogmios. If both enable then querying part will be done by blockfrost and ogmios will be used to tx submission.
+
+When the optional Kupo configuration is provided in Ogmios configuration, the UTxO query will be done by Kupo.
 
 Example configuration:
 
@@ -77,6 +79,7 @@ ChainQuery:
     project_id: preprodVPAHdGNLvQtM3Ppkxtvd2oEVhHFxZ6MD
   ogmios:
     ws_url:  wss://ogmios-preprod-api-charli3-49bb04.us1.demeter.run
+    kupo_url: https://kupo-url   # optional
 ```
 Options:
 
@@ -86,6 +89,7 @@ Options:
   - `project_id`: The BlockFrost project ID.
 - `ogmios`: Ogmios settings.
   - `ws_url`: The Ogmios WebSocket URL.
+  - `kupo_url`: The optional Kupo URL. If provided, UTXO query will be handled by Kupo.
 
 ### Rate
 

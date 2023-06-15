@@ -44,6 +44,8 @@ The backend can be configured using a config.yml file. This file allows you to c
 
 Refer to the [config.yml.example](config.yml.example) file for an example configuration.
 
+For detailed information about customizing the `config.yml` file, including ChainQuery configurations, node and oracle settings, and data providers for base and quote currency rates, please refer to our comprehensive [Configuration Guide](docs/configuration_guide.md).
+
 ## Functionality
 The Charli3 Node Operator Backend provides the following functionality:
 

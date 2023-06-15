@@ -69,10 +69,12 @@ if ini_node:
 
     if ogmios_config:
         ogmios_ws_url = ogmios_config["ws_url"]
+        kupo_url = ogmios_config.get("kupo_url")
 
         ogmios_context = OgmiosChainContext(
             network=network,
             ws_url=ogmios_ws_url,
+            kupo_url=kupo_url,
         )
 
     chain_query = ChainQuery(

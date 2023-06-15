@@ -225,7 +225,7 @@ class ChainQuery:
             None
         """
         logger.info("creating collateral UTxO.")
-        collateral_builder = TransactionBuilder(self)
+        collateral_builder = TransactionBuilder(self.context)
 
         collateral_builder.add_input_address(target_address)
         collateral_builder.add_output(TransactionOutput(target_address, 5000000))
