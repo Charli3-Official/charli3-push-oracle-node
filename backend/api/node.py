@@ -166,7 +166,6 @@ class Node:
                 curr_time_ms,
                 nodes_utxos,
             )
-
             if len(valid_nodes) > 0 and set(valid_nodes).issubset(set(nodes_utxos)):
                 c3_fees = (
                     len(valid_nodes) * fees.node_fee

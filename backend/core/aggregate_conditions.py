@@ -24,7 +24,7 @@ def check_oracle_settings(oset: OracleSettings) -> bool:
         and check_positive(oset.os_updated_node_time)
         and check_positive(oset.os_aggregate_time)
         and check_non_negative(oset.os_node_fee_price)
-        and check_positive(oset.os_mad_multiplier)
+        and check_positive(oset.os_iqr_multiplier)
         and check_positive(oset.os_divergence)
     )
 
@@ -197,7 +197,7 @@ def check_node_consensus_condition(
         node.output.datum.node_state.ns_feed.df.df_value for node in nodes
     ]
     agg_value, _, lower, upper = aggregation(
-        oset.os_mad_multiplier, oset.os_divergence, updated_nodes_value
+        oset.os_iqr_multiplier, oset.os_divergence, updated_nodes_value
     )
 
     valid_nodes = [

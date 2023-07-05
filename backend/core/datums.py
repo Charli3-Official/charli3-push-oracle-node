@@ -111,7 +111,7 @@ class OracleSettings(PlutusData):
     os_aggregate_time: int
     os_aggregate_change: int
     os_node_fee_price: PriceRewards
-    os_mad_multiplier: int
+    os_iqr_multiplier: int
     os_divergence: int
     os_platform_pkh: bytes
 

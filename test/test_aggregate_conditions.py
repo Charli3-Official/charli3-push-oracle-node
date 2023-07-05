@@ -93,7 +93,7 @@ class TestAggregateConditions:
 
         assert check_node_consensus_condition(oracle_settings, nodes_utxo) == (
             nodes_utxo,
-            411500,
+            411600,
         )
 
         # CHECKS FIRST A FAKE ADDRESS AND AFTER A CORRECT ADDRESS

@@ -34,60 +34,109 @@ def random_median(numbers: List[int]):
 
 
 def aggregation(
-    mad_multi: int, diver: int, feeds: List[int]
+    iqrMultiplier: int, diverInPercentage: int, nodeFeeds: List[int]
 ) -> Tuple[int, List[int], int, int]:
     """
     Calculate the median, onConsensus, lower bound, and upper bound of the aggregated feeds.
-
     Parameters:
-    - mad_multi: the MAD (mean absolute deviation)
-    - diver: the divergence
+    - iqrMultiplier: k value for outlier detection. The recommended value is 0 (1.5),
+      the onchain code has the range restriction between 0 - 4
+    - diver: the divergence in percentage (10000)
     - feeds: the feeds to be aggregated
+    Returns:
+    - A 4-tuple containing the median, onConsensus, lower bound, and upper bound of the
+      aggregated feeds.
+    """
+    sortFeeds = sorted(nodeFeeds)
+    _median = int(median(sortFeeds))
+    lFeeds = len(sortFeeds)
+    onConsensus = consensus(
+        sortFeeds, lFeeds, _median, iqrMultiplier, diverInPercentage
+    )
+    lower = onConsensus[0]
+    upper = onConsensus[-1]
+    return _median, onConsensus, lower, upper
 
+
+# The IQR multiplier can be set to any positive value. Small data sets
+# with large units as value may be considered as an outlier when it is not,
+# here it is convenient to set a higher upper limit.
+# It's recommended to use a value of 1.5 for accurate outlier identification.
+# This is because, in a standard normal distribution, the quartiles are +/-0.67,
+# resulting in an IQR of 1.5. For normally distributed data, the chance of being
+# an outlier is about 0.0074, which is less than 1%.
+# A value of 3 = ±4.02 standard deviations, about 99.94% of data will fall here
+# A value of 4 = ±5.36 standard deviations, about 99.9999% of data will fall here
+# http://www.cs.uni.edu/~campbell/stat/normfact.html
+# https://en.wikipedia.org/wiki/Probability_density_function
+# The scale functions acts as the multiplier by convinience the 0 value
+# represents a multiplier of 1.5
+def consensus(nodeFeeds, lFeeds, _median, iqrMultiplier, diverInPercentage):
+    """
+    Calculate the values in the consensus
+    Parameters:
+    - nodeFeeds: Sorted node feeds list
+    - lFeeds:  Length of the nodeFeeds
+    - _median: Median value among nodeFeeds
+    - iqrMultiplier: k value for outlier detection. The recommended value is 0 (1.5),
+      the onchain code has the range restriction between 0 - 4
+    - diverInPercentage: Percentage of divergence from the median allowed to
+      participate in the consensus
     Returns:
     - A 4-tuple containing the median, onConsensus, lower bound, and upper bound of the
       aggregated feeds.
     """
 
-    def left_filter(feeds: List[int]) -> Tuple[int, List[int]]:
-        """
-        Filter the given feeds and return the lower bound and the values on consensus.
+    # This helper function scales the interquartile range by the given multiplier.
+    def scale(t, iqr):
+        if t == 0:
+            return iqr + iqr // 2
+        else:
+            return t * iqr
 
-        Parameters:
-        - feeds: the feeds to be filtered
+    # This helper function computes how far a given node feed is from the median, in terms of percentage.
+    def divergenceFromMedian(nodeFeed):
+        return (nodeFeed * factor_resolution) // _median
 
-        Returns:
-        - A 2-tuple containing the lower bound and the values on consensus.
-        """
-        nonlocal mad, med
-        for i, feed in enumerate(feeds):
-            if is_in_consensus(mad_multi, diver, mad, med, feed):
-                return feed, feeds[i:]
-        return 0, []
+    # Compute the first and third quartiles of the node feeds.
+    firstQuart = firstQuartile(nodeFeeds, lFeeds)
+    thirdQuart = thirdQuartile(nodeFeeds, lFeeds)
 
-    def is_in_consensus(
-        mad_multiplier: int, div: int, mad: int, med: int, d: int
-    ) -> bool:
-        """
-        Check if a value is accepted according to the consensus mechanism.
+    # Compute the interquartile range, which is the difference between the third and first quartiles.
+    interquartileRange = thirdQuart - firstQuart
+    lowerBound = firstQuart - scale(iqrMultiplier, interquartileRange)
+    upperBound = thirdQuart + scale(iqrMultiplier, interquartileRange)
 
-        Parameters:
-        - mad_multiplier: the MAD multiplier
-        - div: the divergence
-        - mad: the MAD
-        - med: the median
-        - d: the value to be checked
+    # Finally, we filter out the node feeds that are considered outliers or diverge too much from the median.
+    return [
+        x
+        for x in nodeFeeds
+        if divergenceFromMedian(abs(x - _median)) <= diverInPercentage
+        and lowerBound <= x <= upperBound
+    ]
 
-        Returns:
-        - True if the value is accepted by the consensus mechanism, False otherwise.
-        """
-        abs_diff = abs(med - d) * factor_resolution
-        deviation = abs_diff // med
-        return (abs_diff <= mad_multiplier * mad) and (deviation < div)
 
-    s_feeds = sorted(feeds)
-    med = int(median(s_feeds))
-    mad = median(sorted([abs(f - med) for f in s_feeds]))
-    lower, s_feeds_ = left_filter(s_feeds)
-    upper, on_consensus = left_filter(s_feeds_[::-1])
-    return med, on_consensus, lower, upper
+def firstQuartile(nodeFeeds, lFeeds):
+    """
+    Calculate the first quartile of the input node feeds
+    Parameters:
+    - nodeFeeds: Sorted node feeds list
+    - lFeeds: Length of the nodeFeeds
+    Returns:
+    - Node feeds' first quartile
+    """
+    mid = lFeeds // 2
+    return median(nodeFeeds[:mid])
+
+
+def thirdQuartile(nodeFeeds, lFeeds):
+    """
+    Calculate the third quartile of the input node feeds
+    Parameters:
+    - nodeFeeds: Sorted node feeds list
+    - lFeeds: Length of the nodeFeeds
+    Returns:
+    - Node feeds' third quartile
+    """
+    mid = (lFeeds // 2) + (lFeeds % 2)
+    return median(nodeFeeds[mid:])

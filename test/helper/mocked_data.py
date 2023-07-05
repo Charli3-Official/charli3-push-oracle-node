@@ -278,7 +278,7 @@ MOCKED_EPOCH_JSON = {
     "active_stake": "219784447694284",
 }
 
-MOCKED_NODE_UTXO_JSON = [MOCKED_UTXO_JSON[1]]
+MOCKED_NODE_UTXO_JSON = [MOCKED_UTXO_JSON[1], MOCKED_UTXO_JSON[2], MOCKED_UTXO_JSON[3]]
 
 MOCKED_BLOCKFROST_API_CALL = {
     "api_url": MOCKED_API_URL,
@@ -324,7 +324,7 @@ MOCKED_RUNNER_AGG_STATE = AggDatum(
             os_node_fee_price=PriceRewards(
                 node_fee=10, aggregate_fee=20, platform_fee=10
             ),
-            os_mad_multiplier=20000,
+            os_iqr_multiplier=20000,
             os_divergence=1500,
             os_platform_pkh=b'\x1aU\r_W%\x84\xe1\xad\xd1%\xb5q/p\x9a\xc3\xb9\x82\x8a\xd8e\x81\xa4u\x90"\xba',  # pylint: disable=line-too-long
         )
