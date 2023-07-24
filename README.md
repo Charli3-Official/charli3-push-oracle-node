@@ -10,7 +10,7 @@ To install the required Python packages, run:
 ```
 poetry install
 ```
-Next, you will need to create a config.yml file containing the necessary configuration settings. You can use the provided [config.yml.example](config.yml.example) as a starting point.
+Next, you will need to create a config.yml file containing the necessary configuration settings. You can use the provided [example-config.yml](example-config.yml) as a starting point.
 
 ## Running the Backend
 ### Locally
@@ -42,7 +42,7 @@ The backend can be configured using a config.yml file. This file allows you to c
 - Node and oracle settings (addresses, keys, mnemonics, etc.)
 - Data providers for base and quote currency rates
 
-Refer to the [config.yml.example](config.yml.example) file for an example configuration.
+Refer to the [example-config.yml](example-config.yml) file for an example configuration.
 
 For detailed information about customizing the `config.yml` file, including ChainQuery configurations, node and oracle settings, and data providers for base and quote currency rates, please refer to our comprehensive [Configuration Guide](docs/configuration_guide.md).
 

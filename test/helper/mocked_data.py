@@ -16,8 +16,13 @@ from pycardano import (
     TransactionId,
 )
 
+from charli3_offchain_core.datums import (
+    AggDatum,
+    AggState,
+    PriceRewards,
+    OracleSettings,
+)
 from backend.api import AggregatedCoinRate
-from backend.core.datums import AggDatum, AggState, PriceRewards, OracleSettings
 
 from .utxo_mocker import utxo_mocker
 

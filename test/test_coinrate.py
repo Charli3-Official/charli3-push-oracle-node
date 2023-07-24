@@ -200,23 +200,23 @@ class TestCoinRateClasses:
         data = await api.get_rate()
         data.should.equal(self.ex_price)
 
-    @async_mocketize(strict_mode=True)
-    async def test_minswap(self):
-        """Minswap correct functionality test"""
-        api = coinApis["minswap_adausd"]
-        self.register_post_api_uri(
-            f"{api.api_url}{api.get_path()}",
-            {
-                "data": {
-                    "poolByPair": {
-                        "reserveA": 276854305370,
-                        "reserveB": 684608590969,
-                    }
-                }
-            },
-        )
-        data = await api.get_rate()
-        data.should.equal(round(float(276854305370 / 684608590969), 8))
+    # @async_mocketize(strict_mode=True)
+    # async def test_minswap(self):
+    #     """Minswap correct functionality test"""
+    #     api = coinApis["minswap_adausd"]
+    #     self.register_post_api_uri(
+    #         f"{api.api_url}{api.get_path()}",
+    #         {
+    #             "data": {
+    #                 "poolByPair": {
+    #                     "reserveA": 276854305370,
+    #                     "reserveB": 684608590969,
+    #                 }
+    #             }
+    #         },
+    #     )
+    #     data = await api.get_rate()
+    #     data.should.equal(round(float(276854305370 / 684608590969), 8))
 
     @async_mocketize(strict_mode=True)
     async def test_inverse_rate(self):

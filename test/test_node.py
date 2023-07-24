@@ -10,8 +10,8 @@ from test.helper import (
 from mocket import async_mocketize
 import pytest
 
-from backend.api import Node
-from backend.core.datums import DataFeed, PriceFeed
+from charli3_offchain_core import Node
+from charli3_offchain_core.datums import DataFeed, PriceFeed
 
 
 @pytest.mark.asyncio

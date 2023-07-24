@@ -7,9 +7,8 @@ import logging
 import inspect
 from math import ceil
 
-from .api import Node, AggregatedCoinRate, ChainQuery
-from .api.api import UnsuccessfulResponse
-from .core.datums import (
+from charli3_offchain_core import Node, ChainQuery
+from charli3_offchain_core.datums import (
     PriceFeed,
     PriceData,
     NodeDatum,
@@ -18,13 +17,16 @@ from .core.datums import (
     AggDatum,
     RewardDatum,
 )
-from .api.oraclechecks import (
+from charli3_offchain_core.oracle_checks import (
     filter_node_datums_by_node_operator,
     get_oracle_utxos_with_datums,
     check_utxo_asset_balance,
     get_oracle_datums_only,
 )
-from .core.aggregate_conditions import check_oracle_settings
+from charli3_offchain_core.aggregate_conditions import check_oracle_settings
+
+from .api import AggregatedCoinRate
+from .api.api import UnsuccessfulResponse
 
 logger = logging.getLogger("runner")
 logging.Formatter.converter = time.gmtime
@@ -290,14 +292,17 @@ class FeedUpdater:
             or self.agg_is_expired(oracle_feed.get_timestamp())
         )
 
+        if not get_paid:
+            logger.warning("Not enough funds available at the contract to pay rewards.")
+
         if (
             self.check_rate_change(new_rate, own_feed.df.df_value)
             or self.node_is_expired(own_feed.df.df_last_update)
-        ) and get_paid:
-          # Our node is not updated
-           # More nodes are required before aggregating
+        ):
+            # Our node is not updated
+            # More nodes are required before aggregating
             await self.node.update(new_rate)
-        elif (nodes_updated +1 >= req_nodes) and can_aggregate and get_paid:
+        elif (nodes_updated + 1 >= req_nodes) and can_aggregate:
             # Our node is updated
             await self.node.aggregate()
         else:

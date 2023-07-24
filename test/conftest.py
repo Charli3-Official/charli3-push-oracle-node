@@ -10,7 +10,7 @@ import pytest
 from pycardano import OgmiosChainContext, Network
 
 
-from backend.api import ChainQuery
+from charli3_offchain_core import ChainQuery
 
 
 @pytest.fixture

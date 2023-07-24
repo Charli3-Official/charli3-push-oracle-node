@@ -9,7 +9,7 @@ from test.helper.mocked_data import (
     MOCKED_NODE_UTXO_JSON,
 )
 import pytest
-from backend.core.aggregate_conditions import (
+from charli3_offchain_core.aggregate_conditions import (
     check_oracle_settings,
     check_agg_time,
     check_feed_last_update,
@@ -20,7 +20,7 @@ from backend.core.aggregate_conditions import (
     check_aggregator_permission,
     aggregation_conditions,
 )
-from backend.core.datums import AggDatum, OracleDatum, NodeDatum
+from charli3_offchain_core.datums import AggDatum, OracleDatum, NodeDatum
 
 
 async def get_mocked_json(mocked_json):

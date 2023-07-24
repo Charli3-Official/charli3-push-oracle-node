@@ -13,8 +13,8 @@ from test.helper.mocked_data import (
 import pytest
 from mocket import async_mocketize
 
-from backend.api import Node
-from backend.core.datums import (
+from charli3_offchain_core import Node
+from charli3_offchain_core.datums import (
     DataFeed,
     PriceFeed,
     PriceData,

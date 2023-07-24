@@ -12,6 +12,8 @@ PyYAML = "^6.0"
 pycardano = "0.9.0"
 aiohttp = "^3.8.4"
 python-json-logger = "^2.0.7"
+pycryptodome = "^3.18.0"
+charli3-offchain-core = {git = "https://***REMOVED***@github.com/Charli3-Official/charli3-offchain-core.git", rev = "v1.0.0"}
 
 [tool.poetry.group.dev.dependencies]
 mocket = "^3.11.0"

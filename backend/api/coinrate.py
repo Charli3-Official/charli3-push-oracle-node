@@ -2,8 +2,10 @@
 from typing import Optional, List
 import logging
 import asyncio
+import json
+from charli3_offchain_core.consensus import random_median
 from .api import Api, UnsuccessfulResponse
-from ..core.consensus import random_median
+from ..utils.decrypt import decrypt_response
 
 logger = logging.getLogger("CoinRate")
 
@@ -325,8 +327,12 @@ class MinswapApi(CoinRate):
             logger.info("Getting Minswap %s rate", self.symbol)
             resp = await self._post(self.get_path(), self.query)
             if resp.is_ok:
-                quantity_ada = resp.json["data"]["poolByPair"]["reserveA"]
-                quantity_asset = resp.json["data"]["poolByPair"]["reserveB"]
+                decrypted_response = decrypt_response(
+                    resp.json["data"]["encryptedData"]
+                )
+                response_data = json.loads(decrypted_response)
+                quantity_ada = response_data["data"]["poolByPair"]["reserveA"]
+                quantity_asset = response_data["data"]["poolByPair"]["reserveB"]
                 base_rate = float(quantity_ada) / float(quantity_asset)
                 rate = self._calculate_final_rate(
                     self.quote_currency,

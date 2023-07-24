@@ -19,7 +19,8 @@ from pycardano import (
     BlockFrostChainContext,
     OgmiosChainContext,
 )
-from backend.api import Node, ChainQuery, AggregatedCoinRate
+from charli3_offchain_core import Node, ChainQuery
+from backend.api import AggregatedCoinRate
 from backend.runner import FeedUpdater
 from backend.logfiles.logging_config import get_log_config, LEVEL_COLORS
 
@@ -117,6 +118,30 @@ if ini_node:
     else:
         reference_script_input = None
 
+    if "c3_oracle_rate_address" in ini_node and ini_node["c3_oracle_rate_address"]:
+        c3_oracle_rate_address = Address.from_primitive(
+            ini_node["c3_oracle_rate_address"]
+        )
+    else:
+        c3_oracle_rate_address = None
+
+    if "c3_oracle_nft_hash" in ini_node and ini_node["c3_oracle_nft_hash"]:
+        c3_oracle_nft_hash = ScriptHash.from_primitive(ini_node["c3_oracle_nft_hash"])
+    else:
+        c3_oracle_nft_hash = None
+
+    if "c3_oracle_nft_name" in ini_node and ini_node["c3_oracle_nft_name"]:
+        c3_oracle_nft_name = ini_node["c3_oracle_nft_name"]
+    else:
+        c3_oracle_nft_name = None
+
+    if c3_oracle_nft_hash and c3_oracle_nft_name:
+        c3_oracle_nft = MultiAsset.from_primitive(
+            {c3_oracle_nft_hash.payload: {bytes(c3_oracle_nft_name, "utf-8"): 1}}
+        )
+    else:
+        c3_oracle_nft = None
+
     node = Node(
         network,
         chain_query,
@@ -130,7 +155,10 @@ if ini_node:
         ScriptHash.from_primitive(ini_node["c3_token_hash"]),
         AssetName(bytes(ini_node["c3_token_name"], "utf-8")),
         reference_script_input,
+        oracle_rate_addr=c3_oracle_rate_address,
+        oracle_rate_nft=c3_oracle_nft,
     )
+
 if "quote_currency" in configyaml["Rate"] and configyaml["Rate"]["quote_currency"]:
     rateclass = AggregatedCoinRate(quote_currency=True)
 

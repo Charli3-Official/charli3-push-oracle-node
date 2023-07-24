@@ -1,6 +1,6 @@
 """Datum testing module"""
 
-from backend.core.datums import (
+from charli3_offchain_core.datums import (
     OracleDatum,
     NodeDatum,
     NodeState,

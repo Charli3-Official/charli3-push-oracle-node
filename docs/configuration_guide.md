@@ -1,6 +1,6 @@
 # Charli3 Node Operator Backend Configuration Guide
 
-This guide will help you configure the `config.yml` file for the Charli3 Node Operator Backend. The provided `config.yml.example` file contains an example configuration, which you can use as a starting point.
+This guide will help you configure the `config.yml` file for the Charli3 Node Operator Backend. The provided `example-config.yml` file contains an example configuration, which you can use as a starting point.
 
 ## Configuration Sections
 
