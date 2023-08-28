@@ -1,72 +1,48 @@
-name: Build and push Docker Image to ECR
+name: Build and push Docker Image to GAR
+
 on:
   push:
-    branches: [ develop ]
+    branches: 
+      - develop
   release:
     types: [published]
-  workflow_dispatch:
-    branches: [ main ]
+    branches: 
+      - main
+      - indigo
 
 jobs:
-  deploy_main:
-    name: Deploy Main
+  build-and-push:
+    name: Build and Push Docker Image
     runs-on: ubuntu-latest
-    # Only deploy when a release is published
-    if: github.event_name == 'release'
-
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v2
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        aws-access-key-id: ${{ secrets.ACCESS_KEY }}
-        aws-secret-access-key: ${{ secrets.SECRET_KEY }}
-        aws-region: us-west-1
-
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v1
-
-    - name: Build, tag, and push the image to Amazon ECR
-      id: build-image
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        ECR_REPOSITORY: ${{ secrets.REPO_NAME }}
-        IMAGE_TAG: ${{ github.event.release.tag_name }}
-      run: |
-        # Build a docker container and push it to ECR 
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
-        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:latest $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-
-  deploy_develop:
-    name: Deploy Develop
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/develop'
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v2
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        aws-access-key-id: ${{ secrets.ACCESS_KEY }}
-        aws-secret-access-key: ${{ secrets.SECRET_KEY }}
-        aws-region: us-west-1
     
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v1
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
 
-    - name: Build, tag, and push the image to Amazon ECR
-      id: build-image
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        ECR_REPOSITORY: ${{ secrets.REPO_NAME }}
-        IMAGE_TAG: develop
+    - id: auth
+      name: Authenticate with Google Cloud
+      uses: google-github-actions/auth@v1
+      with:
+        workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+    - name: Configure Docker with GCloud credentials
+      shell: bash
+      run: gcloud auth configure-docker us-central1-docker.pkg.dev
+
+    - name: Determine Tags
+      id: determine-tags
       run: |
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:develop .
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:develop
+        if [ "${{ github.ref }}" = "refs/heads/develop" ]; then
+          echo "::set-output name=tags::develop"
+        elif [ "${{ github.ref }}" = "refs/heads/main" ] && [ "${{ github.event_name }}" = "release" ]; then
+          echo "::set-output name=tags::latest,${{ github.event.release.tag_name }}"
+        elif [ "${{ github.ref }}" = "refs/heads/indigo" ] && [ "${{ github.event_name }}" = "release" ]; then
+          echo "::set-output name=tags::latest-indigo,${{ github.event.release.tag_name }}"
+        fi
+
+    - name: Build, tag, and push Docker image to GAR
+      uses: docker/build-push-action@v4
+      with:
+        push: true
+        tags: us-central1-docker.pkg.dev/charli3-mainnet/node-operator-backend/node-operator-backend:${{ steps.determine-tags.outputs.tags }}
