@@ -49,7 +49,6 @@ class TestAggregateConditions:
         """tests oracle settings"""
 
         oracle_settings = await self._get_oracle_settings()
-
         assert check_oracle_settings(oracle_settings)
 
     async def test_check_aggregation_conditions(self):
