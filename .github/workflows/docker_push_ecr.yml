@@ -34,19 +34,23 @@ jobs:
       shell: bash
       run: gcloud auth configure-docker us-central1-docker.pkg.dev
 
-    - name: Determine Tags
-      id: determine-tags
-      run: |
-        if [ "${{ github.ref }}" = "refs/heads/develop" ]; then
-          echo "::set-output name=tags::develop"
-        elif [ "${{ github.ref }}" = "refs/heads/main" ] && [ "${{ github.event_name }}" = "release" ]; then
-          echo "::set-output name=tags::latest,${{ github.event.release.tag_name }}"
-        elif [ "${{ github.ref }}" = "refs/heads/indigo" ] && [ "${{ github.event_name }}" = "release" ]; then
-          echo "::set-output name=tags::latest-indigo,${{ github.event.release.tag_name }}"
-        fi
+    - name: Get tag/ref
+      id: get-tag
+      run: echo "::set-output name=short_ref::${GITHUB_REF#refs/*/}"
 
     - name: Build, tag, and push Docker image to GAR
+      if: github.event_name == 'release'
       uses: docker/build-push-action@v4
       with:
         push: true
-        tags: us-central1-docker.pkg.dev/charli3-mainnet/node-operator-backend/node-operator-backend:${{ steps.determine-tags.outputs.tags }}
+        tags: |
+          us-central1-docker.pkg.dev/charli3-mainnet/node-operator-backend/node-operator-backend:${{ steps.get-tag.outputs.short_ref }}
+          ${{ endsWith(steps.get-tag.outputs.short_ref, '-indigo') && 'us-central1-docker.pkg.dev/charli3-mainnet/node-operator-backend/node-operator-backend:latest-indigo' || '' }}
+          ${{ !endsWith(steps.get-tag.outputs.short_ref, '-indigo') && 'us-central1-docker.pkg.dev/charli3-mainnet/node-operator-backend/node-operator-backend:latest' || '' }}
+
+    - name: Build, tag as develop, and push Docker image to GAR
+      if: github.ref == 'refs/heads/develop'
+      uses: docker/build-push-action@v4
+      with:
+        push: true
+        tags: us-central1-docker.pkg.dev/charli3-mainnet/node-operator-backend/node-operator-backend:develop
