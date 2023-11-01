@@ -213,7 +213,7 @@ MOCKED_UTXO_JSON = [
         ],
         "block": "5019a0fe76f0873afe009743de9ec518f9e0fcae7e86453914454ff134faad24",
         "data_hash": "210bd1e79d35c5cfd01c3fc5a5f9f147a4ca31090ddb8d9a94be23886c3767fd",
-        "inline_datum": "d87b9fd8799fd8799f9f581cc336a4d3ef39913b63e61f92008d5191556ed3c3c5c11b50764bc1e4581cd1707e481671d473ee5a8d561aaac4a1f4e8c937ce61e5d11fc0611f581c3318ad8f0c743a674831d69e4c61c0d805eda695b0f20a4ff0edebc5581c5c222b7462a0ceb4d205a5a508f137560adf88630b9b7dcc53b183dd581c30dfe7e985a9fa3cbf9fc0a5a6e3b4b4a1a184c3b9f8c2f2003458f2ff1917701a001b77401a001b77401903e8192710d8799f186418c81864ff021905dcd8799f9f581c1a550d57572584e1add125b5712f709ac3b9828ad86581a4759022baff01ffffffff",  # pylint: disable=line-too-long
+        "inline_datum": "d87b9fd8799fd8799f9f581cc336a4d3ef39913b63e61f92008d5191556ed3c3c5c11b50764bc1e4581cd1707e481671d473ee5a8d561aaac4a1f4e8c937ce61e5d11fc0611f581c3318ad8f0c743a674831d69e4c61c0d805eda695b0f20a4ff0edebc5581c5c222b7462a0ceb4d205a5a508f137560adf88630b9b7dcc53b183dd581c30dfe7e985a9fa3cbf9fc0a5a6e3b4b4a1a184c3b9f8c2f2003458f2ff1917701a001b77401a001b77401903e81927101a000493e0d8799f186418c81864ff021905dcd8799f9f581c1a550d5f572584e1add125b5712f709ac3b9828ad86581a4759022baff01ffffffff",  # pylint: disable=line-too-long
         "reference_script_hash": None,
     },
     {
@@ -335,10 +335,11 @@ MOCKED_RUNNER_AGG_STATE = AggDatum(
             os_divergence=1500,
             os_platform=OraclePlatform(
                 pmultisig_pkhs=[
-                    b'\x1aU\rWW%\x84\xe1\xad\xd1%\xb5q/p\x9a\xc3\xb9\x82\x8a\xd8e\x81\xa4u\x90"\xba'
+                    b'\x1aU\r_W%\x84\xe1\xad\xd1%\xb5q/p\x9a\xc3\xb9\x82\x8a\xd8e\x81\xa4u\x90"\xba'
                 ],
                 pmultisig_threshold=1,
             ),
+            os_aggregate_valid_range=300000
         )
     )
 )
