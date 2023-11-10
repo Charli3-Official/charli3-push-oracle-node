@@ -534,10 +534,11 @@ class AggregatedCoinRate:
         rates_to_get = [provider.get_rate(quote_rate) for provider in providers]
         responses = await asyncio.gather(*rates_to_get, return_exceptions=True)
 
+        # Filtering out invalid responses, avoiding null, zero, and instance errors.
         valid_responses = [
             resp
             for resp in responses
-            if resp is not None and not isinstance(resp, Exception)
+            if resp is not None and resp > 0 and not isinstance(resp, Exception)
         ]
         if not valid_responses:
             logger.critical("No data prices are available to estimate the median")
