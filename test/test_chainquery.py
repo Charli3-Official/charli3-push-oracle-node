@@ -24,5 +24,5 @@ class TestChainQueryClass:
         """test_find_collateral"""
         chainquery = await get_chain_query
         assert MOCKED_UTXOS_RESPONSE[9] == await chainquery.find_collateral(
-            MOCKED_ORACLE_ADDRESS
+            MOCKED_ORACLE_ADDRESS, 9000000
         )
