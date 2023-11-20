@@ -38,6 +38,14 @@ Rate:
       currency_symbol: 8db269c3ec630e06ae29f74bc39edd1f87c819f1056206e879a1cd61
       token_name: 5368656e4d6963726f555344
       quote_currency: True
+    vyfi:
+      type: vyfi
+      pool_tokens: ADA-ShenMicroUSD
+      pool_address: addr1z8q336qgth58526mgr72svdlcqvs2jrkxem3thxnuqw4efk08470jem2z3k5yap4fddtxvykxxv2tmr83x06vklv5vys3jhn6c
+      minting_a_token_policy:
+      minting_b_token_policy: 8db269c3ec630e06ae29f74bc39edd1f87c819f1056206e879a1cd61
+      get_second_pool_price: False
+      quote_currency: True
     muesliswap:
       type: muesliswap
       symbol: SHEN/ADA

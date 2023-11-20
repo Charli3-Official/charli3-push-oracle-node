@@ -130,7 +130,33 @@ Options:
 - quote_currency: (Optional) Set to True for quote currency settings.
 - rate_calculation_method: (Optional) The method to use for rate calculation. Options are "multiply" and "divide". Defaults to "multiply".
 
-## 6. Muesliswap Adapter
+## 6. VyFi Adapter
+The VyFi adapter is specifically designed to interact with the VyFi Dex on Cardano.
+
+Configuration for VyFi:
+
+``` yaml
+    vyfi:
+      type: vyfi
+      pool_tokens: ADA-SHEN
+      pool_address: addr1z8q336qgth58526mgr72svdlcqvs2jrkxem3thxnuqw4efk08470jem2z3k5yap4fddtxvykxxv2tmr83x06vklv5vys3jhn6c
+      minting_a_token_policy:
+      minting_b_token_policy: 8db269c3ec630e06ae29f74bc39edd1f87c819f1056206e879a1cd61
+      get_second_pool_price: False
+```
+Options:
+- type: Set this value to "vyfi".
+- pool_tokens: Indicates the trading pair symbol. Asset arrangement in the pair follows the alphabetical order of their hashes, with Asset A having the preceding hash in a sorted list. Exceptionally, 'lovelace' (Cardano's native currency) always occupies the Asset A position, regardless of its hash.
+- pool_address: Identifies the specific liquidity pool's location. Essential for pinpointing the correct UTxO holding the asset pair. It enables accurate data retrieval, including bar fees and liquidity specifics (datum's UTxO)
+- minting_a_token_policy (Optional): Minting policy of the asset A, empty if ADA used.
+- minting_b_token_policy (Optional): Minting policy of the asset B.
+- get_second_pool_price (Optional): In a trading pool like ADA-SHEN, setting this to True yields the ADA/SHEN rate; otherwise, it provides the SHEN/ADA rate.
+- quote_currency (Optional): Defaulted to True, this option is for quote currency configurations.
+- rate_calculation_method: (Optional) The method to use for rate calculation. Options are "multiply" and "divide". Defaults to "multiply".
+
+Note: In exchange rate calculations for pools like ADA-SHEN, the code identifies the UTxO containing both assets and adjusts the amounts by deducting bar fees from the UTxO's datum. For lovelace transactions, an additional 2 ADA (the minimum ADA per UTxO) is subtracted. The exchange rate is then calculated by dividing these adjusted amounts. Ensure that the necessary assets are defined in both `mainnet_policy_id` and `mainnet_asset_name` for accurate computation.
+
+## 7. Muesliswap Adapter
 The Muesliswap adapter is specifically designed to interact with the Muesliswap exchange API.
 
 Configuration for Muesliswap:
@@ -150,7 +176,7 @@ Options:
 - quote_currency: (Optional) Set to True for quote currency settings.
 - rate_calculation_method: (Optional) The method to use for rate calculation. Options are "multiply" and "divide". Defaults to "multiply".
 
-## 7. InverseCurrencyRate Adapter
+## 8. InverseCurrencyRate Adapter
 The InverseCurrencyRate adapter is a unique type of adapter designed to calculate the inverse of a given currency rate. It doesn't make any API calls to retrieve data; instead, it inverses the rate that is already retrieved from a different source.
 
 This adapter is only applicable in the base currency configuration, and there should be only one instance of the InverseCurrencyRate adapter in the base currency configuration. The configuration for the quote currency will provide the rate to be inverted.

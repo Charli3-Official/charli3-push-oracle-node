@@ -160,7 +160,7 @@ if ini_node:
     )
 
 if "quote_currency" in configyaml["Rate"] and configyaml["Rate"]["quote_currency"]:
-    rateclass = AggregatedCoinRate(quote_currency=True)
+    rateclass = AggregatedCoinRate(quote_currency=True, chain_query=chain_query)
 
     for provider in configyaml["Rate"]["quote_currency"]:
         feed_type = configyaml["Rate"]["quote_currency"][provider]["type"]
@@ -171,7 +171,7 @@ if "quote_currency" in configyaml["Rate"] and configyaml["Rate"]["quote_currency
         )
 
 else:
-    rateclass = AggregatedCoinRate()
+    rateclass = AggregatedCoinRate(quote_currency=False, chain_query=chain_query)
 
 for provider in configyaml["Rate"]["base_currency"]:
     feed_type = configyaml["Rate"]["base_currency"][provider]["type"]
