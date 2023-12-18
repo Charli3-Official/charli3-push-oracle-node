@@ -176,7 +176,26 @@ Options:
 - quote_currency: (Optional) Set to True for quote currency settings.
 - rate_calculation_method: (Optional) The method to use for rate calculation. Options are "multiply" and "divide". Defaults to "multiply".
 
-## 8. InverseCurrencyRate Adapter
+## 8. Charli3 Adapter
+The Charli3 adapter's purpose is to facilitate the conversion between a supported asset pair in the Charli3 protocol and other existing asset pairs. For instance, if the C3 Network pair A/B exists and the objective is to integrate a new network A/C, but more data is available for the pair B/C from different sources, then combining the A/B network data with the readily available B/C data effectively computes the A/C pair
+
+Configuration for charli3:
+``` yaml
+charli3:
+  type: charli3
+  network_tokens: ADA-USD
+  network_address: addr1wyd8cezjr0gcf8nfxuc9trd4hs7ec520jmkwkqzywx6l5jg0al0ya
+  network_minting_policy: 3d0d75aad1eb32f0ce78fb1ebc101b6b51de5d8f13c12daa88017624
+```
+Options:
+- type: Should be set to "charli3".
+- network_tokens: The trading pair symbol.
+- network_address: C3 Network address
+- network_minting_policy: C3 Network minting policy
+- quote_currency: (Optional) Set to True for quote currency settings.
+- rate_calculation_method: (Optional) The method to use for rate calculation. Options are "multiply" and "divide". Defaults to "multiply".
+
+## 9. InverseCurrencyRate Adapter
 The InverseCurrencyRate adapter is a unique type of adapter designed to calculate the inverse of a given currency rate. It doesn't make any API calls to retrieve data; instead, it inverses the rate that is already retrieved from a different source.
 
 This adapter is only applicable in the base currency configuration, and there should be only one instance of the InverseCurrencyRate adapter in the base currency configuration. The configuration for the quote currency will provide the rate to be inverted.

@@ -91,3 +91,8 @@ Rate:
       path: /products/ADA-USD/ticker/
       json_path: ["price"]
       key: {}
+    charli3:
+      type: charli3
+      network_tokens: ADA-USD
+      network_address: addr1wyd8cezjr0gcf8nfxuc9trd4hs7ec520jmkwkqzywx6l5jg0al0ya
+      network_minting_policy: 3d0d75aad1eb32f0ce78fb1ebc101b6b51de5d8f13c12daa88017624
