@@ -1,5 +1,6 @@
 """Mocked Vars and Functions for testing process"""
 import json
+from typing import Dict, Any
 import cbor2
 
 from mocket.plugins.httpretty import httpretty
@@ -286,7 +287,7 @@ MOCKED_EPOCH_JSON = {
 
 MOCKED_NODE_UTXO_JSON = [MOCKED_UTXO_JSON[1], MOCKED_UTXO_JSON[2], MOCKED_UTXO_JSON[3]]
 
-MOCKED_BLOCKFROST_API_CALL = {
+MOCKED_BLOCKFROST_API_CALL: Dict[str, Any] = {
     "api_url": MOCKED_API_URL,
     "api_call": {
         "v0_epochs_latest": {

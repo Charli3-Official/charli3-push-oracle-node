@@ -86,18 +86,14 @@ if ini_node:
 
     oracle_nft_hash = ScriptHash.from_primitive(ini_node["oracle_curr"])
 
-    node_nft = MultiAsset.from_primitive(
-        {oracle_nft_hash.payload: {bytes(ini_node["node_nft"], "utf-8"): 1}}
-    )
+    node_nft = MultiAsset.from_primitive({oracle_nft_hash.payload: {b"NodeFeed": 1}})
     oracle_nft = MultiAsset.from_primitive(
-        {oracle_nft_hash.payload: {bytes(ini_node["oracle_nft"], "utf-8"): 1}}
+        {oracle_nft_hash.payload: {b"OracleFeed": 1}}
     )
     aggstate_nft = MultiAsset.from_primitive(
-        {oracle_nft_hash.payload: {bytes(ini_node["aggstate_nft"], "utf-8"): 1}}
+        {oracle_nft_hash.payload: {b"AggState": 1}}
     )
-    reward_nft = MultiAsset.from_primitive(
-        {oracle_nft_hash.payload: {bytes(ini_node["reward_nft"], "utf-8"): 1}}
-    )
+    reward_nft = MultiAsset.from_primitive({oracle_nft_hash.payload: {b"Reward": 1}})
 
     if "mnemonic" in ini_node and ini_node["mnemonic"]:
         hdwallet = HDWallet.from_mnemonic(ini_node["mnemonic"])

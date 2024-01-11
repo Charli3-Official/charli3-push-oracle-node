@@ -37,6 +37,6 @@ class TestApiMethods(Api):
                 data = await self._put(f"/{i}", data={"request": i})
             if i.upper() == "DELETE":
                 data = await self._delete(f"/{i}", data={"request": i})
-            data.json.should.equal({"response": i})
+            data.json.should.equal({"response": i})  # type: ignore[union-attr]
             assert bytes(i, encoding="utf-8") in httpretty.last_request.body
         httpretty.latest_requests.should.have.length_of(4)

@@ -25,8 +25,7 @@ def ogmios_context(monkeypatch):
             return GENESIS_RESULT
         if "chainTip" in args["query"]:
             return {"slot": 100000000}
-        else:
-            raise NotImplementedError(f"Method {method} not implemented in mock")
+        raise NotImplementedError(f"Method {method} not implemented in mock")
 
     monkeypatch.setattr(OgmiosChainContext, "_request", override_request)
     context = OgmiosChainContext(MOCKED_OGMIOS_URL, Network.TESTNET)

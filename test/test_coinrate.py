@@ -235,22 +235,22 @@ class TestCoinRateClasses:
     async def test_inverse_rate_with_zero_quote_currency_rate(self):
         """Inverse rate test with zero quote currency rate"""
         api = coinApis["inverse_adausd"]
-        QUOTE_CURRENCY_RATE = 0.0
+        quote_currency_rate = 0.0
 
         with pytest.raises(
             ValueError,
             match="quote_currency_rate cannot be zero when quote_currency is True",
         ):
-            await api.get_rate(quote_currency_rate=QUOTE_CURRENCY_RATE)
+            await api.get_rate(quote_currency_rate=quote_currency_rate)
 
     @async_mocketize(strict_mode=True)
     async def test_inverse_rate_with_int_zero_quote_currency_rate(self):
         """Inverse rate test with int zero quote currency rate"""
         api = coinApis["inverse_adausd"]
-        QUOTE_CURRENCY_RATE = 0
+        quote_currency_rate = 0
 
         with pytest.raises(
             ValueError,
             match="quote_currency_rate cannot be zero when quote_currency is True",
         ):
-            await api.get_rate(quote_currency_rate=QUOTE_CURRENCY_RATE)
+            await api.get_rate(quote_currency_rate=quote_currency_rate)

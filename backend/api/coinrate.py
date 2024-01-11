@@ -1,5 +1,5 @@
 """Exchange Api classes."""
-from typing import Optional, List
+from typing import Optional, List, Any, Dict
 import logging
 import asyncio
 import json
@@ -20,17 +20,18 @@ class CoinRate(Api):
     def get_path(self):
         """Path encapsulation"""
 
-    async def get_rate(self):
+    async def get_rate(self, chain_query=None, quote_currency_rate=None):
         """Returns the rate accoirding to the classes instance"""
 
     def _calculate_final_rate(
         self,
         quote_currency: bool,
         base_rate: float,
-        quote_currency_rate: float,
+        quote_currency_rate: Optional[float],
         rate_calculation_method: str,
     ) -> float:
         """Calculates the final rate to be returned with the correct precision"""
+        rate: float = 0
         if quote_currency:
             if quote_currency_rate:
                 if rate_calculation_method == "multiply":
@@ -61,7 +62,7 @@ class Generic(CoinRate):
         api_url: str,
         path: str,
         json_path: list[str | int],
-        key: dict = None,
+        key: Optional[Dict[Any, Any]] = None,
         quote_currency: bool = False,
         rate_calculation_method: str = "multiply",
         token: Optional[str] = None,
@@ -80,8 +81,10 @@ class Generic(CoinRate):
         return self.path
 
     async def get_rate(
-        self, chain_query: ChainQuery = None, quote_currency_rate: float = None
-    ) -> Optional[float]:
+        self,
+        chain_query: Optional[ChainQuery] = None,
+        quote_currency_rate: Optional[float] = None,
+    ):
         try:
             logger.info("Getting %s %s rate", self.provider, self.symbol)
             headers = self.key
@@ -89,18 +92,34 @@ class Generic(CoinRate):
                 # handle bearer token
                 headers["Authorization"] = f"Bearer {self.token}"
             resp = await self._get(self.path, headers=headers)
-            data = resp.json
-            for key in self.json_path:
-                data = data[key]
+
             if resp.is_ok:
-                rate = self._calculate_final_rate(
-                    self.quote_currency,
-                    float(data),
-                    quote_currency_rate,
-                    self.rate_calculation_method,
+                data = resp.json
+                for key in self.json_path:
+                    if isinstance(data, dict) and isinstance(key, str) and key in data:
+                        data = data[key]
+                    elif (
+                        isinstance(data, list)
+                        and isinstance(key, int)
+                        and 0 <= key < len(data)
+                    ):
+                        data = data[key]
+                    else:
+                        logger.error("Invalid path in JSON response for key: %s", key)
+                        return None
+                if isinstance(data, (int, float, str)):
+                    rate = self._calculate_final_rate(
+                        self.quote_currency,
+                        float(data),
+                        quote_currency_rate,
+                        self.rate_calculation_method,
+                    )
+                    logger.debug("Rate: %s", rate)
+                    return rate
+                logger.error(
+                    "Data at the end of JSON path is not a number or numeric string"
                 )
-                logger.debug("Rate: %s", rate)
-                return rate
+                return None
         except UnsuccessfulResponse as e:  # pylint: disable=invalid-name
             logger.error(
                 "Failed to get rate for %s %s: %s", self.provider, self.symbol, e
@@ -130,21 +149,28 @@ class BinanceApi(CoinRate):
         return self.path + self.symbol
 
     async def get_rate(
-        self, chain_query: ChainQuery = None, quote_currency_rate: float = None
+        self,
+        chain_query: Optional[ChainQuery] = None,
+        quote_currency_rate: Optional[float] = None,
     ):
         try:
             logger.info("Getting Binance %s rate", self.symbol)
             resp = await self._get(self.get_path())
             if resp.is_ok:
-                base_rate = float(resp.json["price"])
-                rate = self._calculate_final_rate(
-                    self.quote_currency,
-                    base_rate,
-                    quote_currency_rate,
-                    self.rate_calculation_method,
-                )
-                logger.debug("%s Rate: %s", self.symbol, rate)
-                return rate
+                json_data = resp.json
+                if json_data is not None and "price" in json_data:
+                    base_rate = float(json_data["price"])
+                    rate = self._calculate_final_rate(
+                        self.quote_currency,
+                        base_rate,
+                        quote_currency_rate,
+                        self.rate_calculation_method,
+                    )
+                    logger.debug("%s Rate: %s", self.symbol, rate)
+                    return rate
+            else:
+                logger.error("Response not OK for Binance %s", self.symbol)
+                return None
         except UnsuccessfulResponse as e:  # pylint: disable=invalid-name
             logger.error("Failed to get rate for Binance %s: %s", self.symbol, e)
             return None
@@ -174,21 +200,35 @@ class CoingeckoApi(CoinRate):
         return self.path_f.format(self.tid, self.vs_currency)
 
     async def get_rate(
-        self, chain_query: ChainQuery = None, quote_currency_rate: float = None
+        self,
+        chain_query: Optional[ChainQuery] = None,
+        quote_currency_rate: Optional[float] = None,
     ):
         try:
             logger.info("Getting coingecko %s-%s rate", self.tid, self.vs_currency)
             resp = await self._get(self.get_path())
             if resp.is_ok:
-                base_rate = float(resp.json[self.tid][self.vs_currency])
-                rate = self._calculate_final_rate(
-                    self.quote_currency,
-                    base_rate,
-                    quote_currency_rate,
-                    self.rate_calculation_method,
+                json_data = resp.json
+                if (
+                    json_data is not None
+                    and self.tid in json_data
+                    and self.vs_currency in json_data[self.tid]
+                ):
+                    base_rate = float(json_data[self.tid][self.vs_currency])
+                    rate = self._calculate_final_rate(
+                        self.quote_currency,
+                        base_rate,
+                        quote_currency_rate,
+                        self.rate_calculation_method,
+                    )
+                    logger.debug("%s-%s Rate: %f", self.tid, self.vs_currency, rate)
+                    return rate
+                logger.error(
+                    "Invalid or missing data in JSON response for %s-%s",
+                    self.tid,
+                    self.vs_currency,
                 )
-                logger.debug("%s-%s Rate: %f", self.tid, self.vs_currency, rate)
-                return rate
+                return None
         except UnsuccessfulResponse as e:  # pylint: disable=invalid-name
             logger.error("Failed to get rate for coingecko %s: %s", self.tid, e)
             return None
@@ -252,23 +292,34 @@ class SundaeswapApi(CoinRate):
         return self.path
 
     async def get_rate(
-        self, chain_query: ChainQuery = None, quote_currency_rate: float = None
+        self,
+        chain_query: Optional[ChainQuery] = None,
+        quote_currency_rate: Optional[float] = None,
     ):
         try:
             logger.info("Getting Sundaeswap %s rate", self.symbol)
             resp = await self._post(self.get_path(), self.query)
             if resp.is_ok:
-                quantity_ada = resp.json["data"]["pools"][0]["quantityA"]
-                quantity_asset = resp.json["data"]["pools"][0]["quantityB"]
-                base_rate = float(quantity_ada) / float(quantity_asset)
-                rate = self._calculate_final_rate(
-                    self.quote_currency,
-                    base_rate,
-                    quote_currency_rate,
-                    self.rate_calculation_method,
-                )
-                logger.info("%s-%s Rate: %f", self.provider, self.symbol, rate)
-                return rate
+                json_data = resp.json
+                if (
+                    json_data is not None
+                    and "data" in json_data
+                    and "pools" in json_data["data"]
+                    and len(json_data["data"]["pools"]) > 0
+                ):
+                    quantity_ada = json_data["data"]["pools"][0]["quantityA"]
+                    quantity_asset = json_data["data"]["pools"][0]["quantityB"]
+                    base_rate = float(quantity_ada) / float(quantity_asset)
+                    rate = self._calculate_final_rate(
+                        self.quote_currency,
+                        base_rate,
+                        quote_currency_rate,
+                        self.rate_calculation_method,
+                    )
+                    logger.info("%s-%s Rate: %f", self.provider, self.symbol, rate)
+                    return rate
+                logger.error("Invalid or missing data in JSON response")
+                return None
         except UnsuccessfulResponse as e:  # pylint: disable=invalid-name
             logger.error("Failed to get rate for Sundaeswap %s: %s", self.symbol, e)
             return None
@@ -335,27 +386,43 @@ class MinswapApi(CoinRate):
         return self.path
 
     async def get_rate(
-        self, chain_query: ChainQuery = None, quote_currency_rate: float = None
+        self,
+        chain_query: Optional[ChainQuery] = None,
+        quote_currency_rate: Optional[float] = None,
     ):
         try:
             logger.info("Getting Minswap %s rate", self.symbol)
             resp = await self._post(self.get_path(), self.query)
             if resp.is_ok:
-                decrypted_response = decrypt_response(
-                    resp.json["data"]["encryptedData"]
-                )
-                response_data = json.loads(decrypted_response)
-                quantity_ada = response_data["data"]["poolByPair"]["reserveA"]
-                quantity_asset = response_data["data"]["poolByPair"]["reserveB"]
-                base_rate = float(quantity_ada) / float(quantity_asset)
-                rate = self._calculate_final_rate(
-                    self.quote_currency,
-                    base_rate,
-                    quote_currency_rate,
-                    self.rate_calculation_method,
-                )
-                logger.info("%s-%s Rate: %f", self.provider, self.symbol, rate)
-                return rate
+                json_data = resp.json
+                if (
+                    json_data is not None
+                    and "data" in json_data
+                    and "encryptedData" in json_data["data"]
+                ):
+                    decrypted_response = decrypt_response(
+                        json_data["data"]["encryptedData"]
+                    )
+                    response_data = json.loads(decrypted_response)
+                    if (
+                        "data" in response_data
+                        and "poolByPair" in response_data["data"]
+                    ):
+                        quantity_ada = response_data["data"]["poolByPair"]["reserveA"]
+                        quantity_asset = response_data["data"]["poolByPair"]["reserveB"]
+                        base_rate = float(quantity_ada) / float(quantity_asset)
+                        rate = self._calculate_final_rate(
+                            self.quote_currency,
+                            base_rate,
+                            quote_currency_rate,
+                            self.rate_calculation_method,
+                        )
+                        logger.info("%s-%s Rate: %f", self.provider, self.symbol, rate)
+                        return rate
+                    logger.error("Invalid or missing data in decrypted response")
+                    return None
+                logger.error("Invalid or missing JSON data in response")
+                return None
         except UnsuccessfulResponse as e:  # pylint: disable=invalid-name
             logger.error("Failed to get rate for Minswap %s: %s", self.symbol, e)
             return None
@@ -403,25 +470,41 @@ class WingridersApi(CoinRate):
         return self.path
 
     async def get_rate(
-        self, chain_query: ChainQuery = None, quote_currency_rate: float = None
+        self,
+        chain_query: Optional[ChainQuery] = None,
+        quote_currency_rate: Optional[float] = None,
     ):
         try:
             logger.info("Getting Wingriders %s rate", self.symbol)
             resp = await self._post(self.get_path(), self.query)
             if resp.is_ok:
-                for asset in resp.json["data"]["assetsAdaExchangeRates"]:
-                    if asset["assetId"] == self.asset_id:
-                        base_rate = float(asset["exchangeRate"])
-                        rate = self._calculate_final_rate(
-                            self.quote_currency,
-                            base_rate,
-                            quote_currency_rate,
-                            self.rate_calculation_method,
-                        )
-                        logger.info("%s-%s Rate: %f", self.provider, self.symbol, rate)
-                        return rate
-                logger.debug("%s-%s Rate: %f", self.provider, self.symbol, rate)
-                return rate
+                json_data = resp.json
+                if (
+                    json_data is not None
+                    and "data" in json_data
+                    and "assetsAdaExchangeRates" in json_data["data"]
+                ):
+                    for asset in json_data["data"]["assetsAdaExchangeRates"]:
+                        if asset["assetId"] == self.asset_id:
+                            base_rate = float(asset["exchangeRate"])
+                            rate = self._calculate_final_rate(
+                                self.quote_currency,
+                                base_rate,
+                                quote_currency_rate,
+                                self.rate_calculation_method,
+                            )
+                            logger.info(
+                                "%s-%s Rate: %f", self.provider, self.symbol, rate
+                            )
+                            return rate
+                    logger.debug(
+                        "Asset ID not found in response for %s-%s",
+                        self.provider,
+                        self.symbol,
+                    )
+                else:
+                    logger.error("Invalid or missing JSON data in response")
+                return None
         except UnsuccessfulResponse as e:  # pylint: disable=invalid-name
             logger.error("Failed to get rate for Wingriders %s: %s", self.symbol, e)
             return None
@@ -458,21 +541,27 @@ class MuesliswapApi(CoinRate):
         return self.path + self.additional_path
 
     async def get_rate(
-        self, chain_query: ChainQuery = None, quote_currency_rate: float = None
+        self,
+        chain_query: Optional[ChainQuery] = None,
+        quote_currency_rate: Optional[float] = None,
     ):
         try:
             logger.info("Getting Muesliswap %s rate", self.symbol)
             resp = await self._get(self.get_path())
             if resp.is_ok:
-                base_rate = float(resp.json["price"])
-                rate = self._calculate_final_rate(
-                    self.quote_currency,
-                    base_rate,
-                    quote_currency_rate,
-                    self.rate_calculation_method,
-                )
-                logger.info("%s-%s Rate: %f", self.provider, self.symbol, rate)
-                return rate
+                json_data = resp.json
+                if json_data is not None and "price" in json_data:
+                    base_rate = float(json_data["price"])
+                    rate = self._calculate_final_rate(
+                        self.quote_currency,
+                        base_rate,
+                        quote_currency_rate,
+                        self.rate_calculation_method,
+                    )
+                    logger.info("%s-%s Rate: %f", self.provider, self.symbol, rate)
+                    return rate
+                logger.error("JSON data is invalid or missing 'price' key")
+                return None
         except UnsuccessfulResponse as e:  # pylint: disable=invalid-name
             logger.error("Failed to get rate for Muesliswap %s: %s", self.symbol, e)
             return None
@@ -503,7 +592,9 @@ class VyFiApi(CoinRate):
         self.min_ada_per_utxo = 2000000  # Min ADA required per UTxO
 
     async def get_rate(
-        self, chain_query: ChainQuery, quote_currency_rate: float = None
+        self,
+        chain_query: Optional[ChainQuery] = None,
+        quote_currency_rate: Optional[float] = None,
     ):
         try:
             logger.info("Getting VyFi pool value for tokens: %s", self.pool_tokens)
@@ -646,7 +737,7 @@ class VyFiApi(CoinRate):
             # Fetch and decode the datum from its hash
             cbor_data = chain_query.context.api.script_datum_cbor(str(datum_hash)).cbor
             return VyFiBarFees.from_cbor(cbor_data)
-        elif pool_utxo.output.datum is not None:
+        if pool_utxo.output.datum is not None:
             # Directly use the datum if it's present
             return VyFiBarFees.from_cbor(pool_utxo.output.datum)
 
@@ -738,7 +829,9 @@ class Charli3Api(CoinRate):
         self.rate_calculation_method = rate_calculation_method
 
     async def get_rate(
-        self, chain_query: ChainQuery, quote_currency_rate: float = None
+        self,
+        chain_query: ChainQuery = None,
+        quote_currency_rate: Optional[float] = None,
     ):
         """Retrieves the C3 Network exchange rate and calculates its decimal representation.
 
@@ -798,7 +891,9 @@ class InverseCurrencyRate(CoinRate):
         self.rate_calculation_method = rate_calculation_method
 
     async def get_rate(
-        self, chain_query: ChainQuery = None, quote_currency_rate: float = None
+        self,
+        chain_query: ChainQuery = None,
+        quote_currency_rate: Optional[float] = None,
     ):
         try:
             logger.info("Getting %s rate", self.symbol)
@@ -834,8 +929,8 @@ class AggregatedCoinRate:
 
     def __init__(self, quote_currency: bool = False, chain_query: ChainQuery = None):
         self.quote_currency = quote_currency
-        self.base_data_providers = []
-        self.quote_data_providers = []
+        self.base_data_providers: List[CoinRate] = []
+        self.quote_data_providers: List[CoinRate] = []
         self.chain_query = chain_query
 
     def add_base_data_provider(self, feed_type, provider, pair):
@@ -868,7 +963,7 @@ class AggregatedCoinRate:
         valid_responses = [
             resp
             for resp in responses
-            if resp is not None and resp > 0 and not isinstance(resp, Exception)
+            if resp is not None and isinstance(resp, (int, float)) and resp > 0
         ]
         if not valid_responses:
             logger.critical("No data prices are available to estimate the median")

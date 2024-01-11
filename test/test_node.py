@@ -37,10 +37,13 @@ class TestNodeClass:
     async def test_filter_utxos_by_asset(self, monkeypatch, get_chain_query):
         """Loading case for an *CASE* trigger"""
 
-        register_api_uri(
-            MOCKED_BLOCKFROST_API_CALL["api_url"],
-            *MOCKED_BLOCKFROST_API_CALL["api_call"]["v0_epochs_latest"],
-        )
+        url = MOCKED_BLOCKFROST_API_CALL["api_call"]["v0_epochs_latest"]["url"]
+        body = MOCKED_BLOCKFROST_API_CALL["api_call"]["v0_epochs_latest"]["body"]
+        response = MOCKED_BLOCKFROST_API_CALL["api_call"]["v0_epochs_latest"][
+            "response"
+        ]
+
+        register_api_uri(MOCKED_BLOCKFROST_API_CALL["api_url"], url, body, response)
 
         node = await self.get_node(monkeypatch, get_chain_query)
 

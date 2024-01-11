@@ -88,8 +88,8 @@ class FeedUpdater:
                     self.node.node_nft,
                 )
 
-                self.agg_datum: AggDatum = aggstate_utxo.output.datum
-                self.reward_datum: RewardDatum = reward_utxo.output.datum
+                self.agg_datum = aggstate_utxo.output.datum
+                self.reward_datum = reward_utxo.output.datum
                 oracle_datum: OracleDatum = oraclefeed_utxo.output.datum
                 nodes_datum: List[NodeDatum] = [
                     node.output.datum for node in nodes_utxos
@@ -295,10 +295,9 @@ class FeedUpdater:
         if not get_paid:
             logger.warning("Not enough funds available at the contract to pay rewards.")
 
-        if (
-            self.check_rate_change(new_rate, own_feed.df.df_value)
-            or self.node_is_expired(own_feed.df.df_last_update)
-        ):
+        if self.check_rate_change(
+            new_rate, own_feed.df.df_value
+        ) or self.node_is_expired(own_feed.df.df_last_update):
             # Our node is not updated
             # More nodes are required before aggregating
             await self.node.update(new_rate)
