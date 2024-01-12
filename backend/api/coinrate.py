@@ -114,7 +114,7 @@ class Generic(CoinRate):
                         quote_currency_rate,
                         self.rate_calculation_method,
                     )
-                    logger.debug("Rate: %s", rate)
+                    logger.info("%s %s Rate: %s",self.provider, self.symbol, rate)
                     return rate
                 logger.error(
                     "Data at the end of JSON path is not a number or numeric string"
@@ -378,9 +378,10 @@ class MinswapBlockfrost(CoinRate):
                 base_rate = price_to_buy_token_A
 
             logger.info("BASE %s", base_rate)
+
             rate = self._calculate_final_rate(
                 self.quote_currency,
-                base_rate,
+                float(base_rate),
                 quote_currency_rate,
                 self.rate_calculation_method,
             )
