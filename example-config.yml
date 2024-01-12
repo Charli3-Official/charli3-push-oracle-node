@@ -31,9 +31,9 @@ Rate:
       quote_currency: True
     minswap:
       type: minswap
-      symbol: SHEN/ADA
-      currency_symbol: 8db269c3ec630e06ae29f74bc39edd1f87c819f1056206e879a1cd61
-      token_name: 5368656e4d6963726f555344
+      pool_tokens: ADA-SHEN
+      pool_id: 53225313968e796f2c1e0b57540a13c3b81e06e2ed2637ac1ea9b9f4e27e3dc4
+      get_second_pool_price: False
       quote_currency: True
     vyfi:
       type: vyfi

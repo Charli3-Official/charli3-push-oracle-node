@@ -2,8 +2,9 @@
 import logging
 import asyncio
 import argparse
-from logging.config import dictConfig
+import os
 import yaml
+from logging.config import dictConfig
 from pycardano import (
     Network,
     Address,
@@ -20,10 +21,47 @@ from pycardano import (
     OgmiosChainContext,
 )
 from charli3_offchain_core import Node, ChainQuery
-from backend.api import AggregatedCoinRate
-from backend.runner import FeedUpdater
-from backend.logfiles.logging_config import get_log_config, LEVEL_COLORS
 
+
+# Set up configuration early to ensure environment variables are available.
+def load_config_and_set_env_vars():
+    parser = argparse.ArgumentParser(
+        prog="Charli3 Backends for Node Operator",
+        description="Charli3 Backends for Node Operator.",
+    )
+    parser.add_argument(
+        "-c",
+        "--configfile",
+        help="Specify a file to override default configuration",
+        default="config.yml",
+    )
+    args = parser.parse_args()
+
+    with open(args.configfile, "r", encoding="UTF-8") as ymlfile:
+        configyaml = yaml.load(ymlfile, Loader=yaml.FullLoader)
+
+    chain_query_config = configyaml["ChainQuery"]
+
+    if chain_query_config["network"] == "TESTNET":
+        os.environ["NETWORK"] = "preprod"
+    elif chain_query_config["network"] == "MAINNET":
+        os.environ["NETWORK"] = "mainnet"
+
+    blockfrost_config = chain_query_config.get("blockfrost")
+
+    if blockfrost_config:
+        os.environ["PROJECT_ID"] = blockfrost_config["project_id"]
+        os.environ["MAX_CALLS"] = "50000"
+
+    return configyaml
+
+
+# Call the configuration load function before anything else
+configyaml = load_config_and_set_env_vars()
+
+from backend.logfiles.logging_config import get_log_config, LEVEL_COLORS
+from backend.runner import FeedUpdater
+from backend.api import AggregatedCoinRate
 
 # Loads configuration file
 parser = argparse.ArgumentParser(

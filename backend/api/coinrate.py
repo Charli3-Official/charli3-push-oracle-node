@@ -2,7 +2,7 @@
 from typing import Optional, List, Any, Dict
 import logging
 import asyncio
-import json
+from minswap import pools, assets
 from charli3_offchain_core.consensus import random_median
 from charli3_offchain_core.chain_query import ChainQuery
 from charli3_offchain_core.oracle_checks import c3_get_rate
@@ -325,65 +325,37 @@ class SundaeswapApi(CoinRate):
             return None
 
 
-class MinswapApi(CoinRate):
-    """Abstracts the minswap API"""
+class MinswapBlockfrost(CoinRate):
+    """
+    This class abstracts the interaction with the Minswap Python SDK.
 
-    api_url = "https://monorepo-mainnet-prod.minswap.org"
-    path = "/graphql?PoolByPair"
+    Attributes:
+        provider (str): Identifier for the rate provider.
+        pool_tokens (str): The trading pair in the liquidity pool.
+        pool_id (str): Unique identifier for the liquidity pool.
+        get_second_pool_price (bool): Flag to choose which pool price to use.
+        quote_currency (bool): Flag to indicate if the quote currency rate should be used.
+        rate_calculation_method (str): Method for rate calculation (e.g., "multiply").
+
+    Methods:
+        get_rate: Retrieves the exchange rate from the Minswap pool.
+    """
 
     def __init__(
         self,
         provider: str,
-        symbol: str,
-        currency_symbol: str,
-        token_name: str,
+        pool_tokens: str,
+        pool_id: str,
+        get_second_pool_price: bool = False,
         quote_currency: bool = False,
         rate_calculation_method: str = "multiply",
     ):
         self.provider = provider
-        self.symbol = symbol
-        self.currency_symbol = currency_symbol
-        self.token_name = token_name
+        self.pool_tokens = pool_tokens
+        self.pool_id = pool_id
+        self.get_second_pool_price = get_second_pool_price
         self.quote_currency = quote_currency
         self.rate_calculation_method = rate_calculation_method
-        self.query = {
-            "query": """
-            query PoolByPair($pair: InputPoolByPair!) {
-              poolByPair(pair: $pair) {
-                assetA {
-                  currencySymbol
-                  tokenName
-                  isVerified
-                }
-                assetB {
-                  currencySymbol
-                  tokenName
-                  isVerified
-                }
-                reserveA
-                reserveB
-                lpAsset {
-                  currencySymbol
-                  tokenName
-                }
-                totalLiquidity
-              }
-            }
-        """,
-            "variables": {
-                "pair": {
-                    "assetA": {"currencySymbol": "", "tokenName": ""},
-                    "assetB": {
-                        "currencySymbol": self.currency_symbol,
-                        "tokenName": self.token_name,
-                    },
-                },
-                "useCache": False,
-            },
-        }
-
-    def get_path(self):
-        return self.path
 
     async def get_rate(
         self,
@@ -391,40 +363,42 @@ class MinswapApi(CoinRate):
         quote_currency_rate: Optional[float] = None,
     ):
         try:
-            logger.info("Getting Minswap %s rate", self.symbol)
-            resp = await self._post(self.get_path(), self.query)
-            if resp.is_ok:
-                json_data = resp.json
-                if (
-                    json_data is not None
-                    and "data" in json_data
-                    and "encryptedData" in json_data["data"]
-                ):
-                    decrypted_response = decrypt_response(
-                        json_data["data"]["encryptedData"]
-                    )
-                    response_data = json.loads(decrypted_response)
-                    if (
-                        "data" in response_data
-                        and "poolByPair" in response_data["data"]
-                    ):
-                        quantity_ada = response_data["data"]["poolByPair"]["reserveA"]
-                        quantity_asset = response_data["data"]["poolByPair"]["reserveB"]
-                        base_rate = float(quantity_ada) / float(quantity_asset)
-                        rate = self._calculate_final_rate(
-                            self.quote_currency,
-                            base_rate,
-                            quote_currency_rate,
-                            self.rate_calculation_method,
-                        )
-                        logger.info("%s-%s Rate: %f", self.provider, self.symbol, rate)
-                        return rate
-                    logger.error("Invalid or missing data in decrypted response")
-                    return None
-                logger.error("Invalid or missing JSON data in response")
-                return None
+            logger.info("Getting Minswap %s pool value", self.pool_tokens)
+
+            pool = pools.get_pool_by_id(self.pool_id)
+
+            price_to_buy_token_B, price_to_buy_token_A = pool.price
+
+            asset_a = assets.asset_ticker(pool.unit_a)
+            asset_b = assets.asset_ticker(pool.unit_b)
+
+            if self.get_second_pool_price == False:
+                base_rate = price_to_buy_token_B
+            else:
+                base_rate = price_to_buy_token_A
+
+            logger.info("BASE %s", base_rate)
+            rate = self._calculate_final_rate(
+                self.quote_currency,
+                base_rate,
+                quote_currency_rate,
+                self.rate_calculation_method,
+            )
+
+            logger.info("BASE RATE %s", rate)
+            if self.pool_tokens == f"{asset_a}-{asset_b}":
+                if self.get_second_pool_price:
+                    symbol = f"{asset_a}/{asset_b}"
+                else:
+                    symbol = f"{asset_b}/{asset_a}"
+                logger.info("%s-%s Rate: %f", self.provider, symbol, rate)
+            else:
+                logger.warning(
+                    "Symbol does not match the combination of %s-%s", asset_a, asset_b
+                )
+            return rate
         except UnsuccessfulResponse as e:  # pylint: disable=invalid-name
-            logger.error("Failed to get rate for Minswap %s: %s", self.symbol, e)
+            logger.error("Failed to get rate for Minswap %s: %s", self.pool_tokens, e)
             return None
 
 
@@ -915,7 +889,7 @@ apiTypes = {
     "binance": BinanceApi,
     "coingecko": CoingeckoApi,
     "sundaeswap": SundaeswapApi,
-    "minswap": MinswapApi,
+    "minswap": MinswapBlockfrost,
     "wingriders": WingridersApi,
     "muesliswap": MuesliswapApi,
     "vyfi": VyFiApi,

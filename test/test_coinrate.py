@@ -12,7 +12,7 @@ from backend.api.coinrate import (
     CoingeckoApi,
     Generic,
     SundaeswapApi,
-    MinswapApi,
+    MinswapBlockfrost,
     MuesliswapApi,
     WingridersApi,
     InverseCurrencyRate,
@@ -30,11 +30,10 @@ coinApis = {
         {"X-CMC_PRO_API_KEY": "asdf"},
     ),
     "sundaeswap_adausd": SundaeswapApi("ADA", "ADAUSDT"),
-    "minswap_adausd": MinswapApi(
+    "minswap_adausd": MinswapBlockfrost(
         "ADA",
-        "ADAUSDT",
-        "8e51398904a5d3fc129fbf4f1589701de23c7824d5c90fdb9490e15a",
-        "434841524c4933",
+        "ADA-SHEN",
+        "53225313968e796f2c1e0b57540a13c3b81e06e2ed2637ac1ea9b9f4e27e3dc4",
     ),
     "muesliswap_adausd": MuesliswapApi(
         "ADA",

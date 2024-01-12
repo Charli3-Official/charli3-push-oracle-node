@@ -1,4 +1,10 @@
 """Mocked Vars and Functions for testing process"""
+
+import os
+os.environ["NETWORK"] = "preprod"
+os.environ["PROJECT_ID"] = "preprodjxcUodunMUMtjBqnyQ0bLMnREkXHa6CN"
+os.environ["MAX_CALLS"] = "50000"
+
 import json
 from typing import Dict, Any
 import cbor2

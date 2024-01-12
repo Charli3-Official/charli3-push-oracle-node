@@ -110,25 +110,25 @@ Options:
 - rate_calculation_method: (Optional) The method to use for rate calculation. Options are "multiply" and "divide". Defaults to "multiply".
 
 ## 5. Minswap Adapter
-The Minswap adapter is specifically designed to interact with the Minswap exchange API.
+The Minswap adapter is specifically designed to interact with the Minswap DEX on Cardano.
 
 Configuration for Minswap:
 
 ``` yaml
 minswap:
   type: minswap
-  symbol: SHEN/ADA
-  currency_symbol: 8db269c3ec630e06ae29f74bc39edd1f87c819f1056206e879a1cd61
-  token_name: 5368656e4d6963726f555344
+  pool_tokens: ADA-SHEN
+  pool_id: 53225313968e796f2c1e0b57540a13c3b81e06e2ed2637ac1ea9b9f4e27e3dc4
+  get_second_pool_price: False
   quote_currency: True
 ```
 Options:
 - type: Should be set to "minswap".
-- symbol: The trading pair symbol.
-- currency_symbol: The currency symbol for custom tokens.
-- token_name: The token name for custom tokens.
-- quote_currency: (Optional) Set to True for quote currency settings.
+- pool_tokens: This parameter represents the trading pair symbol and should reflect the assets' order as held in the liquidity pool. When determining the sequence of assets (Asset A and Asset B) within the pair, the assets are arranged alphabetically by their asset hashes—Asset A is the one with the hash that precedes Asset B in a sorted list. However, there is a notable exception to this rule: when the pair includes Cardano's native currency ('lovelace'), it will invariably assume the position of Asset A, regardless of its hash in comparison to the other asset in the pool.
+- pool_id: This is the unique identifier associated with a specific liquidity pool. It is used to precisely distinguish the pool that contains the pair of assets you intend to interact with. The `pool_id` is essential when querying for pool-specific data, such as exchange rates, liquidity depth, and transaction history.
+- get_second_pool_price (Optional): When retrieving the price from a liquidity pool, two numerical values are returned, both expressed as `Decimal` types for precision. The first value represents the cost of purchasing one unit of Token B using Token A as the currency (commonly referred to as the "buy price" of Token B). Conversely, the second value indicates the cost of buying one unit of Token A using Token B (the "buy price" of Token A). For instance, in an ADA-SHEN pool, if the returned values are (X, Y), X would be the SHEN/ADA price, and Y would be the ADA/SHEN price. The `get_second_pool_price` option allows users to select which of these two prices to work with. This selection is typically based on whether you need the base price (the first value) or the quote price (the second value) for your calculations or display purposes.
 - rate_calculation_method: (Optional) The method to use for rate calculation. Options are "multiply" and "divide". Defaults to "multiply".
+- quote_currency: (Optional) Set to True for quote currency settings.
 
 ## 6. VyFi Adapter
 The VyFi adapter is specifically designed to interact with the VyFi Dex on Cardano.
