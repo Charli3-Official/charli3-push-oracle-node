@@ -2,7 +2,7 @@
 from typing import Optional, List, Any, Dict
 import logging
 import asyncio
-from minswap import pools, assets
+
 from charli3_offchain_core.consensus import random_median
 from charli3_offchain_core.chain_query import ChainQuery
 from charli3_offchain_core.oracle_checks import c3_get_rate
@@ -114,7 +114,7 @@ class Generic(CoinRate):
                         quote_currency_rate,
                         self.rate_calculation_method,
                     )
-                    logger.info("%s %s Rate: %s",self.provider, self.symbol, rate)
+                    logger.info("%s %s Rate: %s", self.provider, self.symbol, rate)
                     return rate
                 logger.error(
                     "Data at the end of JSON path is not a number or numeric string"
@@ -362,20 +362,28 @@ class MinswapBlockfrost(CoinRate):
         chain_query: Optional[ChainQuery] = None,
         quote_currency_rate: Optional[float] = None,
     ):
+        if chain_query is None or chain_query.blockfrost_context is None:
+            logger.error(
+                "Chain query or Blockfrost context is None. Cannot get Minswap %s pool value",
+                self.pool_tokens,
+            )
+            return  # handle the error as appropriate
         try:
+            from minswap import pools, assets
+
             logger.info("Getting Minswap %s pool value", self.pool_tokens)
 
             pool = pools.get_pool_by_id(self.pool_id)
 
-            price_to_buy_token_B, price_to_buy_token_A = pool.price
+            price_to_buy_token_b, price_to_buy_token_a = pool.price
 
             asset_a = assets.asset_ticker(pool.unit_a)
             asset_b = assets.asset_ticker(pool.unit_b)
 
-            if self.get_second_pool_price == False:
-                base_rate = price_to_buy_token_B
+            if self.get_second_pool_price is False:
+                base_rate = price_to_buy_token_b
             else:
-                base_rate = price_to_buy_token_A
+                base_rate = price_to_buy_token_a
 
             logger.info("BASE %s", base_rate)
 
@@ -910,11 +918,19 @@ class AggregatedCoinRate:
 
     def add_base_data_provider(self, feed_type, provider, pair):
         """add provider to list."""
-        self.base_data_providers.append(apiTypes[feed_type](provider, **pair))
+        if (
+            not isinstance(apiTypes[feed_type], MinswapBlockfrost)
+            or self.chain_query.blockfrost_context is not None
+        ):
+            self.base_data_providers.append(apiTypes[feed_type](provider, **pair))
 
     def add_quote_data_provider(self, feed_type, provider, pair):
         """add provider to list."""
-        self.quote_data_providers.append(apiTypes[feed_type](provider, **pair))
+        if (
+            not isinstance(apiTypes[feed_type], MinswapBlockfrost)
+            or self.chain_query.blockfrost_context is not None
+        ):
+            self.quote_data_providers.append(apiTypes[feed_type](provider, **pair))
 
     async def get_rate_from_providers(
         self, providers: List[CoinRate], quote_rate: Optional[float] = None

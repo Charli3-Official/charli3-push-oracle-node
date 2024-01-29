@@ -19,6 +19,7 @@ ChainQuery:
   blockfrost:
     base_url: https://cardano-preprod.blockfrost.io/api
     project_id: preprodVPAHdGNLvQtM3Ppkxtvd2oEVhHFxZ6MD
+    max_api_calls: 50000
   ogmios:
     ws_url:  wss://ogmios-preprod-api-charli3-49bb04.us1.demeter.run
     kupo_url: kupo-preprod-api-charli3-49bb04.us1.demeter.run

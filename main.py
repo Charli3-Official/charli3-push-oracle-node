@@ -3,8 +3,8 @@ import logging
 import asyncio
 import argparse
 import os
-import yaml
 from logging.config import dictConfig
+import yaml
 from pycardano import (
     Network,
     Address,
@@ -21,44 +21,6 @@ from pycardano import (
     OgmiosChainContext,
 )
 from charli3_offchain_core import Node, ChainQuery
-
-
-# Set up configuration early to ensure environment variables are available.
-def load_config_and_set_env_vars():
-    parser = argparse.ArgumentParser(
-        prog="Charli3 Backends for Node Operator",
-        description="Charli3 Backends for Node Operator.",
-    )
-    parser.add_argument(
-        "-c",
-        "--configfile",
-        help="Specify a file to override default configuration",
-        default="config.yml",
-    )
-    args = parser.parse_args()
-
-    with open(args.configfile, "r", encoding="UTF-8") as ymlfile:
-        configyaml = yaml.load(ymlfile, Loader=yaml.FullLoader)
-
-    chain_query_config = configyaml["ChainQuery"]
-
-    if chain_query_config["network"] == "TESTNET":
-        os.environ["NETWORK"] = "preprod"
-    elif chain_query_config["network"] == "MAINNET":
-        os.environ["NETWORK"] = "mainnet"
-
-    blockfrost_config = chain_query_config.get("blockfrost")
-
-    if blockfrost_config:
-        os.environ["PROJECT_ID"] = blockfrost_config["project_id"]
-        os.environ["MAX_CALLS"] = "50000"
-
-    return configyaml
-
-
-# Call the configuration load function before anything else
-configyaml = load_config_and_set_env_vars()
-
 from backend.logfiles.logging_config import get_log_config, LEVEL_COLORS
 from backend.runner import FeedUpdater
 from backend.api import AggregatedCoinRate
@@ -90,35 +52,49 @@ chain_query_config = configyaml["ChainQuery"]
 if ini_node:
     if chain_query_config["network"] == "TESTNET":
         network = Network.TESTNET
+        os.environ["NETWORK"] = "preprod"
     elif chain_query_config["network"] == "MAINNET":
         network = Network.MAINNET
+        os.environ["NETWORK"] = "mainnet"
 
     blockfrost_config = chain_query_config.get("blockfrost")
     ogmios_config = chain_query_config.get("ogmios")
 
-    if blockfrost_config:
-        blockfrost_base_url = blockfrost_config["base_url"]
+    BLOCKFROST_CONTEXT = None
+    if (
+        blockfrost_config
+        and "project_id" in blockfrost_config
+        and blockfrost_config["project_id"]
+    ):
+        blockfrost_base_url = blockfrost_config.get("base_url", "")
         blockfrost_project_id = blockfrost_config["project_id"]
+        blockfrost_max_api_calls = blockfrost_config.get("max_api_calls", "50000")
 
-        blockfrost_context = BlockFrostChainContext(
+        BLOCKFROST_CONTEXT = BlockFrostChainContext(
             blockfrost_project_id,
             network,
             base_url=blockfrost_base_url,
         )
 
-    if ogmios_config:
-        ogmios_ws_url = ogmios_config["ws_url"]
-        kupo_url = ogmios_config.get("kupo_url")
+        os.environ["PROJECT_ID"] = blockfrost_project_id
+        os.environ["MAX_CALLS"] = str(blockfrost_max_api_calls)
+        # Using the free developer plan per day
+        # https://github.com/theeldermillenial/minswap-py/blob/9fec16c8509735da915b28dd0f4a2d73a1c5c561/src/minswap/addr.py#L265-L267
 
-        ogmios_context = OgmiosChainContext(
+    OGMIOS_CONTEXT = None
+    if ogmios_config and "ws_url" in ogmios_config and ogmios_config["ws_url"]:
+        ogmios_ws_url = ogmios_config["ws_url"]
+        kupo_url = ogmios_config.get("kupo_url", "")
+
+        OGMIOS_CONTEXT = OgmiosChainContext(
             network=network,
             ws_url=ogmios_ws_url,
             kupo_url=kupo_url,
         )
 
     chain_query = ChainQuery(
-        blockfrost_context=blockfrost_context if blockfrost_config else None,
-        ogmios_context=ogmios_context if ogmios_config else None,
+        blockfrost_context=BLOCKFROST_CONTEXT if blockfrost_config else None,
+        ogmios_context=OGMIOS_CONTEXT if ogmios_config else None,
         oracle_address=ini_node["oracle_addr"],
     )
 
