@@ -175,7 +175,6 @@ if "quote_currency" in configyaml["Rate"] and configyaml["Rate"]["quote_currency
 
     # Access the symbol attribute of the firt element
     quote_symbol = configyaml["Rate"]["quote_currency"][first_key]["symbol"]
-    print(quote_symbol)
 
     rateclass = AggregatedCoinRate(
         quote_currency=True,
