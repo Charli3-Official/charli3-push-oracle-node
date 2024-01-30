@@ -170,7 +170,18 @@ if ini_node:
     )
 
 if "quote_currency" in configyaml["Rate"] and configyaml["Rate"]["quote_currency"]:
-    rateclass = AggregatedCoinRate(quote_currency=True, chain_query=chain_query)
+    # Get the first key in the quote dictionary
+    first_key = next(iter(configyaml["Rate"]["quote_currency"]))
+
+    # Access the symbol attribute of the firt element
+    quote_symbol = configyaml["Rate"]["quote_currency"][first_key]["symbol"]
+    print(quote_symbol)
+
+    rateclass = AggregatedCoinRate(
+        quote_currency=True,
+        quote_symbol=quote_symbol,
+        chain_query=chain_query,
+    )
 
     for provider in configyaml["Rate"]["quote_currency"]:
         feed_type = configyaml["Rate"]["quote_currency"][provider]["type"]

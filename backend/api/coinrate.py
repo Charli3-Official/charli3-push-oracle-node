@@ -1,7 +1,8 @@
 """Exchange Api classes."""
-from typing import Optional, List, Any, Dict
+from typing import Optional, List, Any, Dict, Tuple
 import logging
 import asyncio
+import re
 
 from charli3_offchain_core.consensus import random_median
 from charli3_offchain_core.chain_query import ChainQuery
@@ -20,8 +21,38 @@ class CoinRate(Api):
     def get_path(self):
         """Path encapsulation"""
 
-    async def get_rate(self, chain_query=None, quote_currency_rate=None):
+    async def get_rate(
+        self, chain_query=None, quote_currency_rate=None, quote_symbol=None
+    ):
         """Returns the rate accoirding to the classes instance"""
+
+    def _get_symbol(self, base_symbol, quote_symbol: Optional[str], method) -> str:
+        """
+        Constructs and returns a currency symbol based on the base and quote symbols and the method.
+        If only one symbol is provided, it returns that symbol.
+        If both are provided, it constructs a symbol based on the method ('multiply' or 'divide').
+        """
+        if not base_symbol:
+            raise ValueError("Base symbol is required")
+
+        # Pattern to match symbols with '-', '/', ' - ', ' / ', or ' ' as separators
+        pattern = r"([A-Za-z]+)\s*[-/\s]\s*([A-Za-z]+)"
+        bs_match = re.match(pattern, base_symbol, re.IGNORECASE)
+        qs_match = (
+            re.match(pattern, quote_symbol, re.IGNORECASE) if quote_symbol else None
+        )
+
+        # Extract symbols if they match the pattern
+        bs_base, _ = bs_match.groups() if bs_match else (None, None)
+        qs_base, qs_quote = qs_match.groups() if qs_match else (None, None)
+
+        # Construct symbol based on method
+        if method == "multiply" and bs_base and qs_quote:
+            return f"{bs_base}/{qs_quote}".upper()
+        elif method == "divide" and bs_base and qs_base:
+            return f"{bs_base}/{qs_base}".upper()
+        else:
+            return base_symbol.upper()
 
     def _calculate_final_rate(
         self,
@@ -29,8 +60,11 @@ class CoinRate(Api):
         base_rate: float,
         quote_currency_rate: Optional[float],
         rate_calculation_method: str,
-    ) -> float:
+        base_symbol: str,
+        quote_symbol: Optional[str],
+    ) -> Tuple[float, str]:
         """Calculates the final rate to be returned with the correct precision"""
+        symbol = self._get_symbol(base_symbol, quote_symbol, rate_calculation_method)
         rate: float = 0
         if quote_currency:
             if quote_currency_rate:
@@ -49,7 +83,7 @@ class CoinRate(Api):
         else:
             rate = base_rate
         rate = round(rate, 8)
-        return rate
+        return (rate, symbol)
 
 
 class Generic(CoinRate):
@@ -84,6 +118,7 @@ class Generic(CoinRate):
         self,
         chain_query: Optional[ChainQuery] = None,
         quote_currency_rate: Optional[float] = None,
+        quote_symbol: Optional[str] = None,
     ):
         try:
             logger.info("Getting %s %s rate", self.provider, self.symbol)
@@ -108,13 +143,15 @@ class Generic(CoinRate):
                         logger.error("Invalid path in JSON response for key: %s", key)
                         return None
                 if isinstance(data, (int, float, str)):
-                    rate = self._calculate_final_rate(
+                    (rate, output_symbol) = self._calculate_final_rate(
                         self.quote_currency,
                         float(data),
                         quote_currency_rate,
                         self.rate_calculation_method,
+                        self.symbol,
+                        quote_symbol,
                     )
-                    logger.info("%s %s Rate: %s", self.provider, self.symbol, rate)
+                    logger.info("%s %s Rate: %s", self.provider, output_symbol, rate)
                     return rate
                 logger.error(
                     "Data at the end of JSON path is not a number or numeric string"
@@ -152,6 +189,7 @@ class BinanceApi(CoinRate):
         self,
         chain_query: Optional[ChainQuery] = None,
         quote_currency_rate: Optional[float] = None,
+        quote_symbol: Optional[str] = None,
     ):
         try:
             logger.info("Getting Binance %s rate", self.symbol)
@@ -160,13 +198,15 @@ class BinanceApi(CoinRate):
                 json_data = resp.json
                 if json_data is not None and "price" in json_data:
                     base_rate = float(json_data["price"])
-                    rate = self._calculate_final_rate(
+                    (rate, output_symbol) = self._calculate_final_rate(
                         self.quote_currency,
                         base_rate,
                         quote_currency_rate,
                         self.rate_calculation_method,
+                        self.symbol,
+                        quote_symbol,
                     )
-                    logger.debug("%s Rate: %s", self.symbol, rate)
+                    logger.info("%s %s Rate: %s", self.provider, output_symbol, rate)
                     return rate
             else:
                 logger.error("Response not OK for Binance %s", self.symbol)
@@ -203,6 +243,7 @@ class CoingeckoApi(CoinRate):
         self,
         chain_query: Optional[ChainQuery] = None,
         quote_currency_rate: Optional[float] = None,
+        quote_symbol: Optional[str] = None,
     ):
         try:
             logger.info("Getting coingecko %s-%s rate", self.tid, self.vs_currency)
@@ -215,13 +256,15 @@ class CoingeckoApi(CoinRate):
                     and self.vs_currency in json_data[self.tid]
                 ):
                     base_rate = float(json_data[self.tid][self.vs_currency])
-                    rate = self._calculate_final_rate(
+                    (rate, output_symbol) = self._calculate_final_rate(
                         self.quote_currency,
                         base_rate,
                         quote_currency_rate,
                         self.rate_calculation_method,
+                        self.tid + "-" + self.vs_currency,
+                        quote_symbol,
                     )
-                    logger.debug("%s-%s Rate: %f", self.tid, self.vs_currency, rate)
+                    logger.debug("%s %s Rate: %s", self.provider, output_symbol, rate)
                     return rate
                 logger.error(
                     "Invalid or missing data in JSON response for %s-%s",
@@ -295,6 +338,7 @@ class SundaeswapApi(CoinRate):
         self,
         chain_query: Optional[ChainQuery] = None,
         quote_currency_rate: Optional[float] = None,
+        quote_symbol: Optional[str] = None,
     ):
         try:
             logger.info("Getting Sundaeswap %s rate", self.symbol)
@@ -310,13 +354,15 @@ class SundaeswapApi(CoinRate):
                     quantity_ada = json_data["data"]["pools"][0]["quantityA"]
                     quantity_asset = json_data["data"]["pools"][0]["quantityB"]
                     base_rate = float(quantity_ada) / float(quantity_asset)
-                    rate = self._calculate_final_rate(
+                    (rate, output_symbol) = self._calculate_final_rate(
                         self.quote_currency,
                         base_rate,
                         quote_currency_rate,
                         self.rate_calculation_method,
+                        self.symbol,
+                        quote_symbol,
                     )
-                    logger.info("%s-%s Rate: %f", self.provider, self.symbol, rate)
+                    logger.info("%s %s Rate: %f", self.provider, output_symbol, rate)
                     return rate
                 logger.error("Invalid or missing data in JSON response")
                 return None
@@ -361,6 +407,7 @@ class MinswapBlockfrost(CoinRate):
         self,
         chain_query: Optional[ChainQuery] = None,
         quote_currency_rate: Optional[float] = None,
+        quote_symbol: Optional[str] = None,
     ):
         if chain_query is None or chain_query.blockfrost_context is None:
             logger.error(
@@ -379,36 +426,40 @@ class MinswapBlockfrost(CoinRate):
 
             asset_a = assets.asset_ticker(pool.unit_a)
             asset_b = assets.asset_ticker(pool.unit_b)
+            symbol = self.get_symbol(asset_a, asset_b)
 
             if self.get_second_pool_price is False:
                 base_rate = price_to_buy_token_b
             else:
                 base_rate = price_to_buy_token_a
 
-            logger.info("BASE %s", base_rate)
-
-            rate = self._calculate_final_rate(
+            (rate, output_symbol) = self._calculate_final_rate(
                 self.quote_currency,
                 float(base_rate),
                 quote_currency_rate,
                 self.rate_calculation_method,
+                symbol,
+                quote_symbol,
             )
 
-            logger.info("BASE RATE %s", rate)
-            if self.pool_tokens == f"{asset_a}-{asset_b}":
-                if self.get_second_pool_price:
-                    symbol = f"{asset_a}/{asset_b}"
-                else:
-                    symbol = f"{asset_b}/{asset_a}"
-                logger.info("%s-%s Rate: %f", self.provider, symbol, rate)
-            else:
-                logger.warning(
-                    "Symbol does not match the combination of %s-%s", asset_a, asset_b
-                )
+            logger.info("%s %s Rate: %s", self.provider, output_symbol, rate)
             return rate
         except UnsuccessfulResponse as e:  # pylint: disable=invalid-name
             logger.error("Failed to get rate for Minswap %s: %s", self.pool_tokens, e)
             return None
+
+    def get_symbol(self, asset_a, asset_b) -> str:
+        """Ensure that the requested symbol corresponds exactly to the symbol retrieved through the
+        on-chain query."""
+        if self.pool_tokens == f"{asset_a}-{asset_b}":
+            if self.get_second_pool_price:
+                return f"{asset_a}/{asset_b}"
+            else:
+                return f"{asset_b}/{asset_a}"
+        else:
+            raise ValueError(
+                "Symbol does not match the combination of %s-%s", asset_a, asset_b
+            )
 
 
 class WingridersApi(CoinRate):
@@ -456,6 +507,7 @@ class WingridersApi(CoinRate):
         self,
         chain_query: Optional[ChainQuery] = None,
         quote_currency_rate: Optional[float] = None,
+        quote_symbol: Optional[str] = None,
     ):
         try:
             logger.info("Getting Wingriders %s rate", self.symbol)
@@ -470,14 +522,19 @@ class WingridersApi(CoinRate):
                     for asset in json_data["data"]["assetsAdaExchangeRates"]:
                         if asset["assetId"] == self.asset_id:
                             base_rate = float(asset["exchangeRate"])
-                            rate = self._calculate_final_rate(
+                            (rate, output_symbol) = self._calculate_final_rate(
                                 self.quote_currency,
                                 base_rate,
                                 quote_currency_rate,
                                 self.rate_calculation_method,
+                                self.symbol,
+                                quote_symbol,
                             )
                             logger.info(
-                                "%s-%s Rate: %f", self.provider, self.symbol, rate
+                                "%s %s Rate: %s",
+                                self.provider,
+                                output_symbol,
+                                rate,
                             )
                             return rate
                     logger.debug(
@@ -527,6 +584,7 @@ class MuesliswapApi(CoinRate):
         self,
         chain_query: Optional[ChainQuery] = None,
         quote_currency_rate: Optional[float] = None,
+        quote_symbol: Optional[str] = None,
     ):
         try:
             logger.info("Getting Muesliswap %s rate", self.symbol)
@@ -535,13 +593,15 @@ class MuesliswapApi(CoinRate):
                 json_data = resp.json
                 if json_data is not None and "price" in json_data:
                     base_rate = float(json_data["price"])
-                    rate = self._calculate_final_rate(
+                    (rate, output_symbol) = self._calculate_final_rate(
                         self.quote_currency,
                         base_rate,
                         quote_currency_rate,
                         self.rate_calculation_method,
+                        self.symbol,
+                        quote_symbol,
                     )
-                    logger.info("%s-%s Rate: %f", self.provider, self.symbol, rate)
+                    logger.info("%s %s Rate: %f", self.provider, output_symbol, rate)
                     return rate
                 logger.error("JSON data is invalid or missing 'price' key")
                 return None
@@ -578,6 +638,7 @@ class VyFiApi(CoinRate):
         self,
         chain_query: Optional[ChainQuery] = None,
         quote_currency_rate: Optional[float] = None,
+        quote_symbol: Optional[str] = None,
     ):
         try:
             logger.info("Getting VyFi pool value for tokens: %s", self.pool_tokens)
@@ -673,36 +734,31 @@ class VyFiApi(CoinRate):
                 else adjusted_token_b / adjusted_token_a
             )
 
+            # Get symbol
+            symbol = self.get_symbol(token_a, token_b)
+
             # Calculate the final rate.
-            rate = self._calculate_final_rate(
+            (rate, output_symbol) = self._calculate_final_rate(
                 self.quote_currency,
                 base_rate,
                 quote_currency_rate,
                 self.rate_calculation_method,
+                symbol,
+                quote_symbol,
             )
-
-            # Display log information according to the rate.
-            if self.get_second_pool_price is False:
-                logger.info(
-                    "%s, Rate: %s %s/%s",
-                    self.provider,
-                    rate,
-                    token_b,
-                    token_a,
-                )
-            else:
-                logger.info(
-                    "%s, Rate: %s %s/%s",
-                    self.provider,
-                    rate,
-                    token_a,
-                    token_b,
-                )
+            logger.info("%s %s Rate: %s", self.provider, output_symbol, rate)
             return rate
 
         except UnsuccessfulResponse as e:  # pylint: disable=invalid-name
             logger.error("Failed to get rate for VyFi %s: %s", self.pool_tokens, e)
             return None
+
+    def get_symbol(self, token_a, token_b) -> str:
+        """Display log information according to the rate."""
+        if not self.get_second_pool_price:
+            return f"{token_b} - {token_a}"
+        else:
+            return f"{token_a} - {token_b}"
 
     async def _get_bar_fees_datum(self, chain_query, pool_utxo):
         """
@@ -801,7 +857,7 @@ class Charli3Api(CoinRate):
         network_tokens: str,
         network_address: str,
         network_minting_policy: str,
-        quote_currency: bool = True,
+        quote_currency: bool = False,
         rate_calculation_method: str = "multiply",
     ):
         self.provider = provider
@@ -815,6 +871,7 @@ class Charli3Api(CoinRate):
         self,
         chain_query: ChainQuery = None,
         quote_currency_rate: Optional[float] = None,
+        quote_symbol: Optional[str] = None,
     ):
         """Retrieves the C3 Network exchange rate and calculates its decimal representation.
 
@@ -842,13 +899,15 @@ class Charli3Api(CoinRate):
             c3_decimal_price = c3_integer_price / 1000000
             logger.info("C3 Network price %s", c3_decimal_price)
 
-            rate = self._calculate_final_rate(
+            (rate, output_symbol) = self._calculate_final_rate(
                 self.quote_currency,
                 c3_decimal_price,
                 quote_currency_rate,
                 self.rate_calculation_method,
+                self.network_address,
+                quote_symbol,
             )
-            logger.info("%s-%s Rate: %f", self.provider, self.network_tokens, rate)
+            logger.info("%s %s Rate: %s", self.provider, output_symbol, rate)
             return rate
 
         except UnsuccessfulResponse as e:  # pylint: disable=invalid-name
@@ -877,17 +936,20 @@ class InverseCurrencyRate(CoinRate):
         self,
         chain_query: ChainQuery = None,
         quote_currency_rate: Optional[float] = None,
+        quote_symbol: Optional[str] = None,
     ):
         try:
             logger.info("Getting %s rate", self.symbol)
             if quote_currency_rate is not None:
-                rate = self._calculate_final_rate(
+                (rate, output_symbol) = self._calculate_final_rate(
                     self.quote_currency,
                     base_rate=1,
                     quote_currency_rate=quote_currency_rate,
                     rate_calculation_method=self.rate_calculation_method,
+                    base_symbol=self.symbol,
+                    quote_symbol=quote_symbol,
                 )
-                logger.info("%s Rate: %f", self.symbol, rate)
+                logger.info("%s %s Rate: %s", self.provider, output_symbol, rate)
                 return rate
         except UnsuccessfulResponse:
             return None
@@ -910,8 +972,14 @@ apiTypes = {
 class AggregatedCoinRate:
     """Handles rate review on market"""
 
-    def __init__(self, quote_currency: bool = False, chain_query: ChainQuery = None):
+    def __init__(
+        self,
+        quote_currency: bool = False,
+        quote_symbol: Optional[str] = None,
+        chain_query: ChainQuery = None,
+    ):
         self.quote_currency = quote_currency
+        self.quote_symbol = quote_symbol
         self.base_data_providers: List[CoinRate] = []
         self.quote_data_providers: List[CoinRate] = []
         self.chain_query = chain_query
@@ -933,7 +1001,10 @@ class AggregatedCoinRate:
             self.quote_data_providers.append(apiTypes[feed_type](provider, **pair))
 
     async def get_rate_from_providers(
-        self, providers: List[CoinRate], quote_rate: Optional[float] = None
+        self,
+        providers: List[CoinRate],
+        quote_rate: Optional[float] = None,
+        conversion_symbol=None,
     ) -> Optional[float]:
         """Get rate from providers.
 
@@ -946,7 +1017,9 @@ class AggregatedCoinRate:
         """
         rates_to_get = []
         for provider in providers:
-            rates_to_get.append(provider.get_rate(self.chain_query, quote_rate))
+            rates_to_get.append(
+                provider.get_rate(self.chain_query, quote_rate, conversion_symbol)
+            )
 
         responses = await asyncio.gather(*rates_to_get, return_exceptions=True)
 
@@ -979,7 +1052,7 @@ class AggregatedCoinRate:
 
         # Fetch Median Base Rate with quote_rate calculation if quote_currency is enabled
         base_rate = await self.get_rate_from_providers(
-            self.base_data_providers, quote_rate
+            self.base_data_providers, quote_rate, self.quote_symbol
         )
 
         if base_rate is None:
