@@ -24,6 +24,7 @@ from charli3_offchain_core.oracle_checks import (
     get_oracle_datums_only,
 )
 from charli3_offchain_core.aggregate_conditions import check_oracle_settings
+from charli3_offchain_core.utils.exceptions import CollateralException
 
 from .api import AggregatedCoinRate
 from .api.api import UnsuccessfulResponse
@@ -166,6 +167,12 @@ class FeedUpdater:
             except UnsuccessfulResponse as exc:
                 logger.error(repr(exc))
 
+            except CollateralException as exc:
+                logger.error(
+                    "Failed to update or aggregate node due to collateral issue: %s",
+                    exc,
+                )
+
             except ValueError as exc:
                 logger.error(repr(exc))
 
@@ -180,34 +187,40 @@ class FeedUpdater:
         """Check that our feed is initialized and do if its not"""
         logger.info("Initializing feed")
 
-        oracle_utxos = await self.context.get_utxos()
+        try:
+            oracle_utxos = await self.context.get_utxos()
 
-        _, self.agg_datum, self.reward_datum, nodes_datum = get_oracle_datums_only(
-            oracle_utxos,
-            self.node.aggstate_nft,
-            self.node.oracle_nft,
-            self.node.reward_nft,
-            self.node.node_nft,
-        )
+            _, self.agg_datum, self.reward_datum, nodes_datum = get_oracle_datums_only(
+                oracle_utxos,
+                self.node.aggstate_nft,
+                self.node.oracle_nft,
+                self.node.reward_nft,
+                self.node.node_nft,
+            )
 
-        check_oracle_settings(self.agg_datum.aggstate.ag_settings)
+            check_oracle_settings(self.agg_datum.aggstate.ag_settings)
 
-        node_own_datum = filter_node_datums_by_node_operator(
-            nodes_datum, self.node.node_operator
-        )
+            node_own_datum = filter_node_datums_by_node_operator(
+                nodes_datum, self.node.node_operator
+            )
 
-        if (
-            node_own_datum is None
-            or self.agg_datum is None
-            or self.reward_datum is None
-            or None in nodes_datum
-        ):
-            logger.critical("One or more relevant datums are missing")
+            if (
+                node_own_datum is None
+                or self.agg_datum is None
+                or self.reward_datum is None
+                or None in nodes_datum
+            ):
+                logger.critical("One or more relevant datums are missing")
 
-        if node_own_datum.node_state.ns_feed == Nothing():
-            rate = await self.rate.get_aggregated_rate()
-            await self.node.update(self._calculate_rate(rate))
-            await asyncio.sleep(60)
+            if node_own_datum.node_state.ns_feed == Nothing():
+                rate = await self.rate.get_aggregated_rate()
+                await self.node.update(self._calculate_rate(rate))
+                await asyncio.sleep(60)
+
+        except CollateralException as error:
+            logger.error("Failed to initialize node due to collateral issue: %s", error)
+        except Exception as error:
+            logger.error("An unexpected error occurred: %s", error)
 
     @staticmethod
     def _calculate_rate(rate):
