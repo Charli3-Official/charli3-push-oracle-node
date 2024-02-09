@@ -167,16 +167,17 @@ class FeedUpdater:
             except UnsuccessfulResponse as exc:
                 logger.error(repr(exc))
 
+            except CollateralException as exc:
+                logger.error(
+                    "Failed to update or aggregate node due to collateral issue: %s",
+                    exc,
+                )
+
             except ValueError as exc:
                 logger.error(repr(exc))
 
             except Exception as exc:
                 logger.critical(repr(exc))
-
-            except CollateralException as e:
-                logger.error(
-                    f"Failed to update or aggregate node due to collateral issue: {e}"
-                )
 
             time_elapsed = time.time() - start_time
             logger.info("Loop took: %ss", str(timedelta(seconds=time_elapsed)))
@@ -216,10 +217,10 @@ class FeedUpdater:
                 await self.node.update(self._calculate_rate(rate))
                 await asyncio.sleep(60)
 
-        except CollateralException as e:
-            logger.error(f"Failed to initialize node due to collateral issue: {e}")
-        except Exception as e:
-            logger.error(f"An unexpected error occurred: {e}")
+        except CollateralException as error:
+            logger.error("Failed to initialize node due to collateral issue: %s", error)
+        except Exception as error:
+            logger.error("An unexpected error occurred: %s", error)
 
     @staticmethod
     def _calculate_rate(rate):
