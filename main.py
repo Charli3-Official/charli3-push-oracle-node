@@ -46,7 +46,8 @@ with open(arguments.configfile, "r", encoding="UTF-8") as ymlfile:
 ini_updater = configyaml["Updater"]
 ini_node = configyaml["Node"]
 chain_query_config = configyaml["ChainQuery"]
-
+destination_address = ini_node.get("reward_destination_address", "")
+collection_trigger = ini_node.get("reward_collection_trigger", 0)
 # Generates instances of classes from configuration file
 
 if ini_node:
@@ -204,6 +205,8 @@ for provider in configyaml["Rate"]["base_currency"]:
 updater = FeedUpdater(
     int(ini_updater["update_inter"]),
     int(ini_updater["percent_resolution"]),
+    destination_address,
+    collection_trigger,
     node,
     rateclass,
     chain_query,

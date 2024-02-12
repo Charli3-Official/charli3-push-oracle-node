@@ -1,11 +1,13 @@
 """Main updater class"""
 from datetime import timedelta, datetime
-from typing import List
+from typing import List, Optional
 import time
 import asyncio
 import logging
 import inspect
 from math import ceil
+from enum import Enum, auto
+from pycardano import Address
 
 from charli3_offchain_core import Node, ChainQuery
 from charli3_offchain_core.datums import (
@@ -40,12 +42,16 @@ class FeedUpdater:
         self,
         update_inter: int,
         percent_resolution: int,
+        reward_destination_address: str,
+        reward_collection_trigger: int,
         node: Node,
         rate: AggregatedCoinRate,
         context: ChainQuery,
     ):
         self.update_inter = update_inter
         self.percent_resolution = percent_resolution
+        self.reward_destination_address = reward_destination_address
+        self.reward_collection_trigger = reward_collection_trigger
         self.node = node
         self.rate = rate
         self.context = context
@@ -146,7 +152,7 @@ class FeedUpdater:
                     },
                 )
 
-                # Update - Aggregate or Update Aggregate
+                # Update or Aggregate
                 called = await self.feed_operate(
                     nodes_updated,
                     req_nodes,
@@ -182,6 +188,43 @@ class FeedUpdater:
             time_elapsed = time.time() - start_time
             logger.info("Loop took: %ss", str(timedelta(seconds=time_elapsed)))
             await asyncio.sleep(max(self.update_inter - time_elapsed, 0))
+
+    def _is_collect_needed(self):
+        """Determine if a withdrawal is needed based on reward conditions"""
+
+        c3_previous_amount = self._get_previous_node_reward()
+        return c3_previous_amount > self.reward_collection_trigger
+
+    def _get_previous_node_reward(self):
+        """Reuse the already queried reward datum
+        (e.g before aggregate transactions) of the node"""
+        # Reuse the previous reward in order to reduces the number of connection
+        # with the blokchain.
+        return next(
+            (
+                reward_info.reward_amount
+                for reward_info in self.reward_datum.reward_state.node_reward_list
+                if reward_info.reward_address == self.node.node_operator
+            ),
+            0,
+        )
+
+    def _required_collect_arguments(self):
+        """Check argument availability for automatic process."""
+        return (
+            self.reward_destination_address != ""
+            and self.reward_collection_trigger != 0
+        )
+
+    async def _withdraw_rewards(self):
+        """Handles the logic for withdrawing rewards."""
+        try:
+            logger.info("Started automatic node collect")
+            await self.node.collect(
+                Address.from_primitive(self.reward_destination_address)
+            )
+        except ValueError as exc:
+            logger.error(repr(exc))
 
     async def initialize_feed(self):
         """Check that our feed is initialized and do if its not"""
@@ -289,6 +332,19 @@ class FeedUpdater:
                         updated -= 1
         return updated
 
+    def _can_aggregate(self, new_rate: int, oracle_feed: PriceData | None) -> bool:
+        """Determines if the node can aggregate based on the oracle feed and rate change."""
+        return not oracle_feed or (
+            self.check_rate_change(new_rate, oracle_feed.get_price())
+            or self.agg_is_expired(oracle_feed.get_timestamp())
+        )
+
+    def should_update(self, own_feed: PriceFeed, new_rate: int) -> bool:
+        """Determines if the node should update its feed."""
+        return self.check_rate_change(
+            new_rate, own_feed.df.df_value
+        ) or self.node_is_expired(own_feed.df.df_last_update)
+
     async def feed_operate(
         self,
         nodes_updated: int,
@@ -297,26 +353,27 @@ class FeedUpdater:
         get_paid: bool,
         own_feed: PriceFeed,
         oracle_feed: PriceData | None,
-    ):
+    ) -> bool:
         """Main logic of the runnner"""
+        try:
+            can_aggregate = self._can_aggregate(new_rate, oracle_feed)
 
-        can_aggregate = not oracle_feed or (
-            self.check_rate_change(new_rate, oracle_feed.get_price())
-            or self.agg_is_expired(oracle_feed.get_timestamp())
-        )
+            if not get_paid:
+                logger.warning(
+                    "Not enough funds available at the contract to pay rewards."
+                )
+                return False
 
-        if not get_paid:
-            logger.warning("Not enough funds available at the contract to pay rewards.")
+            if self.should_update(own_feed, new_rate):
+                await self.node.update(new_rate)
+            elif (nodes_updated + 1 >= req_nodes) and can_aggregate:
+                await self.node.aggregate()
+            elif self._required_collect_arguments() and self._is_collect_needed():
+                await self._withdraw_rewards()
+            else:
+                return False
+            return True
 
-        if self.check_rate_change(
-            new_rate, own_feed.df.df_value
-        ) or self.node_is_expired(own_feed.df.df_last_update):
-            # Our node is not updated
-            # More nodes are required before aggregating
-            await self.node.update(new_rate)
-        elif (nodes_updated + 1 >= req_nodes) and can_aggregate:
-            # Our node is updated
-            await self.node.aggregate()
-        else:
+        except Exception as e:
+            logger.error(f"Opeartion failed {str(e)}")
             return False
-        return True

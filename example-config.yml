@@ -13,6 +13,8 @@ Node:
   c3_oracle_nft_name: "OracleFeed"
   c3_oracle_nft_hash: "ca9a3d8457735b989628ef1193a62f40799680e2bfcaf8936211420c"
   c3_oracle_rate_address: "addr_test1wqf99gagnjgfamek9v9vyrwulwh64xdnerq9xkvfhwyeu3qdufj2x"
+  reward_collection_trigger: 100000000
+  reward_destination_address: "addr_test1wqf99gagnjgfamek9v9vyrwulwh64xdnerq9xkvfhwyeu3qdufj2x"
 
 ChainQuery:
   network: TESTNET
