@@ -439,6 +439,7 @@ class MinswapApi(CoinRate):
             logger.info("Getting Minswap %s-%s pool value", self.token_a, self.token_b)
 
             if chain_query.ogmios_context is not None:
+                logger.info("Minswap context: Ogmios-Kupo")
                 self.kupo_url = chain_query.ogmios_context._kupo_url
 
                 # Pool UTxO
@@ -452,6 +453,7 @@ class MinswapApi(CoinRate):
             else:
                 from minswap import pools, assets
 
+                logger.info("Minswap context: Blockfrost")
                 pool = pools.get_pool_by_id(self.pool_id)
 
                 price_to_buy_token_b, price_to_buy_token_a = pool.price
