@@ -1001,7 +1001,7 @@ class VyFiApi(CoinRate):
             return VyFiBarFees.from_cbor(cbor_data)
         if pool_utxo.output.datum is not None:
             # Directly use the datum if it's present
-            return VyFiBarFees.from_cbor(pool_utxo.output.datum)
+            return VyFiBarFees.from_cbor(pool_utxo.output.datum.cbor)
 
         logger.critical("Bar fees datum not found in the pool UTxO.")
         return None
