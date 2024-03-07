@@ -438,15 +438,27 @@ class MinswapApi(CoinRate):
         try:
             logger.info("Getting Minswap %s-%s pool value", self.token_a, self.token_b)
 
-            self.kupo_url = chain_query.ogmios_context._kupo_url
+            if chain_query.ogmios_context is not None:
+                self.kupo_url = chain_query.ogmios_context._kupo_url
 
-            # Pool UTxO
-            pool = self._get_and_validate_pool(self.pool_id)
+                # Pool UTxO
+                pool = self._get_and_validate_pool(self.pool_id)
 
-            # Get the correct symbols
-            symbol = self._get_symbol(pool)
+                # Get the correct symbols
+                symbol = self._get_symbol(pool)
 
-            price_to_buy_token_b, price_to_buy_token_a = self._price(pool)
+                price_to_buy_token_b, price_to_buy_token_a = self._price(pool)
+
+            else:
+                from minswap import pools, assets
+
+                pool = pools.get_pool_by_id(self.pool_id)
+
+                price_to_buy_token_b, price_to_buy_token_a = pool.price
+
+                asset_a = assets.asset_ticker(pool.unit_a)
+                asset_b = assets.asset_ticker(pool.unit_b)
+                symbol = self.get_blockfrost_symbol(asset_a, asset_b)
 
             if self.get_second_pool_price is False:
                 base_rate = price_to_buy_token_b
@@ -467,6 +479,19 @@ class MinswapApi(CoinRate):
         except UnsuccessfulResponse as e:  # pylint: disable=invalid-name
             logger.error("Failed to get rate for Minswap %s: %s", self.pool_tokens, e)
             return None
+
+    def get_blockfrost_symbol(self, asset_a, asset_b) -> str:
+        """Ensure that the requested symbol corresponds exactly to the symbol retrieved through the
+        on-chain query."""
+        if self.pool_tokens == f"{asset_a}-{asset_b}":
+            if self.get_second_pool_price:
+                return f"{asset_a}/{asset_b}"
+            else:
+                return f"{asset_b}/{asset_a}"
+        else:
+            raise ValueError(
+                "Symbol does not match the combination of %s-%s", asset_a, asset_b
+            )
 
     def _get_and_validate_pool(self, pool_id):
         """Get and validate pool utxo"""
