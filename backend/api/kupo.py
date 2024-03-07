@@ -10,9 +10,8 @@ import cbor2
 class Kupo:
     """Kupo Class"""
 
-    def __init__(self):
-        # self.kupo_url = "https://dmtr_kupo1vae8q3nexf3y56tvvfcnx5mvta44qn62f9mscrg7a9.preprod-v2.kupo-m1.demeter.run"
-        self.kupo_url = "http://localhost:1442"
+    def __init__(self, kupo_url):
+        self.kupo_url = kupo_url
         self.datum_cache = LRUCache(maxsize=100)
 
     def _try_fix_script(
