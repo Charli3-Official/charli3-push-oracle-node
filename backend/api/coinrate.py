@@ -29,7 +29,9 @@ class CoinRate(Api):
     ):
         """Returns the rate accoirding to the classes instance"""
 
-    def _get_symbol(self, base_symbol, quote_symbol: Optional[str], method) -> str:
+    def _get_final_symbol(
+        self, base_symbol, quote_symbol: Optional[str], method
+    ) -> str:
         """
         Constructs and returns a currency symbol based on the base and quote symbols and the method.
         If only one symbol is provided, it returns that symbol.
@@ -67,7 +69,9 @@ class CoinRate(Api):
         quote_symbol: Optional[str],
     ) -> Tuple[float, str]:
         """Calculates the final rate to be returned with the correct precision"""
-        symbol = self._get_symbol(base_symbol, quote_symbol, rate_calculation_method)
+        symbol = self._get_final_symbol(
+            base_symbol, quote_symbol, rate_calculation_method
+        )
         rate: float = 0
         if quote_currency:
             if quote_currency_rate:
@@ -434,13 +438,12 @@ class MinswapApi(CoinRate):
         try:
             logger.info("Getting Minswap %s-%s pool value", self.token_a, self.token_b)
 
-            # test = chain_query.OgmiosChainContext._kupo_url
-            # print(test)
+            self.kupo_url = chain_query.ogmios_context._kupo_url
 
             # Pool UTxO
-            pool = self._get_pool_by_id(self.pool_id)
-            self._check_valid_pool_output(pool)
+            pool = self._get_and_validate_pool(self.pool_id)
 
+            # Get the correct symbols
             symbol = self._get_symbol(pool)
 
             price_to_buy_token_b, price_to_buy_token_a = self._price(pool)
@@ -450,8 +453,6 @@ class MinswapApi(CoinRate):
             else:
                 base_rate = price_to_buy_token_a
 
-            print(base_rate)
-            print(symbol)
             (rate, output_symbol) = self._calculate_final_rate(
                 self.quote_currency,
                 float(base_rate),
@@ -467,31 +468,43 @@ class MinswapApi(CoinRate):
             logger.error("Failed to get rate for Minswap %s: %s", self.pool_tokens, e)
             return None
 
+    def _get_and_validate_pool(self, pool_id):
+        """Get and validate pool utxo"""
+        pool = self._get_pool_by_id(pool_id)
+        if not self._check_valid_pool_output(pool):
+            raise ValueError("Factory token not found in the pool")
+        return pool
+
     def _check_valid_pool_output(self, pool: UTxO) -> bool:
         """Determine if the pool address is valid.
 
         Args:
-            utxo: A list of UTxOs.
+            pool: A UTxO representing the pool.
+
+        Returns:
+            bool: True if valid, False otherwise.
 
         Raises:
-            ValueError: Invalid `address`.
-            ValueError: No factory token found in utxos.
+            ValueError: If the pool does not contain exactly one factory token.
         """
-        return True
-        # # Check to make sure the pool has 1 factory token
-        # try:
-        #     has_factory: False
-        #     pool.output.amount.
-        #         if (f"{addr.FACTORY_POLICY_ID}{addr.FACTORY_ASSET_NAME}" == asset:
-        #             hast_factory = True
-        #     if not has_factory:
-        #         message = "Pool must have 1 factory token."
-        #         logger.debug(message)
-        #         logger.debug(f"asset.unit={asset}")
-        #         logger.debug(f"factory={self.FACTORY_POLICY_ID}{self.FACTORY_ASSET_NAME}")
-        #     return has_factory
-        # except
-        #     except
+
+        # Check to make sure the pool has 1 factory token
+
+        # token_asset_name1 = AssetName(b"MINSWAP")
+        token_asset_name = AssetName(bytes.fromhex(self.FACTORY_ASSET_NAME))
+        token_script_hash = ScriptHash(bytes.fromhex(self.FACTORY_POLICY_ID))
+
+        # Attempt to retrieve the amount of the factory token
+        amount = pool.output.amount.multi_asset.get(token_script_hash, {}).get(
+            token_asset_name, 0
+        )
+
+        if amount == 1:
+            return True
+        else:
+            error_msg = "Pool must have 1 factory token"
+            logger.debug(error_msg)
+            return False
 
     def _get_pool_addresses(self) -> list[str]:
         """bech32 pool addresses."""
@@ -499,10 +512,17 @@ class MinswapApi(CoinRate):
         # https://cardanosolutions.github.io/kupo/#section/Patterns
         # Polocy ID . AssetName
         nft_factory = f"{self.FACTORY_POLICY_ID}.{self.FACTORY_ASSET_NAME}"
-        response = Kupo().utxos_kupo(nft_factory)
+        response = Kupo(self.kupo_url).utxos_kupo(nft_factory)
         return [pool.output.address for pool in response]
 
     def _price(self, pool: UTxO) -> Tuple[Decimal, Decimal]:
+        """Price of assets.
+
+        Returns:
+            A `Tuple[Decimal, Decimal] where the first `Decimal` is the price to buy
+                1 of token B in units of token A, and the second `Decimal` is the price
+                to buy 1 of token A in units of token B.
+        """
         nat_assets = self._normalized_asset(pool)
 
         return (
@@ -587,7 +607,7 @@ class MinswapApi(CoinRate):
         # https://cardanosolutions.github.io/kupo/#section/Patterns
         # Polocy ID . AssetName
         nft = f"{self.POOL_NFT_POLICY_ID}.{pool_id}"
-        pool_utxos = Kupo().utxos_kupo(nft)
+        pool_utxos = Kupo(self.kupo_url).utxos_kupo(nft)
 
         if not pool_utxos:
             return None
