@@ -11,9 +11,7 @@ from charli3_offchain_core.oracle_checks import c3_get_rate
 from pycardano import ScriptHash, UTxO, AssetName, MultiAsset
 from .api import Api, UnsuccessfulResponse
 from .datums import VyFiBarFees
-from ..utils.decrypt import decrypt_response
 from .kupo import Kupo
-from collections import OrderedDict
 
 logger = logging.getLogger("CoinRate")
 
@@ -415,13 +413,13 @@ class MinswapApi(CoinRate):
         self.get_second_pool_price = get_second_pool_price
         self.quote_currency = quote_currency
         self.rate_calculation_method = rate_calculation_method
-        self.POOL_NFT_POLICY_ID = (
+        self.pool_nft_policy_id = (
             "0be55d262b29f564998ff81efe21bdc0022621c12f15af08d0f2ddb1"
         )
-        self.FACTORY_POLICY_ID = (
+        self.factory_policy_id = (
             "13aa2accf2e1561723aa26871e071fdf32c867cff7e7d50ad470d62f"
         )
-        self.FACTORY_ASSET_NAME = "4d494e53574150"  # MINSWAP
+        self.factory_asset_name = "4d494e53574150"  # MINSWAP
 
     async def get_rate(
         self,
@@ -431,8 +429,9 @@ class MinswapApi(CoinRate):
     ):
         if chain_query is None:
             logger.error(
-                "Chain query is None. Cannot get Minswap %s pool value",
-                self.pool_tokens,
+                "Chain query is None. Cannot get Minswap %s-%s pool value",
+                self.token_a,
+                self.token_b,
             )
             return  # handle the error as appropriate
         try:
@@ -479,21 +478,24 @@ class MinswapApi(CoinRate):
             logger.info("%s %s Rate: %s", self.provider, output_symbol, rate)
             return rate
         except UnsuccessfulResponse as e:  # pylint: disable=invalid-name
-            logger.error("Failed to get rate for Minswap %s: %s", self.pool_tokens, e)
+            logger.error(
+                "Failed to get rate for Minswap %s-%s: %s",
+                self.token_a,
+                self.token_b,
+                e,
+            )
             return None
 
     def get_blockfrost_symbol(self, asset_a, asset_b) -> str:
         """Ensure that the requested symbol corresponds exactly to the symbol retrieved through the
         on-chain query."""
-        if self.pool_tokens == f"{asset_a}-{asset_b}":
+        if f"{self.token_a}-{self.token_b}" == f"{asset_a}-{asset_b}":
             if self.get_second_pool_price:
                 return f"{asset_a}/{asset_b}"
-            else:
-                return f"{asset_b}/{asset_a}"
-        else:
-            raise ValueError(
-                "Symbol does not match the combination of %s-%s", asset_a, asset_b
-            )
+            return f"{asset_b}/{asset_a}"
+        raise ValueError(
+            f"Symbol does not match the combination of {asset_a}-{asset_b}"
+        )
 
     def _get_and_validate_pool(self, pool_id):
         """Get and validate pool utxo"""
@@ -518,8 +520,8 @@ class MinswapApi(CoinRate):
         # Check to make sure the pool has 1 factory token
 
         # token_asset_name1 = AssetName(b"MINSWAP")
-        token_asset_name = AssetName(bytes.fromhex(self.FACTORY_ASSET_NAME))
-        token_script_hash = ScriptHash(bytes.fromhex(self.FACTORY_POLICY_ID))
+        token_asset_name = AssetName(bytes.fromhex(self.factory_asset_name))
+        token_script_hash = ScriptHash(bytes.fromhex(self.factory_policy_id))
 
         # Attempt to retrieve the amount of the factory token
         amount = pool.output.amount.multi_asset.get(token_script_hash, {}).get(
@@ -528,17 +530,16 @@ class MinswapApi(CoinRate):
 
         if amount == 1:
             return True
-        else:
-            error_msg = "Pool must have 1 factory token"
-            logger.debug(error_msg)
-            return False
+        error_msg = "Pool must have 1 factory token"
+        logger.debug(error_msg)
+        return False
 
     def _get_pool_addresses(self) -> list[str]:
         """bech32 pool addresses."""
         # Factory to idnetify all differente pool addresses
         # https://cardanosolutions.github.io/kupo/#section/Patterns
         # Polocy ID . AssetName
-        nft_factory = f"{self.FACTORY_POLICY_ID}.{self.FACTORY_ASSET_NAME}"
+        nft_factory = f"{self.factory_policy_id}.{self.factory_asset_name}"
         response = Kupo(self.kupo_url).utxos_kupo(nft_factory)
         return [pool.output.address for pool in response]
 
@@ -633,7 +634,7 @@ class MinswapApi(CoinRate):
         """
         # https://cardanosolutions.github.io/kupo/#section/Patterns
         # Polocy ID . AssetName
-        nft = f"{self.POOL_NFT_POLICY_ID}.{pool_id}"
+        nft = f"{self.pool_nft_policy_id}.{pool_id}"
         pool_utxos = Kupo(self.kupo_url).utxos_kupo(nft)
 
         if not pool_utxos:
@@ -655,7 +656,6 @@ class MinswapApi(CoinRate):
         asset_b = None
         if self.token_a == "ADA":
             token_name_b = AssetName(self.token_b.encode())
-            token_b_found = False
 
             # Since ADA is not part of multi_asset, only check for token_b
             for _, assets in pool.output.amount.multi_asset.items():
@@ -666,8 +666,6 @@ class MinswapApi(CoinRate):
         else:
             token_name_a = AssetName(self.token_a.encode())
             token_name_b = AssetName(self.token_b.encode())
-            token_a_found = False
-            token_b_found = False
 
             for _, assets in pool.output.amount.multi_asset.items():
                 if token_name_a in assets:
@@ -678,15 +676,12 @@ class MinswapApi(CoinRate):
             # Raise error if any of the asset are found
         if asset_a is None or asset_b is None:
             raise ValueError(
-                "Symbol does not match the combination of %s-%s",
-                self.token_a,
-                self.token_b,
+                f"Symbol does not match the combination of {self.token_a}-{self.token_b}",
             )
 
         if self.get_second_pool_price:
             return f"{asset_a}/{asset_b}"
-        else:
-            return f"{asset_b}/{asset_a}"
+        return f"{asset_b}/{asset_a}"
 
 
 class WingridersApi(CoinRate):
@@ -838,7 +833,8 @@ class MuesliswapApi(CoinRate):
 
 
 class VyFiApi(CoinRate):
-    """This class encapsulates the interaction with the VyFi Dex by utilizing the Blockfrost service."""
+    """This class encapsulates the interaction with the VyFi Dex
+    by utilizing the Blockfrost service."""
 
     def __init__(
         self,
