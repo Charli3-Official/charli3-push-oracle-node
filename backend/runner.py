@@ -1,12 +1,11 @@
 """Main updater class"""
 from datetime import timedelta, datetime
-from typing import List, Optional
+from typing import List
 import time
 import asyncio
 import logging
 import inspect
 from math import ceil
-from enum import Enum, auto
 from pycardano import Address
 
 from charli3_offchain_core import Node, ChainQuery
