@@ -16,6 +16,7 @@ pycryptodome = "^3.18.0"
 charli3-offchain-core = {git = "https://***REMOVED***@github.com/Charli3-Official/charli3-offchain-core.git", rev = "v1.5.1"}
 types-pyyaml = "^6.0.12.12"
 minswap-py = "^0.3.5"
+cachetools = "^5.3.3"
 
 [tool.poetry.group.dev.dependencies]
 mocket = "^3.11.0"
