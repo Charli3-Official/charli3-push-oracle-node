@@ -1,16 +1,19 @@
 """Kupo"""
+from logging import raiseExceptions
 from typing import Optional, Union, Tuple, List
 from cachetools import LRUCache
+from .api import Api
 
 import pycardano as pyc
 import requests
 import cbor2
 
 
-class Kupo:
+class Kupo(Api):
     """Kupo Class"""
 
     def __init__(self, kupo_url):
+        self.api_url = kupo_url
         self.kupo_url = kupo_url
         self.datum_cache = LRUCache(maxsize=100)
 
@@ -42,7 +45,7 @@ class Kupo:
 
         return policy_hex, policy, asset_name
 
-    def _get_datum_from_kupo(self, datum_hash: str) -> Optional[pyc.RawCBOR]:
+    async def _get_datum_from_kupo(self, datum_hash: str) -> Optional[pyc.RawCBOR]:
         """Get datum from Kupo.
 
         Args:
@@ -61,15 +64,16 @@ class Kupo:
                 "kupo_url object attribute has not been assigned properly."
             )
 
-        kupo_datum_url = self.kupo_url + "/datums/" + datum_hash
-        datum_result = requests.get(kupo_datum_url).json()
+        kupo_datum_url = "/datums/" + datum_hash
+        result = await self._get(path=kupo_datum_url)
+        datum_result = result.json
         if datum_result and datum_result["datum"] != datum_hash:
             datum = pyc.RawCBOR(bytes.fromhex(datum_result["datum"]))
 
         self.datum_cache[datum_hash] = datum
         return datum
 
-    def utxos_kupo(self, address: str) -> List[pyc.UTxO]:
+    async def utxos_kupo(self, address: str) -> List[pyc.UTxO]:
         """Get all UTxOs associated with an address with Kupo.
         Since UTxO querying will be deprecated from Ogmios in next
         major release: https://ogmios.dev/mini-protocols/local-state-query/.
@@ -85,12 +89,14 @@ class Kupo:
                 "kupo_url object attribute has not been assigned properly."
             )
 
-        kupo_utxo_url = self.kupo_url + "/matches/" + address + "?unspent"
-        results = requests.get(kupo_utxo_url).json()
+        kupo_utxo_url = "/matches/" + address + "?unspent"
+        results = await self._get(path=kupo_utxo_url)
 
         utxos = []
 
-        for result in results:
+        if results.json is None:
+            raise AssertionError("Error")
+        for result in results.json:
             tx_id = result["transaction_id"]
             index = result["output_index"]
 
@@ -102,8 +108,9 @@ class Kupo:
                 script = None
                 script_hash = result.get("script_hash", None)
                 if script_hash:
-                    kupo_script_url = self.kupo_url + "/scripts/" + script_hash
-                    script = requests.get(kupo_script_url).json()
+                    result = "/scripts/" + script_hash
+                    kupo_script_url = result.json
+                    script = await self._get(path=kupo_script_url)
                     if script["language"] == "plutus:v2":
                         script = pyc.PlutusV2Script(
                             bytes.fromhex(script["script"])
@@ -124,7 +131,7 @@ class Kupo:
                     else None
                 )
                 if datum_hash and result.get("datum_type", "inline"):
-                    datum = self._get_datum_from_kupo(result["datum_hash"])
+                    datum = await self._get_datum_from_kupo(result["datum_hash"])
 
                 if not result["value"]["assets"]:
                     tx_out = pyc.TransactionOutput(
