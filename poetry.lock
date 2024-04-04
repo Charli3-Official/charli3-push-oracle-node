@@ -442,8 +442,8 @@ retry = "^0.9.2"
 [package.source]
 type = "git"
 url = "https://***REMOVED***@github.com/Charli3-Official/charli3-offchain-core.git"
-reference = "pycardano-upgrade-0.10"
-resolved_reference = "abc13391cdb9a868d64a7833601a61958d9a03af"
+reference = "v1.6.3"
+resolved_reference = "047547559620d7009f160236475d086467aa2793"
 
 [[package]]
 name = "charset-normalizer"
@@ -1921,4 +1921,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "1b7c5bada480b1360c82e916d06af219e0e86a9f40cd310a360afba6e2c09cdb"
+content-hash = "e1abf5bf4465dfd28797b3024d450b6c42eb9f20d730fc7258909cb463fb13f4"
