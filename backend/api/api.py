@@ -55,7 +55,6 @@ class Api:
         Returns:
             ApiResponse: Response from the API.
         """
-        print(f"{self.api_url}{path}")
         if headers is None:
             headers = {}
         headers = dict(self._header, **headers)
