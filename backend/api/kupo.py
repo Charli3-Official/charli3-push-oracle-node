@@ -164,3 +164,35 @@ class Kupo(Api):
                 continue
 
         return utxos
+
+    async def utxos_kupo_only_address(self, address: str) -> List[pyc.UTxO]:
+        """Get all UTxOs associated with an address with Kupo.
+        Since UTxO querying will be deprecated from Ogmios in next
+        major release: https://ogmios.dev/mini-protocols/local-state-query/.
+
+        Args:
+            address (str): An address encoded with bech32.
+
+        Returns:
+            List[UTxO]: A list of UTxOs.
+        """
+        if self.kupo_url is None:
+            raise AssertionError(
+                "kupo_url object attribute has not been assigned properly."
+            )
+
+        kupo_utxo_url = "/matches/" + address + "?unspent"
+        results = await self._get(path=kupo_utxo_url)
+
+        addresses = []
+
+        if results.json is None:
+            raise AssertionError("Error")
+        for result in results.json:
+            if result["spent_at"] is None:
+                address = pyc.Address.from_primitive(result["address"])
+                addresses.append(address)
+            else:
+                continue
+
+        return addresses

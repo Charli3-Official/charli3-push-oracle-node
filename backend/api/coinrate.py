@@ -520,14 +520,14 @@ class MinswapApi(CoinRate):
         logger.debug(error_msg)
         return False
 
-    async def _get_pool_addresses(self) -> list[str]:
+    async def _get_pool_addresses(self):
         """bech32 pool addresses."""
         # Factory to idnetify all differente pool addresses
         # https://cardanosolutions.github.io/kupo/#section/Patterns
         # Polocy ID . AssetName
         nft_factory = f"{self.factory_policy_id}.{self.factory_asset_name}"
-        response = await Kupo(self.kupo_url).utxos_kupo(nft_factory)
-        return [pool.output.address for pool in response]
+        response = await Kupo(self.kupo_url).utxos_kupo_only_address(nft_factory)
+        return response
 
     def _price(self, pool: UTxO) -> Tuple[Decimal, Decimal]:
         """Price of assets.
