@@ -422,7 +422,7 @@ pycparser = "*"
 
 [[package]]
 name = "charli3-offchain-core"
-version = "1.6.4"
+version = "1.6.5"
 description = "Offchain core Python package for Charli3"
 optional = false
 python-versions = "^3.10"
@@ -442,8 +442,8 @@ retry = "^0.9.2"
 [package.source]
 type = "git"
 url = "https://***REMOVED***@github.com/Charli3-Official/charli3-offchain-core.git"
-reference = "v1.6.4"
-resolved_reference = "82aba3b8585f4f41ef1c0196b8a27df4532d5b49"
+reference = "v1.6.5"
+resolved_reference = "27d3b251ab3d7ae544d267319fa7d38f7b130ac9"
 
 [[package]]
 name = "charset-normalizer"
@@ -1921,4 +1921,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "9e78c5f7beb5e49861c2842ef3dbc3d6095ecea9b2f073c00add77fb449c36ff"
+content-hash = "fc413ed78b708b6ca24ed4bd15843b98183c8f53d7c93bf02ed2bdb10b3055b5"
