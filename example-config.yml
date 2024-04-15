@@ -31,6 +31,7 @@ Rate:
     sundaeswap:
       type: sundaeswap
       symbol: Shen
+      pool_ident: c704
       quote_currency: True
     minswap:
       type: minswap

@@ -29,7 +29,7 @@ coinApis = {
         ["data", "ADA", "quote", "USD", "price"],
         {"X-CMC_PRO_API_KEY": "asdf"},
     ),
-    "sundaeswap_adausd": SundaeswapApi("ADA", "ADAUSDT"),
+    "sundaeswap_adausd": SundaeswapApi("ADA", "ADAUSDT", "f302"),
     "minswap_adausd": MinswapApi(
         "ADA",
         "MIN",
@@ -180,12 +180,10 @@ class TestCoinRateClasses:
             f"{api.api_url}{api.get_path()}",
             {
                 "data": {
-                    "pools": [
-                        {
-                            "quantityA": "765813062249",
-                            "quantityB": "1874892638060",
-                        },
-                    ]
+                    "poolByIdent": {
+                        "quantityA": "765813062249",
+                        "quantityB": "1874892638060",
+                    },
                 }
             },
         )

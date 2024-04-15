@@ -292,48 +292,28 @@ class SundaeswapApi(CoinRate):
         self,
         provider: str,
         symbol: str,
+        pool_ident: str,
         quote_currency: bool = False,
         rate_calculation_method: str = "multiply",
     ):
         self.provider = provider
         self.symbol = symbol
+        self.pool_ident = pool_ident
         self.quote_currency = quote_currency
         self.rate_calculation_method = rate_calculation_method
         self.query = {
             "query": """
-            query searchPools($query: String!) {
-              pools(query: $query) {
-                ...PoolFragment
+            query poolByIdent($ident: String!) {
+              poolByIdent(ident: $ident) {
+                assetA { assetId }
+                assetB { assetId }
+                quantityA
+                quantityB
               }
             }
-
-            fragment PoolFragment on Pool {
-              assetA {
-                ...AssetFragment
-              }
-              assetB {
-                ...AssetFragment
-              }
-              assetLP {
-                ...AssetFragment
-              }
-              fee
-              quantityA
-              quantityB
-              quantityLP
-              ident
-              assetID
-            }
-
-            fragment AssetFragment on Asset {
-              assetId
-              policyId
-              assetName
-              decimals
-            }
-        """,
-            "variables": {"query": self.symbol},
-            "operationName": "searchPools",
+            """,
+            "variables": {"ident": self.pool_ident},
+            "operationName": "poolByIdent",
         }
 
     def get_path(self):
@@ -353,11 +333,11 @@ class SundaeswapApi(CoinRate):
                 if (
                     json_data is not None
                     and "data" in json_data
-                    and "pools" in json_data["data"]
-                    and len(json_data["data"]["pools"]) > 0
+                    and "poolByIdent" in json_data["data"]
                 ):
-                    quantity_ada = json_data["data"]["pools"][0]["quantityA"]
-                    quantity_asset = json_data["data"]["pools"][0]["quantityB"]
+                    pool_data = json_data["data"]["poolByIdent"]
+                    quantity_ada = pool_data["quantityA"]
+                    quantity_asset = pool_data["quantityB"]
                     base_rate = float(quantity_ada) / float(quantity_asset)
                     (rate, output_symbol) = self._calculate_final_rate(
                         self.quote_currency,
