@@ -4,13 +4,14 @@ import logging
 import asyncio
 import re
 
+from decimal import Decimal
 from charli3_offchain_core.consensus import random_median
 from charli3_offchain_core.chain_query import ChainQuery
 from charli3_offchain_core.oracle_checks import c3_get_rate
 from pycardano import ScriptHash, UTxO, AssetName, MultiAsset
 from .api import Api, UnsuccessfulResponse
 from .datums import VyFiBarFees
-from ..utils.decrypt import decrypt_response
+from .kupo import Kupo
 
 logger = logging.getLogger("CoinRate")
 
@@ -26,7 +27,9 @@ class CoinRate(Api):
     ):
         """Returns the rate accoirding to the classes instance"""
 
-    def _get_symbol(self, base_symbol, quote_symbol: Optional[str], method) -> str:
+    def _get_final_symbol(
+        self, base_symbol, quote_symbol: Optional[str], method
+    ) -> str:
         """
         Constructs and returns a currency symbol based on the base and quote symbols and the method.
         If only one symbol is provided, it returns that symbol.
@@ -64,7 +67,9 @@ class CoinRate(Api):
         quote_symbol: Optional[str],
     ) -> Tuple[float, str]:
         """Calculates the final rate to be returned with the correct precision"""
-        symbol = self._get_symbol(base_symbol, quote_symbol, rate_calculation_method)
+        symbol = self._get_final_symbol(
+            base_symbol, quote_symbol, rate_calculation_method
+        )
         rate: float = 0
         if quote_currency:
             if quote_currency_rate:
@@ -287,48 +292,28 @@ class SundaeswapApi(CoinRate):
         self,
         provider: str,
         symbol: str,
+        pool_ident: str,
         quote_currency: bool = False,
         rate_calculation_method: str = "multiply",
     ):
         self.provider = provider
         self.symbol = symbol
+        self.pool_ident = pool_ident
         self.quote_currency = quote_currency
         self.rate_calculation_method = rate_calculation_method
         self.query = {
             "query": """
-            query searchPools($query: String!) {
-              pools(query: $query) {
-                ...PoolFragment
+            query poolByIdent($ident: String!) {
+              poolByIdent(ident: $ident) {
+                assetA { assetId }
+                assetB { assetId }
+                quantityA
+                quantityB
               }
             }
-
-            fragment PoolFragment on Pool {
-              assetA {
-                ...AssetFragment
-              }
-              assetB {
-                ...AssetFragment
-              }
-              assetLP {
-                ...AssetFragment
-              }
-              fee
-              quantityA
-              quantityB
-              quantityLP
-              ident
-              assetID
-            }
-
-            fragment AssetFragment on Asset {
-              assetId
-              policyId
-              assetName
-              decimals
-            }
-        """,
-            "variables": {"query": self.symbol},
-            "operationName": "searchPools",
+            """,
+            "variables": {"ident": self.pool_ident},
+            "operationName": "poolByIdent",
         }
 
     def get_path(self):
@@ -348,11 +333,11 @@ class SundaeswapApi(CoinRate):
                 if (
                     json_data is not None
                     and "data" in json_data
-                    and "pools" in json_data["data"]
-                    and len(json_data["data"]["pools"]) > 0
+                    and "poolByIdent" in json_data["data"]
                 ):
-                    quantity_ada = json_data["data"]["pools"][0]["quantityA"]
-                    quantity_asset = json_data["data"]["pools"][0]["quantityB"]
+                    pool_data = json_data["data"]["poolByIdent"]
+                    quantity_ada = pool_data["quantityA"]
+                    quantity_asset = pool_data["quantityB"]
                     base_rate = float(quantity_ada) / float(quantity_asset)
                     (rate, output_symbol) = self._calculate_final_rate(
                         self.quote_currency,
@@ -371,9 +356,9 @@ class SundaeswapApi(CoinRate):
             return None
 
 
-class MinswapBlockfrost(CoinRate):
+class MinswapApi(CoinRate):
     """
-    This class abstracts the interaction with the Minswap Python SDK.
+    This class abstracts the interaction with the Minswap.
 
     Attributes:
         provider (str): Identifier for the rate provider.
@@ -390,18 +375,31 @@ class MinswapBlockfrost(CoinRate):
     def __init__(
         self,
         provider: str,
-        pool_tokens: str,
+        token_a_name: str,
+        token_a_decimal: int,
+        token_b_name: str,
+        token_b_decimal: int,
         pool_id: str,
         get_second_pool_price: bool = False,
         quote_currency: bool = False,
         rate_calculation_method: str = "multiply",
     ):
         self.provider = provider
-        self.pool_tokens = pool_tokens
+        self.token_a = token_a_name
+        self.token_b = token_b_name
+        self.token_a_decimal = token_a_decimal
+        self.token_b_decimal = token_b_decimal
         self.pool_id = pool_id
         self.get_second_pool_price = get_second_pool_price
         self.quote_currency = quote_currency
         self.rate_calculation_method = rate_calculation_method
+        self.pool_nft_policy_id = (
+            "0be55d262b29f564998ff81efe21bdc0022621c12f15af08d0f2ddb1"
+        )
+        self.factory_policy_id = (
+            "13aa2accf2e1561723aa26871e071fdf32c867cff7e7d50ad470d62f"
+        )
+        self.factory_asset_name = "4d494e53574150"  # MINSWAP
 
     async def get_rate(
         self,
@@ -409,24 +407,25 @@ class MinswapBlockfrost(CoinRate):
         quote_currency_rate: Optional[float] = None,
         quote_symbol: Optional[str] = None,
     ):
-        if chain_query is None or chain_query.blockfrost_context is None:
+        if chain_query is None:
             logger.error(
-                "Chain query or Blockfrost context is None. Cannot get Minswap %s pool value",
-                self.pool_tokens,
+                "Chain query is None. Cannot get Minswap %s-%s pool value",
+                self.token_a,
+                self.token_b,
             )
             return  # handle the error as appropriate
         try:
-            from minswap import pools, assets
+            logger.info("Getting Minswap %s-%s pool value", self.token_a, self.token_b)
 
-            logger.info("Getting Minswap %s pool value", self.pool_tokens)
+            self.kupo_url = chain_query.ogmios_context._kupo_url
 
-            pool = pools.get_pool_by_id(self.pool_id)
+            # Pool UTxO
+            pool = await self._get_and_validate_pool(self.pool_id)
 
-            price_to_buy_token_b, price_to_buy_token_a = pool.price
+            # Get the correct symbols
+            symbol = self._get_symbol(pool)
 
-            asset_a = assets.asset_ticker(pool.unit_a)
-            asset_b = assets.asset_ticker(pool.unit_b)
-            symbol = self.get_symbol(asset_a, asset_b)
+            price_to_buy_token_b, price_to_buy_token_a = self._price(pool)
 
             if self.get_second_pool_price is False:
                 base_rate = price_to_buy_token_b
@@ -445,21 +444,198 @@ class MinswapBlockfrost(CoinRate):
             logger.info("%s %s Rate: %s", self.provider, output_symbol, rate)
             return rate
         except UnsuccessfulResponse as e:  # pylint: disable=invalid-name
-            logger.error("Failed to get rate for Minswap %s: %s", self.pool_tokens, e)
+            logger.error(
+                "Failed to get rate for Minswap %s-%s: %s",
+                self.token_a,
+                self.token_b,
+                e,
+            )
             return None
 
-    def get_symbol(self, asset_a, asset_b) -> str:
+    def get_blockfrost_symbol(self, asset_a, asset_b) -> str:
         """Ensure that the requested symbol corresponds exactly to the symbol retrieved through the
         on-chain query."""
-        if self.pool_tokens == f"{asset_a}-{asset_b}":
+        if f"{self.token_a}-{self.token_b}" == f"{asset_a}-{asset_b}":
             if self.get_second_pool_price:
                 return f"{asset_a}/{asset_b}"
-            else:
-                return f"{asset_b}/{asset_a}"
+            return f"{asset_b}/{asset_a}"
+        raise ValueError(
+            f"Symbol does not match the combination of {asset_a}-{asset_b}"
+        )
+
+    async def _get_and_validate_pool(self, pool_id):
+        """Get and validate pool utxo"""
+        pool = await self._get_pool_by_id(pool_id)
+        if not self._check_valid_pool_output(pool):
+            raise ValueError("Factory token not found in the pool")
+        return pool
+
+    def _check_valid_pool_output(self, pool: UTxO) -> bool:
+        """Determine if the pool address is valid.
+
+        Args:
+            pool: A UTxO representing the pool.
+
+        Returns:
+            bool: True if valid, False otherwise.
+
+        Raises:
+            ValueError: If the pool does not contain exactly one factory token.
+        """
+
+        # Check to make sure the pool has 1 factory token
+
+        # token_asset_name1 = AssetName(b"MINSWAP")
+        token_asset_name = AssetName(bytes.fromhex(self.factory_asset_name))
+        token_script_hash = ScriptHash(bytes.fromhex(self.factory_policy_id))
+
+        # Attempt to retrieve the amount of the factory token
+        amount = pool.output.amount.multi_asset.get(token_script_hash, {}).get(
+            token_asset_name, 0
+        )
+
+        if amount == 1:
+            return True
+        error_msg = "Pool must have 1 factory token"
+        logger.debug(error_msg)
+        return False
+
+    def _price(self, pool: UTxO) -> Tuple[Decimal, Decimal]:
+        """Price of assets.
+
+        Returns:
+            A `Tuple[Decimal, Decimal] where the first `Decimal` is the price to buy
+                1 of token B in units of token A, and the second `Decimal` is the price
+                to buy 1 of token A in units of token B.
+        """
+        nat_assets = self._normalized_asset(pool)
+
+        return (
+            (nat_assets[self.token_a] / nat_assets[self.token_b]),
+            (nat_assets[self.token_b] / nat_assets[self.token_a]),
+        )
+
+    def _get_token_amount(self, pool_utxo: UTxO, token_name: str) -> int:
+        """Retrieve the total token amount associated with a specified asset name
+        across all script hashes.
+
+        Args:
+            pool: Pool UTxO
+            token_name: Asset name
+
+        Returns:
+            The associated asset's amount, default 0
+        """
+        token_asset_name = AssetName(token_name.encode())
+        total_amount = 0
+        for _, assets in pool_utxo.output.amount.multi_asset.items():
+            token_amount = assets.get(token_asset_name)
+            if token_amount:
+                return token_amount
+        return total_amount
+
+    def _normalized_asset(self, pool: UTxO) -> Dict[str, Decimal]:
+        """Get the number of decimals associated with an asset.
+
+        This returns a `Decimal` with the proper precision context.
+
+        Args:
+            pool: Pool UTxO
+
+        Returns:
+            A dictionary where assets are keys and values are `Decimal` objects containing
+                exact quantities of the asset, accounting for asset decimals.
+        """
+        nat_assets = {}
+        if "ADA" == self.token_a:
+            nat_assets[self.token_a] = self._asset_decimals(pool.output.amount.coin, 6)
         else:
-            raise ValueError(
-                "Symbol does not match the combination of %s-%s", asset_a, asset_b
+            nat_assets[self.token_a] = self._asset_decimals(
+                self._get_token_amount(pool, self.token_a),
+                self.token_a_decimal,
             )
+        nat_assets[self.token_b] = self._asset_decimals(
+            self._get_token_amount(pool, self.token_b),
+            self.token_b_decimal,
+        )
+        return nat_assets
+
+    def _asset_decimals(self, amount: int, decimal: int) -> Decimal:
+        """Asset decimals.
+
+        All asset quantities are stored as integers. The decimals indicates a scaling factor
+        for the purposes of human readability of asset denominations.
+
+        For example, ADA has 6 decimals. This means every 10**6 units (lovelace) is 1 ADA.
+
+        Args:
+            unit: The policy id plus hex encoded name of an asset.
+
+        Returns:
+            The decimals for the asset.
+        """
+        return Decimal(amount) / Decimal(10**decimal)
+
+    async def _get_pool_by_id(self, pool_id: str) -> UTxO:
+        """Latest UTxO of a pool.
+
+        This method searches for the latest Unspent Transaction Output (UTxO) for
+        a given pool ID. It constructs a unique identifier for the pool using a
+        predefined policy ID and the pool ID.
+
+        Args:
+            pool_id: The unique identifier of the pool.
+
+        Returns:
+            The pool's latest UTxO if found, otherwise `None`.
+        """
+        # https://cardanosolutions.github.io/kupo/#section/Patterns
+        # Polocy ID . AssetName
+        nft = f"{self.pool_nft_policy_id}.{pool_id}"
+        pool_utxos = await Kupo(self.kupo_url).utxos_kupo(nft)
+
+        if not pool_utxos:
+            return None
+
+        if len(pool_utxos) != 1:
+            raise ValueError("More than one pool UTxO found")
+
+        return pool_utxos[0]
+
+    def _get_symbol(self, pool: UTxO) -> str:
+        """Ensure that the requested symbol corresponds exactly to the symbol retrieved through the
+        on-chain query."""
+
+        asset_a = None
+        asset_b = None
+        if self.token_a == "ADA":
+            token_name_b = AssetName(self.token_b.encode())
+
+            # Since ADA is not part of multi_asset, only check for token_b
+            for _, assets in pool.output.amount.multi_asset.items():
+                if token_name_b in assets:
+                    asset_b = self.token_b
+                    asset_a = "ADA"
+                    break
+        else:
+            token_name_a = AssetName(self.token_a.encode())
+            token_name_b = AssetName(self.token_b.encode())
+
+            for _, assets in pool.output.amount.multi_asset.items():
+                if token_name_a in assets:
+                    asset_a = self.token_a
+                if token_name_b in assets:
+                    asset_b = self.token_b
+
+            # Raise error if any of the asset are found
+        if asset_a is None or asset_b is None:
+            raise ValueError(
+                f"Symbol does not match the combination of {self.token_a}-{self.token_b}",
+            )
+
+        if self.get_second_pool_price:
+            return f"{asset_a}/{asset_b}"
+        return f"{asset_b}/{asset_a}"
 
 
 class WingridersApi(CoinRate):
@@ -611,7 +787,8 @@ class MuesliswapApi(CoinRate):
 
 
 class VyFiApi(CoinRate):
-    """This class encapsulates the interaction with the VyFi Dex by utilizing the Blockfrost service."""
+    """This class encapsulates the interaction with the VyFi Dex
+    by utilizing the Blockfrost service."""
 
     def __init__(
         self,
@@ -960,7 +1137,7 @@ apiTypes = {
     "binance": BinanceApi,
     "coingecko": CoingeckoApi,
     "sundaeswap": SundaeswapApi,
-    "minswap": MinswapBlockfrost,
+    "minswap": MinswapApi,
     "wingriders": WingridersApi,
     "muesliswap": MuesliswapApi,
     "vyfi": VyFiApi,
@@ -986,19 +1163,11 @@ class AggregatedCoinRate:
 
     def add_base_data_provider(self, feed_type, provider, pair):
         """add provider to list."""
-        if (
-            not isinstance(apiTypes[feed_type], MinswapBlockfrost)
-            or self.chain_query.blockfrost_context is not None
-        ):
-            self.base_data_providers.append(apiTypes[feed_type](provider, **pair))
+        self.base_data_providers.append(apiTypes[feed_type](provider, **pair))
 
     def add_quote_data_provider(self, feed_type, provider, pair):
         """add provider to list."""
-        if (
-            not isinstance(apiTypes[feed_type], MinswapBlockfrost)
-            or self.chain_query.blockfrost_context is not None
-        ):
-            self.quote_data_providers.append(apiTypes[feed_type](provider, **pair))
+        self.quote_data_providers.append(apiTypes[feed_type](provider, **pair))
 
     async def get_rate_from_providers(
         self,

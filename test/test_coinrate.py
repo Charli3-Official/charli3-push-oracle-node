@@ -12,7 +12,7 @@ from backend.api.coinrate import (
     CoingeckoApi,
     Generic,
     SundaeswapApi,
-    MinswapBlockfrost,
+    MinswapApi,
     MuesliswapApi,
     WingridersApi,
     InverseCurrencyRate,
@@ -29,10 +29,13 @@ coinApis = {
         ["data", "ADA", "quote", "USD", "price"],
         {"X-CMC_PRO_API_KEY": "asdf"},
     ),
-    "sundaeswap_adausd": SundaeswapApi("ADA", "ADAUSDT"),
-    "minswap_adausd": MinswapBlockfrost(
+    "sundaeswap_adausd": SundaeswapApi("ADA", "ADAUSDT", "f302"),
+    "minswap_adausd": MinswapApi(
         "ADA",
-        "ADA-SHEN",
+        "MIN",
+        6,
+        "SHEN",
+        6,
         "53225313968e796f2c1e0b57540a13c3b81e06e2ed2637ac1ea9b9f4e27e3dc4",
     ),
     "muesliswap_adausd": MuesliswapApi(
@@ -177,12 +180,10 @@ class TestCoinRateClasses:
             f"{api.api_url}{api.get_path()}",
             {
                 "data": {
-                    "pools": [
-                        {
-                            "quantityA": "765813062249",
-                            "quantityB": "1874892638060",
-                        },
-                    ]
+                    "poolByIdent": {
+                        "quantityA": "765813062249",
+                        "quantityB": "1874892638060",
+                    },
                 }
             },
         )
