@@ -1,16 +1,15 @@
 """Pytest fixtures for tests"""
 from test.helper.mocked_data import (
-    MOCKED_ORACLE_ADDRESS,
-    PROTOCOL_RESULT,
     GENESIS_RESULT,
     MOCKED_OGMIOS_URL,
+    MOCKED_ORACLE_ADDRESS,
+    PROTOCOL_RESULT,
     get_mocked_utxos,
 )
+
 import pytest
-from pycardano import OgmiosChainContext, Network
-
-
 from charli3_offchain_core import ChainQuery
+from pycardano import Network, OgmiosChainContext
 
 
 @pytest.fixture

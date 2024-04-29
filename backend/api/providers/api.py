@@ -42,6 +42,7 @@ class Api:
         path: str,
         data: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
+        timeout_seconds: int = 10,  # Default timeout of 60 seconds
     ) -> ApiResponse:
         """
         Send a request to the API and return the response.
@@ -58,10 +59,20 @@ class Api:
         if headers is None:
             headers = {}
         headers = dict(self._header, **headers)
-        async with aiohttp.ClientSession() as session:
+
+        # Create a ClientTimeout object
+        timeout = aiohttp.ClientTimeout(total=timeout_seconds)
+
+        async with aiohttp.ClientSession(
+            # connector=aiohttp.TCPConnector(ssl=False) # TESTING
+        ) as session:
             logger.debug("Request to %s%s with data: %s", self.api_url, path, str(data))
             async with session.request(
-                method, f"{self.api_url}{path}", json=data, headers=headers
+                method,
+                f"{self.api_url}{path}",
+                json=data,
+                headers=headers,
+                timeout=timeout,
             ) as resp:
                 if not resp.ok:
                     raise UnsuccessfulResponse(resp.status)

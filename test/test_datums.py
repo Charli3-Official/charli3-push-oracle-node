@@ -1,11 +1,11 @@
 """Datum testing module"""
 
 from charli3_offchain_core.datums import (
-    OracleDatum,
+    DataFeed,
     NodeDatum,
     NodeState,
+    OracleDatum,
     PriceFeed,
-    DataFeed,
 )
 
 

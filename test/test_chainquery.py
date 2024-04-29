@@ -1,11 +1,8 @@
 """Chain query class testing."""
-from test.helper.mocked_data import (
-    MOCKED_ORACLE_ADDRESS,
-    MOCKED_UTXOS_RESPONSE,
-)
+from test.helper.mocked_data import MOCKED_ORACLE_ADDRESS, MOCKED_UTXOS_RESPONSE
 
-from mocket import async_mocketize
 import pytest
+from mocket import async_mocketize
 
 
 @pytest.mark.asyncio

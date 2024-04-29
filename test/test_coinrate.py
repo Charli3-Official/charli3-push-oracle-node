@@ -7,15 +7,15 @@ import sure  # pylint: disable=unused-import
 from mocket import async_mocketize
 from mocket.plugins.httpretty import httpretty
 
-from backend.api.coinrate import (
+from backend.api.providers import (
     BinanceApi,
     CoingeckoApi,
     Generic,
+    InverseCurrencyRate,
     SundaeswapApi,
     MinswapApi,
     MuesliswapApi,
     WingridersApi,
-    InverseCurrencyRate,
 )
 
 coinApis = {
@@ -29,7 +29,7 @@ coinApis = {
         ["data", "ADA", "quote", "USD", "price"],
         {"X-CMC_PRO_API_KEY": "asdf"},
     ),
-    "sundaeswap_adausd": SundaeswapApi("ADA", "ADAUSDT", "f302"),
+    "sundaeswap_adausd": SundaeswapApi("ADA", "ADAUSDT"),
     "minswap_adausd": MinswapApi(
         "ADA",
         "MIN",
@@ -87,7 +87,14 @@ class TestCoinRateClasses:
             f"{api.api_url}{api.get_path()}", {"mins": 5, "price": str(self.ex_price)}
         )
         data = await api.get_rate()
-        data.should.equal(self.ex_price)
+
+        # Ensure 'data' is a dictionary and contains the 'rate' key
+        assert isinstance(data, dict), "Expected 'data' to be a dictionary"
+        assert "rate" in data, "'rate' key not found in the 'data' dictionary"
+
+        # Now, compare the rate from the 'data' dictionary to the expected price
+        actual_rate = data["rate"]
+        actual_rate.should.equal(self.ex_price)
 
     @async_mocketize(strict_mode=True)
     async def test_coingecko(self):
@@ -97,7 +104,14 @@ class TestCoinRateClasses:
             f"{api.api_url}{api.get_path()}", {"cardano": {"usd": self.ex_price}}
         )
         data = await api.get_rate()
-        data.should.equal(self.ex_price)
+
+        # Ensure 'data' is a dictionary and contains the 'rate' key
+        assert isinstance(data, dict), "Expected 'data' to be a dictionary"
+        assert "rate" in data, "'rate' key not found in the 'data' dictionary"
+
+        # Now, compare the rate from the 'data' dictionary to the expected price
+        actual_rate = data["rate"]
+        actual_rate.should.equal(self.ex_price)
 
     @async_mocketize(strict_mode=True)
     async def test_generic(self):
@@ -170,7 +184,14 @@ class TestCoinRateClasses:
         api = coinApis["coinmarketcap_adausd"]
         self.register_api_uri(f"{api.api_url}{api.get_path()}", bod)
         data = await api.get_rate()
-        data.should.equal(round(self.ex_price_double, 8))
+
+        # Ensure 'data' is a dictionary and contains the 'rate' key
+        assert isinstance(data, dict), "Expected 'data' to be a dictionary"
+        assert "rate" in data, "'rate' key not found in the 'data' dictionary"
+
+        # Now, compare the rate from the 'data' dictionary to the expected price
+        actual_rate = data["rate"]
+        actual_rate.should.equal(round(self.ex_price_double, 8))
 
     @async_mocketize(strict_mode=True)
     async def test_sundaeswap(self):
@@ -180,15 +201,24 @@ class TestCoinRateClasses:
             f"{api.api_url}{api.get_path()}",
             {
                 "data": {
-                    "poolByIdent": {
-                        "quantityA": "765813062249",
-                        "quantityB": "1874892638060",
-                    },
+                    "pools": [
+                        {
+                            "quantityA": "765813062249",
+                            "quantityB": "1874892638060",
+                        },
+                    ]
                 }
             },
         )
         data = await api.get_rate()
-        data.should.equal(round(float(765813062249 / 1874892638060), 8))
+
+        # Ensure 'data' is a dictionary and contains the 'rate' key
+        assert isinstance(data, dict), "Expected 'data' to be a dictionary"
+        assert "rate" in data, "'rate' key not found in the 'data' dictionary"
+
+        # Now, compare the rate from the 'data' dictionary to the expected price
+        actual_rate = data["rate"]
+        actual_rate.should.equal(round(float(765813062249 / 1874892638060), 8))
 
     @async_mocketize(strict_mode=True)
     async def test_muesliswap(self):
@@ -198,7 +228,14 @@ class TestCoinRateClasses:
             f"{api.api_url}{api.get_path()}", {"price": str(self.ex_price)}
         )
         data = await api.get_rate()
-        data.should.equal(self.ex_price)
+
+        # Ensure 'data' is a dictionary and contains the 'rate' key
+        assert isinstance(data, dict), "Expected 'data' to be a dictionary"
+        assert "rate" in data, "'rate' key not found in the 'data' dictionary"
+
+        # Now, compare the rate from the 'data' dictionary to the expected price
+        actual_rate = data["rate"]
+        actual_rate.should.equal(self.ex_price)
 
     # @async_mocketize(strict_mode=True)
     # async def test_minswap(self):
@@ -228,7 +265,7 @@ class TestCoinRateClasses:
         data = await api.get_rate(quote_currency_rate=QUOTE_CURRENCY_RATE)
 
         assert (
-            data == EXPECTED_RATE
+            data["rate"] == EXPECTED_RATE
         ), f"Expected rate to be {EXPECTED_RATE}, but got {data}"
 
     @async_mocketize(strict_mode=True)

@@ -10,7 +10,9 @@ LEVEL_COLORS = [
     "\033[1;31m",  # Critical
 ]
 
-LOG_FORMAT = "%(level_color)s[%(name)s:%(levelname)s]%(end_color)s [%(asctime)s] %(message)s"
+LOG_FORMAT = (
+    "%(level_color)s[%(name)s:%(levelname)s]%(end_color)s [%(asctime)s] %(message)s"
+)
 
 
 def get_log_config(ini_updater):

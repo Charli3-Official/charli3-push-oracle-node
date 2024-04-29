@@ -1,26 +1,21 @@
 """Test for backend runner"""
 from datetime import datetime
-
 from test.helper.mocked_data import (
-    MOCKED_DESTINATION_ADDRESS,
     MOCKED_COLLECTION_TRIGGER,
+    MOCKED_DESTINATION_ADDRESS,
     MOCKED_PERCENT_RESOLUTION,
     MOCKED_RATE_CLASS,
-    MOCKED_UPDATE_INTERVAL,
     MOCKED_RUNNER_AGG_STATE,
+    MOCKED_UPDATE_INTERVAL,
     async_get_mocked_utxos,
     node_config,
 )
 
 import pytest
+from charli3_offchain_core import Node
+from charli3_offchain_core.datums import DataFeed, PriceData, PriceFeed
 from mocket import async_mocketize
 
-from charli3_offchain_core import Node
-from charli3_offchain_core.datums import (
-    DataFeed,
-    PriceFeed,
-    PriceData,
-)
 from backend.runner import FeedUpdater
 
 

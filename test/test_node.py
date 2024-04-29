@@ -6,12 +6,10 @@ from test.helper import (
     register_api_uri,
 )
 
-
-from mocket import async_mocketize
 import pytest
-
 from charli3_offchain_core import Node
 from charli3_offchain_core.datums import DataFeed, PriceFeed
+from mocket import async_mocketize
 
 
 @pytest.mark.asyncio

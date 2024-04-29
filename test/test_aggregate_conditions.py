@@ -1,26 +1,26 @@
 """Aggregate condition class and method testing"""
 import time
-
 from test.helper import utxo_mocker
 from test.helper.mocked_data import (
-    MOCKED_ORACLE_ADDRESS,
     MOCKED_AGG_STATE_UTXO_JSON,
-    MOCKED_ORACLE_UTXO_JSON,
     MOCKED_NODE_UTXO_JSON,
+    MOCKED_ORACLE_ADDRESS,
+    MOCKED_ORACLE_UTXO_JSON,
 )
+
 import pytest
 from charli3_offchain_core.aggregate_conditions import (
-    check_oracle_settings,
-    check_agg_time,
-    check_feed_last_update,
-    check_agg_change,
-    check_aggregation_update_time,
-    check_node_updates_condition,
-    check_node_consensus_condition,
-    check_aggregator_permission,
     aggregation_conditions,
+    check_agg_change,
+    check_agg_time,
+    check_aggregation_update_time,
+    check_aggregator_permission,
+    check_feed_last_update,
+    check_node_consensus_condition,
+    check_node_updates_condition,
+    check_oracle_settings,
 )
-from charli3_offchain_core.datums import AggDatum, OracleDatum, NodeDatum
+from charli3_offchain_core.datums import AggDatum, NodeDatum, OracleDatum
 
 
 async def get_mocked_json(mocked_json):

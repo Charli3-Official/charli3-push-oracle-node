@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Chain query class testing."""
 import pytest
-
-from charli3_offchain_core.consensus import random_median, aggregation
+from charli3_offchain_core.consensus import aggregation, random_median
 
 test_medianrate = [
     ([1, 2, 3, 4, 5], [3]),

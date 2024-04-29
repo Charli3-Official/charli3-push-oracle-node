@@ -5,3 +5,15 @@ services:
     volumes:
       - "./config.yml:/app/config.yml"
     restart: always
+
+  postgres:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: node-operator
+    volumes:
+      - ./postgres:/var/lib/postgresql/data
+    ports: 
+      - "5432:5432"
+    restart: always

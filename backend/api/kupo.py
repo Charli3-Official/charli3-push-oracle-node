@@ -2,10 +2,9 @@
 from logging import raiseExceptions
 from typing import Optional, Union, Tuple, List
 from cachetools import LRUCache
-from .api import Api
+from .providers import Api
 
 import pycardano as pyc
-import requests
 import cbor2
 
 

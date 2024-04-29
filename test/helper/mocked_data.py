@@ -1,38 +1,38 @@
 """Mocked Vars and Functions for testing process"""
 
-import os
-os.environ["NETWORK"] = "preprod"
-os.environ["PROJECT_ID"] = "preprodjxcUodunMUMtjBqnyQ0bLMnREkXHa6CN"
-os.environ["MAX_CALLS"] = "50000"
-
 import json
-from typing import Dict, Any
-import cbor2
+import os
+from typing import Any, Dict
 
+import cbor2
+from charli3_offchain_core.datums import (
+    AggDatum,
+    AggState,
+    OraclePlatform,
+    OracleSettings,
+    PriceRewards,
+)
 from mocket.plugins.httpretty import httpretty
 from pycardano import (
     Address,
     AssetName,
+    ExtendedSigningKey,
     MultiAsset,
     Network,
     PaymentVerificationKey,
-    ExtendedSigningKey,
     PlutusV2Script,
     ScriptHash,
-    TransactionInput,
     TransactionId,
+    TransactionInput,
 )
 
-from charli3_offchain_core.datums import (
-    AggDatum,
-    AggState,
-    PriceRewards,
-    OracleSettings,
-    OraclePlatform,
-)
 from backend.api import AggregatedCoinRate
 
 from .utxo_mocker import utxo_mocker
+
+os.environ["NETWORK"] = "preprod"
+os.environ["PROJECT_ID"] = "preprodjxcUodunMUMtjBqnyQ0bLMnREkXHa6CN"
+os.environ["MAX_CALLS"] = "50000"
 
 PROTOCOL_RESULT = {
     "minFeeCoefficient": 44,
@@ -352,7 +352,7 @@ MOCKED_RUNNER_AGG_STATE = AggDatum(
                 ],
                 pmultisig_threshold=1,
             ),
-            os_aggregate_valid_range=300000
+            os_aggregate_valid_range=300000,
         )
     )
 )
@@ -466,6 +466,7 @@ MOCKED_RATE_CLASS.add_base_data_provider(
         "json_path": ["result", "ADAUSD", "o"],
         "key": {},
     },
+    db_session=None,
 )
 MOCKED_RATE_CLASS.add_base_data_provider(
     "generic",
@@ -477,4 +478,5 @@ MOCKED_RATE_CLASS.add_base_data_provider(
         "json_path": ["data", "price"],
         "key": {},
     },
+    db_session=None,  # Add the missing argument 'db_session'
 )

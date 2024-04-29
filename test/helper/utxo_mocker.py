@@ -1,23 +1,22 @@
 """ Helper to build pycardano and blockfrost classes """
 
-from typing import List
-from types import SimpleNamespace
 import json
+from types import SimpleNamespace
+from typing import List
 
 from pycardano import (
     Address,
     Asset,
     AssetName,
+    DatumHash,
     MultiAsset,
+    RawCBOR,
+    ScriptHash,
     TransactionInput,
     TransactionOutput,
     UTxO,
     Value,
-    RawCBOR,
-    ScriptHash,
-    DatumHash,
 )
-
 
 SCRIPT_HASH_SIZE = 28
 

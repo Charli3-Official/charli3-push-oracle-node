@@ -1,6 +1,7 @@
 """Main updater class"""
+
 from datetime import timedelta, datetime
-from typing import List
+from typing import List, Optional, Tuple
 import time
 import asyncio
 import logging
@@ -27,8 +28,27 @@ from charli3_offchain_core.oracle_checks import (
 from charli3_offchain_core.aggregate_conditions import check_oracle_settings
 from charli3_offchain_core.utils.exceptions import CollateralException
 
-from .api import AggregatedCoinRate
-from .api.api import UnsuccessfulResponse
+from .api import AggregatedCoinRate, NodeSyncApi
+from .api.providers.api import UnsuccessfulResponse
+from .db.database import get_session
+from .db.service import (
+    process_and_store_nodes_data,
+    store_node_aggregation_participation,
+    store_reward_distribution,
+    store_job,
+    store_operational_error,
+)
+from .db.crud import (
+    node_crud,
+    node_update_crud,
+    transaction_crud,
+    node_aggregation_crud,
+)
+from .db.models import (
+    NodeUpdateCreate,
+    TransactionCreate,
+    NodeAggregationCreate,
+)
 
 logger = logging.getLogger("runner")
 logging.Formatter.converter = time.gmtime
@@ -46,6 +66,8 @@ class FeedUpdater:
         node: Node,
         rate: AggregatedCoinRate,
         context: ChainQuery,
+        feed_id: Optional[str] = None,
+        node_sync_api: Optional[NodeSyncApi] = None,
     ):
         self.update_inter = update_inter
         self.percent_resolution = percent_resolution
@@ -61,9 +83,14 @@ class FeedUpdater:
         self.oracle_datum: OracleDatum = None
         self.agg_datum: AggDatum = None
         self.reward_datum: RewardDatum = None
+        self.feed_id = feed_id
+        self.node_sync_api = node_sync_api
 
     async def run(self):
         """Checks and if necesary updates and/or aggregates the contract"""
+        # async with get_session() as db_session:
+        #     await store_job(db_session, self.feed_id, self.update_inter)
+
         await self.initialize_feed()
         while True:
             start_time = time.time()
@@ -72,13 +99,15 @@ class FeedUpdater:
                 # Run all of the requests simultaneously
                 data_coro = [self.rate.get_aggregated_rate(), self.context.get_utxos()]
 
-                rate, oracle_utxos = await asyncio.gather(*data_coro)
+                rate_tuple, oracle_utxos = await asyncio.gather(*data_coro)
+
+                rate, aggregated_rate_id = rate_tuple
 
                 # add check to validate the final aggregated rate
                 if rate is None or rate <= 0:
                     raise ValueError("Invalid Aggregated Rate")
                 # Prepare the rate for uploading
-                new_rate = self._calculate_rate(rate)
+                final_rate = self._calculate_rate(rate)
 
                 # Getting all datums
                 (
@@ -155,10 +184,11 @@ class FeedUpdater:
                 called = await self.feed_operate(
                     nodes_updated,
                     req_nodes,
-                    new_rate,
+                    final_rate,
                     get_paid,
                     node_own_datum.node_state.ns_feed,
                     oracle_datum.price_data,
+                    aggregated_rate_id,
                 )
 
                 # Logging times
@@ -169,24 +199,29 @@ class FeedUpdater:
                         extra={"operation_time": time.time() - data_time},
                     )
 
-            except UnsuccessfulResponse as exc:
-                logger.error(repr(exc))
-
-            except CollateralException as exc:
-                logger.error(
-                    "Failed to update or aggregate node due to collateral issue: %s",
-                    exc,
-                )
-
-            except ValueError as exc:
-                logger.error(repr(exc))
-
             except Exception as exc:
-                logger.critical(repr(exc))
+                async with get_session() as db_session:
+                    await store_operational_error(
+                        db_session,
+                        self.feed_id,
+                        exc,
+                    )
+                if isinstance(exc, UnsuccessfulResponse):
+                    logger.error(repr(exc))
+                elif isinstance(exc, CollateralException):
+                    logger.error(
+                        "Failed to update or aggregate node due to collateral issue: %s",
+                        exc,
+                    )
+                elif isinstance(exc, ValueError):
+                    logger.error(repr(exc))
+                else:
+                    logger.critical(repr(exc))
 
-            time_elapsed = time.time() - start_time
-            logger.info("Loop took: %ss", str(timedelta(seconds=time_elapsed)))
-            await asyncio.sleep(max(self.update_inter - time_elapsed, 0))
+            finally:
+                time_elapsed = time.time() - start_time
+                logger.info("Loop took: %ss", str(timedelta(seconds=time_elapsed)))
+                await asyncio.sleep(max(self.update_inter - time_elapsed, 0))
 
     def _is_collect_needed(self):
         """Determine if a withdrawal is needed based on reward conditions"""
@@ -254,9 +289,56 @@ class FeedUpdater:
             ):
                 logger.critical("One or more relevant datums are missing")
 
+            async with get_session() as db_session:
+                await process_and_store_nodes_data(
+                    nodes_datum, self.node.network, self.feed_id, db_session
+                )
+                node_db_object = await node_crud.get_node_by_pkh(
+                    str(self.node.pub_key_hash), db_session
+                )
+                # handle non db cases
+                if node_db_object is not None:
+                    self.node.id = node_db_object.id
+                else:
+                    self.node.id = None
+
             if node_own_datum.node_state.ns_feed == Nothing():
-                rate = await self.rate.get_aggregated_rate()
-                await self.node.update(self._calculate_rate(rate))
+                rate, rate_aggregation_id = await self.rate.get_aggregated_rate()
+                final_rate = self._calculate_rate(rate)
+                tx_status, tx = await self.node.update(final_rate)
+
+                tx_model = TransactionCreate(
+                    node_id=self.node.id,
+                    feed_id=self.feed_id,
+                    timestamp=datetime.now(),
+                    status=tx_status,
+                    tx_hash=str(tx.id),
+                    tx_fee=tx.transaction_body.fee,
+                    tx_body=str(tx.transaction_body),
+                )
+
+                node_update = NodeUpdateCreate(
+                    node_id=self.node.id,
+                    feed_id=self.feed_id,
+                    timestamp=datetime.now(),
+                    status=tx_status,
+                    updated_value=final_rate,
+                    rate_aggregation_id=rate_aggregation_id,
+                    tx_hash=str(tx.id),
+                    trigger="Time_Expiry",
+                )
+
+                if self.node_sync_api and node_update:
+                    await self.node_sync_api.report_update(node_update)
+
+                async with get_session() as db_session:
+                    await transaction_crud.create(
+                        db_session=db_session, obj_in=tx_model
+                    )
+                    await node_update_crud.create(
+                        db_session=db_session, obj_in=node_update
+                    )
+
                 await asyncio.sleep(60)
 
         except CollateralException as error:
@@ -331,18 +413,41 @@ class FeedUpdater:
                         updated -= 1
         return updated
 
-    def _can_aggregate(self, new_rate: int, oracle_feed: PriceData | None) -> bool:
-        """Determines if the node can aggregate based on the oracle feed and rate change."""
-        return not oracle_feed or (
-            self.check_rate_change(new_rate, oracle_feed.get_price())
-            or self.agg_is_expired(oracle_feed.get_timestamp())
-        )
+    def _can_aggregate(
+        self, new_rate: int, oracle_feed: PriceData | None
+    ) -> Tuple[bool, str]:
+        """
+        Determines if the node can aggregate based on the oracle feed and rate change.
 
-    def should_update(self, own_feed: PriceFeed, new_rate: int) -> bool:
+        Returns:
+            A tuple containing a boolean indicating if aggregation can occur and
+            a string indicating the trigger reason ('time_expiry', 'rate_change', or '').
+        """
+        if not oracle_feed:
+            # If there's no oracle feed, aggregation can't proceed.
+            return False, ""
+
+        current_price = oracle_feed.get_price()
+        timestamp = oracle_feed.get_timestamp()
+
+        # Check for rate change
+        if self.check_rate_change(new_rate, current_price):
+            return True, "Rate_Change"
+
+        # Check for time expiry
+        if self.agg_is_expired(timestamp):
+            return True, "Time_Expiry"
+
+        # If none of the conditions are met, return False and an empty reason.
+        return False, ""
+
+    def should_update(self, own_feed: PriceFeed, new_rate: int) -> Tuple[bool, str]:
         """Determines if the node should update its feed."""
-        return self.check_rate_change(
-            new_rate, own_feed.df.df_value
-        ) or self.node_is_expired(own_feed.df.df_last_update)
+        if self.check_rate_change(new_rate, own_feed.df.df_value):
+            return True, "Rate_Change"
+        elif self.node_is_expired(own_feed.df.df_last_update):
+            return True, "Time_Expiry"
+        return False, "None"
 
     async def feed_operate(
         self,
@@ -352,10 +457,11 @@ class FeedUpdater:
         get_paid: bool,
         own_feed: PriceFeed,
         oracle_feed: PriceData | None,
+        aggregated_rate_id: Optional[str] = None,
     ) -> bool:
         """Main logic of the runnner"""
         try:
-            can_aggregate = self._can_aggregate(new_rate, oracle_feed)
+            can_aggregate, agg_reason = self._can_aggregate(new_rate, oracle_feed)
 
             if not get_paid:
                 logger.warning(
@@ -363,10 +469,91 @@ class FeedUpdater:
                 )
                 return False
 
-            if self.should_update(own_feed, new_rate):
-                await self.node.update(new_rate)
+            # Determines if the node should update its feed
+            should_update, update_reason = self.should_update(own_feed, new_rate)
+
+            if should_update:
+                tx_status, tx = await self.node.update(new_rate)
+                tx_model = TransactionCreate(
+                    node_id=self.node.id,
+                    feed_id=self.feed_id,
+                    timestamp=datetime.now(),
+                    status=tx_status,
+                    tx_hash=str(tx.id),
+                    tx_fee=tx.transaction_body.fee,
+                    tx_body=str(tx.transaction_body),
+                )
+
+                node_update = NodeUpdateCreate(
+                    node_id=self.node.id,
+                    feed_id=self.feed_id,
+                    timestamp=datetime.now(),
+                    status=tx_status,
+                    updated_value=new_rate,
+                    rate_aggregation_id=aggregated_rate_id,
+                    tx_hash=str(tx.id),
+                    trigger=update_reason,
+                )
+
+                if self.node_sync_api and node_update:
+                    await self.node_sync_api.report_update(node_update)
+
+                async with get_session() as db_session:
+                    await transaction_crud.create(
+                        db_session=db_session, obj_in=tx_model
+                    )
+                    await node_update_crud.create(
+                        db_session=db_session, obj_in=node_update
+                    )
             elif (nodes_updated + 1 >= req_nodes) and can_aggregate:
-                await self.node.aggregate()
+                (
+                    agg_value,
+                    valid_nodes,
+                    output_reward_datum,
+                    tx_status,
+                    tx,
+                ) = await self.node.aggregate()
+
+                agg_model = NodeAggregationCreate(
+                    node_pkh=str(self.node.pub_key_hash),
+                    feed_id=self.feed_id,
+                    timestamp=datetime.now(),
+                    status=tx_status,
+                    aggregated_value=agg_value,
+                    nodes_count=nodes_updated,
+                    tx_hash=str(tx.id),
+                    trigger=agg_reason,
+                )
+
+                tx_model = TransactionCreate(
+                    node_id=self.node.id,
+                    feed_id=self.feed_id,
+                    timestamp=datetime.now(),
+                    status=tx_status,
+                    tx_hash=str(tx.id),
+                    tx_fee=tx.transaction_body.fee,
+                    tx_body=str(tx.transaction_body),
+                )
+
+                async with get_session() as db_session:
+                    await transaction_crud.create(
+                        db_session=db_session, obj_in=tx_model
+                    )
+                    node_agg = await node_aggregation_crud.create(
+                        db_session=db_session, obj_in=agg_model
+                    )
+                    await store_node_aggregation_participation(
+                        db_session,
+                        node_agg.id,
+                        valid_nodes,
+                    )
+                    await store_reward_distribution(
+                        db_session,
+                        node_agg.id,
+                        self.reward_datum,
+                        output_reward_datum,
+                    )
+
             elif self._required_collect_arguments() and self._is_collect_needed():
                 await self._withdraw_rewards()
             else:
@@ -374,5 +561,5 @@ class FeedUpdater:
             return True
 
         except Exception as e:
-            logger.error(f"Opeartion failed {str(e)}")
+            logger.error("Operation failed %s", str(e))
             return False

@@ -1,6 +1,7 @@
 """Abstract api class testing file"""
 
 import json
+
 import pytest
 import sure  # pylint: disable=unused-import
 from mocket import async_mocketize

@@ -3,11 +3,14 @@ Updater:
   verbosity: INFO
   percent_resolution: 10000
 
+database:
+  url: # "postgresql+asyncpg://postgres:password@localhost:5432/node-operator"
+
 Node:
   signing_key: node3.skey
   verification_key: node3.vkey
   oracle_curr: 2e527c8e42d0f28fd3f4025f60c0a89bc5815c8e2efc3fb973e3fc20
-  oracle_addr: addr_test1wz6jdu4f0eeamgzz2a8wt3eufux33nv6ju35z6r4de5rl0sncyqgh
+  oracle_address: addr_test1wz6jdu4f0eeamgzz2a8wt3eufux33nv6ju35z6r4de5rl0sncyqgh
   c3_token_hash: 436941ead56c61dbf9b92b5f566f7d5b9cac08f8c957f28f0bd60d4b
   c3_token_name: PAYMENTTOKEN
   c3_oracle_nft_name: "OracleFeed"
@@ -15,6 +18,7 @@ Node:
   c3_oracle_rate_address: "addr_test1wqf99gagnjgfamek9v9vyrwulwh64xdnerq9xkvfhwyeu3qdufj2x"
   reward_collection_trigger: 100000000
   reward_destination_address: "addr_test1wqf99gagnjgfamek9v9vyrwulwh64xdnerq9xkvfhwyeu3qdufj2x"
+  node_sync_api: "http://localhost:3000" # Optional to sync nodes with the Charli3 DB
 
 ChainQuery:
   network: TESTNET
