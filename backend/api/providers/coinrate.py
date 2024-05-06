@@ -1,8 +1,8 @@
 """Exchange Api classes."""
 
-from typing import Optional, Any, Dict, Tuple
 import logging
 import re
+from typing import Any, Dict, Optional, Tuple
 
 from .api import Api, ApiResponse
 
@@ -18,7 +18,7 @@ class CoinRate(Api):
     async def get_rate(
         self, chain_query=None, quote_currency_rate=None, quote_symbol=None
     ) -> Optional[Dict[str, Any]]:
-        """Returns the rate accoirding to the classes instance"""
+        """Returns the rate according to the classes instance"""
         raise NotImplementedError("get_rate method must be implemented")
 
     def _get_final_symbol(

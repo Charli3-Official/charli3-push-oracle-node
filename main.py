@@ -1,16 +1,16 @@
 """Main file for the backend"""
 
-import logging
-import asyncio
 import argparse
+import asyncio
+import logging
 
-from backend.db.database import init_db
 from backend.app_setup import (
     load_config,
-    setup_logging,
     record_factory,
     setup_feed_updater,
+    setup_logging,
 )
+from backend.db.database import init_db
 from backend.db.service import periodic_cleanup_task
 
 

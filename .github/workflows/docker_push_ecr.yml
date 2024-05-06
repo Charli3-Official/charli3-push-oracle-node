@@ -2,11 +2,11 @@ name: Build and push Docker Image to GAR
 
 on:
   push:
-    branches: 
+    branches:
       - develop
   release:
     types: [published]
-    branches: 
+    branches:
       - main
       - indigo
 
@@ -18,7 +18,7 @@ jobs:
     permissions:
       contents: 'read'
       id-token: 'write'
-    
+
     steps:
     - name: Checkout
       uses: actions/checkout@v3

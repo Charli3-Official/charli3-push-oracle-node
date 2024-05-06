@@ -1,6 +1,7 @@
 """Main Api abstract class and a response class to keep the information"""
-from dataclasses import dataclass
+
 import logging
+from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 import aiohttp

@@ -1,7 +1,7 @@
 """ Jobs CRUD operations."""
 
-from .base_crud import BaseCrud
 from ..models.jobs import Job, JobCreate, JobUpdate
+from .base_crud import BaseCrud
 
 
 class JobsCrud(BaseCrud[Job, JobCreate, JobUpdate]):

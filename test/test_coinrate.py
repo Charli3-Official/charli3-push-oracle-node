@@ -12,9 +12,9 @@ from backend.api.providers import (
     CoingeckoApi,
     Generic,
     InverseCurrencyRate,
-    SundaeswapApi,
     MinswapApi,
     MuesliswapApi,
+    SundaeswapApi,
     WingridersApi,
 )
 

@@ -1,11 +1,13 @@
 # db/models/aggregated_rate_details.py
 """This module contains the AggregatedRateDetails model representing the aggregated rate details entity."""
 
-from uuid import UUID
-from decimal import Decimal
 from datetime import datetime
+from decimal import Decimal
 from typing import Optional
+from uuid import UUID
+
 from sqlmodel import Field, SQLModel
+
 from .base import BaseUUIDModel
 
 

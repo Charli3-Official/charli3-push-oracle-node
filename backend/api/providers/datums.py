@@ -1,5 +1,7 @@
 """Datums implementation"""
+
 from dataclasses import dataclass
+
 from pycardano import PlutusData
 
 

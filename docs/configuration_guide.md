@@ -60,7 +60,7 @@ Node:
 - `oracle_addr`: The oracle address.
 - `c3_token_hash`: The C3 token hash.
 - `c3_token_name`: The C3 token name.
- 
+
  ### ChainQuery
 
 The ChainQuery section is responsible for configuring ChainQuery settings, such as network type, BlockFrost settings, and Ogmios settings and contains settings related to the blockchain querying process. It also now supports an optional Kupo configuration.

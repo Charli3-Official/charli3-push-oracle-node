@@ -1,33 +1,34 @@
 """This module contains the functions to load the configuration, setup logging, and setup."""
 
-import os
 import logging
-from typing import Dict, Optional, Tuple, List
+import os
 from logging.config import dictConfig
-import yaml
-from pycardano import (
-    Network,
-    BlockFrostChainContext,
-    OgmiosChainContext,
-    ScriptHash,
-    MultiAsset,
-    HDWallet,
-    PaymentVerificationKey,
-    ExtendedSigningKey,
-    TransactionInput,
-    TransactionId,
-    AssetName,
-    Address,
-    PaymentSigningKey,
-)
-from charli3_offchain_core import Node, ChainQuery
-from backend.runner import FeedUpdater
-from backend.api import AggregatedCoinRate, NodeSyncApi
-from backend.logfiles.logging_config import get_log_config, LEVEL_COLORS
-from backend.db.database import get_session
+from typing import Dict, List, Optional, Tuple
 
+import yaml
+from charli3_offchain_core import ChainQuery, Node
+from pycardano import (
+    Address,
+    AssetName,
+    BlockFrostChainContext,
+    ExtendedSigningKey,
+    HDWallet,
+    MultiAsset,
+    Network,
+    OgmiosChainContext,
+    PaymentSigningKey,
+    PaymentVerificationKey,
+    ScriptHash,
+    TransactionId,
+    TransactionInput,
+)
+
+from backend.api import AggregatedCoinRate, NodeSyncApi
 from backend.db.crud.feed_crud import feed_crud
+from backend.db.database import get_session
 from backend.db.models.provider import Provider
+from backend.logfiles.logging_config import LEVEL_COLORS, get_log_config
+from backend.runner import FeedUpdater
 
 
 # Load Configuration

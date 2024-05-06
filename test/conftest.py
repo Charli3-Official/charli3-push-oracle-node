@@ -1,4 +1,5 @@
 """Pytest fixtures for tests"""
+
 from test.helper.mocked_data import (
     GENESIS_RESULT,
     MOCKED_OGMIOS_URL,

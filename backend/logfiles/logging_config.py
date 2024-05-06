@@ -1,4 +1,5 @@
 """logging module config."""
+
 import logging
 
 LEVEL_COLORS = [

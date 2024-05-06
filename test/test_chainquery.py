@@ -1,4 +1,5 @@
 """Chain query class testing."""
+
 from test.helper.mocked_data import MOCKED_ORACLE_ADDRESS, MOCKED_UTXOS_RESPONSE
 
 import pytest

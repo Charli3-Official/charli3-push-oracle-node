@@ -1,11 +1,11 @@
 """ Node Aggregation Participation CRUD Operations """
 
-from .base_crud import BaseCrud
 from ..models.node_aggregation_participation import (
     NodeAggregationParticipation,
     NodeAggregationParticipationCreate,
     NodeAggregationParticipationUpdate,
 )
+from .base_crud import BaseCrud
 
 
 class NodeAggregationParticipationCrud(

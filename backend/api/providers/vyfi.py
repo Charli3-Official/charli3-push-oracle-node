@@ -2,10 +2,12 @@
 
 import logging
 from typing import Any, Dict, Optional
+
 from charli3_offchain_core.chain_query import ChainQuery
-from pycardano import ScriptHash, UTxO, AssetName
-from .coinrate import CoinRate
+from pycardano import AssetName, ScriptHash, UTxO
+
 from .api import UnsuccessfulResponse
+from .coinrate import CoinRate
 from .datums import VyFiBarFees
 
 logger = logging.getLogger(__name__)
@@ -105,7 +107,7 @@ class VyFiApi(CoinRate):
                         "Bar fees datum not found",
                     )
 
-                # Adjust tokens amounts by substracting the fees.
+                # Adjust tokens amounts by subtracting the fees.
                 adjusted_token_a = (
                     ada_amount - bar_fees_datum.token_a_fees - self.min_ada_per_utxo
                 )
@@ -161,7 +163,7 @@ class VyFiApi(CoinRate):
                         "Bar fees datum not found",
                     )
 
-                # Adjust tokens amounts by substracting the fees.
+                # Adjust tokens amounts by subtracting the fees.
                 adjusted_token_a = token_a_amount - bar_fees_datum.token_a_fees
                 adjusted_token_b = token_b_amount - bar_fees_datum.token_b_fees
 
@@ -276,7 +278,7 @@ class VyFiApi(CoinRate):
         )
 
     def _get_script_hash(self, token_name: str, policy_id: str):
-        """Retrive the associated script hash"""
+        """Retrieve the associated script hash"""
         token_script_hash = ScriptHash(bytes.fromhex(policy_id))
         logger.info(
             "Target script hash for token %s: %s",

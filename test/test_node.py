@@ -1,4 +1,5 @@
 """Test for backend runner"""
+
 from test.helper import (
     MOCKED_BLOCKFROST_API_CALL,
     async_get_mocked_utxos,
@@ -83,7 +84,7 @@ class TestNodeClass:
 
     @async_mocketize
     async def get_node(self, monkeypatch, get_chain_query):
-        """Retuns node class test ussage"""
+        """Returns node class test ussage"""
         mocked_chain_query = await get_chain_query
 
         mocked_node = Node(*node_config(mocked_chain_query))

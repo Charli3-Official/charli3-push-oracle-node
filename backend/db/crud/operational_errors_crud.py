@@ -1,11 +1,11 @@
 """Operational errors CRUD."""
 
-from .base_crud import BaseCrud
 from ..models.operational_errors import (
     OperationalError,
     OperationalErrorCreate,
     OperationalErrorUpdate,
 )
+from .base_crud import BaseCrud
 
 
 class OperationalErrorsCrud(

@@ -1,10 +1,12 @@
 """Node CRUD Operations"""
 
 from typing import Optional
-from sqlmodel import select
+
 from sqlalchemy.ext.asyncio import AsyncSession
-from .base_crud import BaseCrud
+from sqlmodel import select
+
 from ..models.nodes import Node, NodeCreate, NodeUpdate
+from .base_crud import BaseCrud
 
 
 class NodeCrud(BaseCrud[Node, NodeCreate, NodeUpdate]):

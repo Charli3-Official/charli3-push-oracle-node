@@ -1,7 +1,9 @@
 """Model for node aggregation participation entity."""
 
 from uuid import UUID
+
 from sqlmodel import Field, SQLModel
+
 from .base import BaseUUIDModel
 
 

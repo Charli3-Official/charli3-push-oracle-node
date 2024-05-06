@@ -1,29 +1,30 @@
 """Aggregated Coin Rate module."""
 
-from typing import Optional, List, Any, Dict, Tuple
-from datetime import datetime
-import logging
 import asyncio
+import logging
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
+
+from charli3_offchain_core.chain_query import ChainQuery
+from charli3_offchain_core.consensus import random_median
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from charli3_offchain_core.consensus import random_median
-from charli3_offchain_core.chain_query import ChainQuery
-
-from backend.db.database import get_session
 from backend.api.providers import (
+    BinanceApi,
+    Charli3Api,
+    CoingeckoApi,
     CoinRate,
     Generic,
-    BinanceApi,
-    CoingeckoApi,
-    SundaeswapApi,
-    MinswapApi,
-    WingridersApi,
-    MuesliswapApi,
-    VyFiApi,
     InverseCurrencyRate,
-    Charli3Api,
+    MinswapApi,
+    MuesliswapApi,
+    SundaeswapApi,
+    VyFiApi,
+    WingridersApi,
 )
-from ..db.crud.providers_crud import providers_crud, ProviderCreate, Provider
+from backend.db.database import get_session
+
+from ..db.crud.providers_crud import Provider, ProviderCreate, providers_crud
 from ..db.service import store_aggregated_rate_details, store_rate_dataflow
 
 apiTypes = {

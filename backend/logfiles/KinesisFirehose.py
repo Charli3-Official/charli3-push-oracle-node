@@ -1,6 +1,8 @@
 """Class implementation to push logs to AWS"""
-import logging
+
 import json
+import logging
+
 import boto3
 
 logger = logging.getLogger("KinesisFirehose")

@@ -1,4 +1,5 @@
 """Test for backend runner"""
+
 from datetime import datetime
 from test.helper.mocked_data import (
     MOCKED_COLLECTION_TRIGGER,
@@ -95,7 +96,7 @@ class TestFeedOperateClass:
 
     @async_mocketize
     async def get_feed_updater(self, monkeypatch, chain_query):
-        """Retuns feed updater for test ussage"""
+        """Returns feed updater for test ussage"""
 
         monkeypatch.setattr(Node, "update", update)
         monkeypatch.setattr(Node, "aggregate", aggregate)

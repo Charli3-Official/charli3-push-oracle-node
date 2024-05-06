@@ -1,5 +1,7 @@
 """ Decrypts the response from the API """
+
 import base64
+
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import unpad
 

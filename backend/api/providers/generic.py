@@ -2,9 +2,11 @@
 
 import logging
 from typing import Any, Dict, Optional
+
 from charli3_offchain_core.chain_query import ChainQuery
-from .coinrate import CoinRate
+
 from .api import UnsuccessfulResponse
+from .coinrate import CoinRate
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +95,9 @@ class Generic(CoinRate):
                 self.provider_id, self.get_path(), self.symbol, None, None, str(e)
             )
         except Exception as e:
-            logger.error("Unexpected error when fetching rate: %s from %s", e, self.provider)
+            logger.error(
+                "Unexpected error when fetching rate: %s from %s", e, self.provider
+            )
             return self._construct_response_dict(
                 self.provider_id,
                 self.get_path(),

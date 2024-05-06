@@ -2,10 +2,12 @@
 
 from typing import List
 from uuid import UUID
+
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import select, delete
-from .base_crud import BaseCrud
+from sqlmodel import delete, select
+
 from ..models.rate_data_flow import RateDataFlow, RateDataFlowCreate, RateDataFlowUpdate
+from .base_crud import BaseCrud
 
 
 class RateDataFlowCrud(BaseCrud[RateDataFlow, RateDataFlowCreate, RateDataFlowUpdate]):
@@ -29,7 +31,9 @@ class RateDataFlowCrud(BaseCrud[RateDataFlow, RateDataFlowCreate, RateDataFlowUp
             return 0
 
         query = delete(RateDataFlow).where(
-            RateDataFlow.rate_aggregation_id.in_(rate_aggregation_id) # pylint: disable=no-member
+            RateDataFlow.rate_aggregation_id.in_(  # pylint: disable=no-member
+                rate_aggregation_id
+            )
         )
         result = await db_session.execute(query)
         await db_session.commit()

@@ -1,4 +1,5 @@
 """Aggregate condition class and method testing"""
+
 import time
 from test.helper import utxo_mocker
 from test.helper.mocked_data import (

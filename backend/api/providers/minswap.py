@@ -3,12 +3,13 @@
 import logging
 from decimal import Decimal
 from typing import Dict, Optional, Tuple
-from charli3_offchain_core.chain_query import ChainQuery
-from .coinrate import CoinRate
-from .api import UnsuccessfulResponse
-from ..kupo import Kupo
 
+from charli3_offchain_core.chain_query import ChainQuery
 from pycardano import AssetName, ScriptHash, UTxO
+
+from ..kupo import Kupo
+from .api import UnsuccessfulResponse
+from .coinrate import CoinRate
 
 logger = logging.getLogger(__name__)
 
@@ -314,7 +315,7 @@ class MinswapApi(CoinRate):
                 self.pool_tokens,
                 None,
                 None,
-                f"Symbol doens not match the combination of {self.token_a}-{self.token_b}",
+                f"Symbol does not match the combination of {self.token_a}-{self.token_b}",
             )
 
         if self.get_second_pool_price:

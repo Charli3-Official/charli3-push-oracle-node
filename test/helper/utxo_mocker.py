@@ -41,7 +41,7 @@ def convert_json_to_object(json_response):
 
 
 def utxo_mocker(address, response):
-    """Converst api address utxos from blockfrost in pycardano classess"""
+    """Convert api address utxos from blockfrost in pycardano classes"""
 
     def py_utxos(address: str, results) -> List[UTxO]:
         utxos = []

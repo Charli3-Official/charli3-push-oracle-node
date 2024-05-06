@@ -1,11 +1,11 @@
 """Node Operation CRUD Operations"""
 
-from .base_crud import BaseCrud
 from ..models.node_aggregations import (
     NodeAggregation,
     NodeAggregationCreate,
     NodeAggregationUpdate,
 )
+from .base_crud import BaseCrud
 
 
 class NodeOperationCrud(

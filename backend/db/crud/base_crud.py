@@ -1,10 +1,11 @@
 """Base CRUD class for all models."""
 
-from typing import Any, Generic, TypeVar, List, Optional
+from typing import Any, Generic, List, Optional, TypeVar
 from uuid import UUID
-from sqlmodel import SQLModel, select, func
-from sqlalchemy.ext.asyncio import AsyncSession
+
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import SQLModel, func, select
 
 ModelType = TypeVar("ModelType", bound=SQLModel)
 CreateSchemaType = TypeVar("CreateSchemaType", bound=SQLModel)
@@ -38,7 +39,9 @@ class BaseCrud(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
 
     async def get_count(self, db_session: AsyncSession) -> int:
         """Get a count of records."""
-        query = select(func.count()).select_from(select(self.model).subquery()) #pylint: disable=no-member,E1102
+        query = select(func.count()).select_from(  # pylint: disable=no-member,E1102
+            select(self.model).subquery()
+        )
         result = await db_session.execute(query)
         return result.scalar_one()
 

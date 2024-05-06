@@ -3,7 +3,9 @@
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
+
 from sqlmodel import Field, SQLModel
+
 from .base import BaseUUIDModel
 
 

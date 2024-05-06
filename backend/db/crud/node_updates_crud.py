@@ -1,11 +1,13 @@
 """Node Update CRUD Operations"""
 
 from uuid import UUID
-from sqlmodel import select
-from sqlalchemy.ext.asyncio import AsyncSession
+
 from sqlalchemy import not_
-from .base_crud import BaseCrud
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
+
 from ..models.node_updates import NodeUpdate, NodeUpdateCreate, NodeUpdateUpdate
+from .base_crud import BaseCrud
 
 
 class NodeUpdateCrud(BaseCrud[NodeUpdate, NodeUpdateCreate, NodeUpdateUpdate]):

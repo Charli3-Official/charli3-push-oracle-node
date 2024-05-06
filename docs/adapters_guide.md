@@ -35,7 +35,7 @@ Options:
 Some APIs require a token for authentication. The Generic class now supports token-based authentication. You can add your token to the configuration under each exchange's or DEX's settings.
 
 ``` yaml
-Rate: 
+Rate:
   base_currency:
     binance:
       type: generic
@@ -90,7 +90,7 @@ The Coingecko adapter configuration options:
 - vs_currency: The currency in which you want the price. This should be the id used by Coingecko. For example, for US Dollars, use usd.
 - quote_currency: (Optional) If set to True, this tells the system that this configuration is for the quote currency. Defaults to False.
 - rate_calculation_method: (Optional) The method to use for rate calculation. Options are "multiply" and "divide". Defaults to "multiply".
-  
+
 Note: The Coingecko API provides a list of token ids and currency ids you can use. Visit Coingecko API for more information.
 
 ## 4.  Sundaeswap Adapter
@@ -214,8 +214,8 @@ The InverseCurrencyRate adapter configuration options:
 - type: The adapter type. For the InverseCurrencyRate adapter, this should be inverse.
 - symbol: The symbol of the currency pair for which the inverse rate is required. For example, if you have the rate for BTC to USD but you want the rate for USD to BTC, use BTC/USD.
 - quote_currency: If set to True, this tells the system that this configuration is for the quote currency. Defaults to True.
-- rate_calculation_method: (Optional) The method to use for rate calculation. Options are "multiply" and "divide". Defaults to "divide". 
-    
+- rate_calculation_method: (Optional) The method to use for rate calculation. Options are "multiply" and "divide". Defaults to "divide".
+
 Note: For the InverseCurrencyRate adapter, "divide" is typically used to achieve the inversion of the rate.
 
 The InverseCurrencyRate adapter is particularly useful when you have an API that provides the rate in one direction (e.g., BTC to USD), but you need the rate in the other direction (e.g., USD to BTC). Instead of making an additional API call or finding another source for this rate, you can use the InverseCurrencyRate adapter to calculate it based on the rate you already have.

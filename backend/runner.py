@@ -1,53 +1,49 @@
 """Main updater class"""
 
-from datetime import timedelta, datetime
-from typing import List, Optional, Tuple
-import time
 import asyncio
-import logging
 import inspect
+import logging
+import time
+from datetime import datetime, timedelta
 from math import ceil
-from pycardano import Address
+from typing import List, Optional, Tuple
 
-from charli3_offchain_core import Node, ChainQuery
+from charli3_offchain_core import ChainQuery, Node
+from charli3_offchain_core.aggregate_conditions import check_oracle_settings
 from charli3_offchain_core.datums import (
-    PriceFeed,
-    PriceData,
-    NodeDatum,
-    OracleDatum,
-    Nothing,
     AggDatum,
+    NodeDatum,
+    Nothing,
+    OracleDatum,
+    PriceData,
+    PriceFeed,
     RewardDatum,
 )
 from charli3_offchain_core.oracle_checks import (
-    filter_node_datums_by_node_operator,
-    get_oracle_utxos_with_datums,
     check_utxo_asset_balance,
+    filter_node_datums_by_node_operator,
     get_oracle_datums_only,
+    get_oracle_utxos_with_datums,
 )
-from charli3_offchain_core.aggregate_conditions import check_oracle_settings
 from charli3_offchain_core.utils.exceptions import CollateralException
+from pycardano import Address
 
 from .api import AggregatedCoinRate, NodeSyncApi
 from .api.providers.api import UnsuccessfulResponse
-from .db.database import get_session
-from .db.service import (
-    process_and_store_nodes_data,
-    store_node_aggregation_participation,
-    store_reward_distribution,
-    store_job,
-    store_operational_error,
-)
 from .db.crud import (
+    node_aggregation_crud,
     node_crud,
     node_update_crud,
     transaction_crud,
-    node_aggregation_crud,
 )
-from .db.models import (
-    NodeUpdateCreate,
-    TransactionCreate,
-    NodeAggregationCreate,
+from .db.database import get_session
+from .db.models import NodeAggregationCreate, NodeUpdateCreate, TransactionCreate
+from .db.service import (
+    process_and_store_nodes_data,
+    store_job,
+    store_node_aggregation_participation,
+    store_operational_error,
+    store_reward_distribution,
 )
 
 logger = logging.getLogger("runner")
@@ -87,7 +83,7 @@ class FeedUpdater:
         self.node_sync_api = node_sync_api
 
     async def run(self):
-        """Checks and if necesary updates and/or aggregates the contract"""
+        """Checks and if necessary updates and/or aggregates the contract"""
         # async with get_session() as db_session:
         #     await store_job(db_session, self.feed_id, self.update_inter)
 
@@ -233,7 +229,7 @@ class FeedUpdater:
         """Reuse the already queried reward datum
         (e.g before aggregate transactions) of the node"""
         # Reuse the previous reward in order to reduces the number of connection
-        # with the blokchain.
+        # with the blockchain.
         return next(
             (
                 reward_info.reward_amount
@@ -383,7 +379,7 @@ class FeedUpdater:
         return res
 
     def timestamp_to_asc(self, timest):
-        """transform timestamp on logger readeable format"""
+        """transform timestamp on logger readable format"""
         return str(
             datetime.utcfromtimestamp(timest / 1000).strftime("%Y-%m-%dT%H:%M:%S%z")
         )

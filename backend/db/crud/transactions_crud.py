@@ -1,7 +1,7 @@
 """Transactions CRUD operations."""
 
-from .base_crud import BaseCrud
 from ..models.transactions import Transaction, TransactionCreate, TransactionUpdate
+from .base_crud import BaseCrud
 
 
 class TransactionCrud(BaseCrud[Transaction, TransactionCreate, TransactionUpdate]):

@@ -1,6 +1,7 @@
 """ SQL model for feed"""
 
 from sqlmodel import SQLModel
+
 from .base import BaseUUIDModel
 
 

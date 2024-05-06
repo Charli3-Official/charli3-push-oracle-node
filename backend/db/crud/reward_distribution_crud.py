@@ -1,11 +1,11 @@
 """Reward Distribution CRUD operations."""
 
-from .base_crud import BaseCrud
 from ..models.reward_distributions import (
     RewardDistribution,
     RewardDistributionCreate,
     RewardDistributionUpdate,
 )
+from .base_crud import BaseCrud
 
 
 class RewardDistributionCrud(

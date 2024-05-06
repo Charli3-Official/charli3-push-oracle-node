@@ -2,8 +2,11 @@
 
 from datetime import datetime
 from uuid import UUID
-from sqlmodel import SQLModel as _SQLModel, Field
+
 from sqlalchemy.orm import declared_attr
+from sqlmodel import Field
+from sqlmodel import SQLModel as _SQLModel
+
 from backend.utils.uuid6 import uuid7
 
 

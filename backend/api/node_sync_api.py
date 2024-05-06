@@ -1,19 +1,20 @@
 """Syncing with Charli3 Central DB."""
 
-from typing import List, Optional
 import logging
 import time
+from typing import List, Optional
 
 from charli3_offchain_core import Node
-from .providers.api import Api, ApiResponse
-from ..db.database import get_session
-from ..db.models import Feed, Provider, NodeUpdate
+
 from ..db.crud import (
-    rate_dataflow_crud,
     aggregated_rate_details_crud,
     feed_crud,
     node_crud,
+    rate_dataflow_crud,
 )
+from ..db.database import get_session
+from ..db.models import Feed, NodeUpdate, Provider
+from .providers.api import Api, ApiResponse
 
 logger = logging.getLogger("node_sync_api")
 logging.Formatter.converter = time.gmtime

@@ -2,7 +2,9 @@
 
 from decimal import Decimal
 from uuid import UUID
+
 from sqlmodel import Field, SQLModel
+
 from .base import BaseUUIDModel
 
 

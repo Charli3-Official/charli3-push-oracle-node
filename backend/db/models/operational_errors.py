@@ -1,7 +1,9 @@
 """ This module contains the OperationalError model and its related classes."""
 
 from typing import Optional
+
 from sqlmodel import Field, SQLModel
+
 from .base import BaseUUIDModel
 
 

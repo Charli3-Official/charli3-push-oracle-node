@@ -2,12 +2,13 @@
 
 import logging
 from typing import Optional
+
 from charli3_offchain_core.chain_query import ChainQuery
 from charli3_offchain_core.oracle_checks import c3_get_rate
 from pycardano import MultiAsset
-from .coinrate import CoinRate
-from .api import UnsuccessfulResponse
 
+from .api import UnsuccessfulResponse
+from .coinrate import CoinRate
 
 logger = logging.getLogger(__name__)
 

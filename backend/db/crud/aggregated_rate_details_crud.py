@@ -2,14 +2,16 @@
 
 from datetime import datetime, timedelta
 from uuid import UUID
-from sqlalchemy import select, delete
+
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from .base_crud import BaseCrud
+
 from ..models.aggregated_rate_detail import (
     AggregatedRateDetails,
     AggregatedRateDetailsCreate,
     AggregatedRateDetailsUpdate,
 )
+from .base_crud import BaseCrud
 
 
 class AggregatedRateDetailsCrud(

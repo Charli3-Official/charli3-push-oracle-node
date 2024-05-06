@@ -1,38 +1,39 @@
 """Database service functions."""
 
-import logging
 import asyncio
+import logging
 import time
-from typing import List, Dict, Any
 from datetime import datetime
-from sqlalchemy.ext.asyncio import AsyncSession
-from pycardano import VerificationKeyHash, Address, Network, UTxO
+from typing import Any, Dict, List
+
 from charli3_offchain_core import NodeDatum, RewardDatum
+from pycardano import Address, Network, UTxO, VerificationKeyHash
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.db.database import get_session
-from .models import (
-    Node,
-    NodeCreate,
-    AggregatedRateDetailsCreate,
-    RateDataFlowCreate,
-    AggregatedRateDetails,
-    NodeAggregationParticipationCreate,
-    RewardDistributionCreate,
-    JobCreate,
-    OperationalErrorCreate,
-    Job,
-)
-from .crud.nodes_crud import node_crud
-from .crud.node_updates_crud import node_update_crud
+
 from .crud.aggregated_rate_details_crud import aggregated_rate_details_crud
-from .crud.rate_dataflow_crud import rate_dataflow_crud
+from .crud.jobs_crud import jobs_crud
 from .crud.node_aggregation_participation_crud import (
     node_aggregation_participation_crud,
 )
-from .crud.reward_distribution_crud import reward_distribution_crud
-from .crud.jobs_crud import jobs_crud
+from .crud.node_updates_crud import node_update_crud
+from .crud.nodes_crud import node_crud
 from .crud.operational_errors_crud import operational_errors_crud
-
+from .crud.rate_dataflow_crud import rate_dataflow_crud
+from .crud.reward_distribution_crud import reward_distribution_crud
+from .models import (
+    AggregatedRateDetails,
+    AggregatedRateDetailsCreate,
+    Job,
+    JobCreate,
+    Node,
+    NodeAggregationParticipationCreate,
+    NodeCreate,
+    OperationalErrorCreate,
+    RateDataFlowCreate,
+    RewardDistributionCreate,
+)
 
 # Initialize logging
 logger = logging.getLogger("database")
@@ -209,11 +210,13 @@ async def periodic_cleanup_task():
             # Assuming that get_session() correctly sets up and provides an AsyncSession
             async with get_session() as db_session:
                 try:
-                    results = await delete_unlinked_aggregated_rates_and_flows(db_session)
+                    results = await delete_unlinked_aggregated_rates_and_flows(
+                        db_session
+                    )
                     logger.info(
                         "Deleted %s rate data flows and %s aggregated rates.",
                         results[0],
-                        results[1]
+                        results[1],
                     )
                 except Exception as e:
                     logger.error("Error during cleanup operation: %s", str(e))

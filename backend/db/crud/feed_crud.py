@@ -1,10 +1,12 @@
 """Feed CRUD operations."""
 
 from typing import Optional
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
-from .base_crud import BaseCrud
+
 from ..models.feed import Feed, FeedCreate, FeedUpdate
+from .base_crud import BaseCrud
 
 
 class FeedCrud(BaseCrud[Feed, FeedCreate, FeedUpdate]):

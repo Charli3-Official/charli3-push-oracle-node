@@ -1,11 +1,13 @@
 """Models for the jobs table."""
 
 from datetime import datetime
-from typing import Optional
 from decimal import Decimal as decimal
+from typing import Optional
 from uuid import UUID
-from sqlmodel import Field, SQLModel
+
 from sqlalchemy import JSON
+from sqlmodel import Field, SQLModel
+
 from .base import BaseUUIDModel
 
 

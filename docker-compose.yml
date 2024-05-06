@@ -11,9 +11,9 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: node-operator
+      POSTGRES_DB: node-operator-backend
     volumes:
       - ./postgres:/var/lib/postgresql/data
-    ports: 
+    ports:
       - "5432:5432"
     restart: always
