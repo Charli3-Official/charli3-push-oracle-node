@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import time
+import traceback
 from datetime import datetime
 from typing import Any, Dict, List
 
@@ -38,6 +39,15 @@ from .models import (
 # Initialize logging
 logger = logging.getLogger("database")
 logging.Formatter.converter = time.gmtime
+
+
+def get_traceback_str(exception):
+    """Get a formatted traceback string from an exception."""
+    return "".join(
+        traceback.format_exception(
+            type(exception), value=exception, tb=exception.__traceback__
+        )
+    )
 
 
 async def get_or_create_node(db_session: AsyncSession, node: NodeCreate) -> Node:
@@ -167,7 +177,7 @@ async def store_operational_error(
         error_type=type(exception).__name__,
         error_message=str(exception),
         error_context=str(exception.__context__),
-        error_traceback=str(exception.__traceback__),
+        error_traceback=get_traceback_str(exception),
     )
     await operational_errors_crud.create(
         db_session=db_session, obj_in=operational_error

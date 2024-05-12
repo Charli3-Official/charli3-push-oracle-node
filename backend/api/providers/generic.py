@@ -71,6 +71,19 @@ class Generic(CoinRate):
                     return self._construct_response_dict(
                         self.provider_id, self.get_path(), output_symbol, resp, rate
                     )
+                else:
+                    logger.error(
+                        "Data at the end of JSON path is not a number or numeric string"
+                    )
+                    return self._construct_response_dict(
+                        self.provider_id,
+                        self.get_path(),
+                        self.symbol,
+                        resp,
+                        None,
+                        "Data at the end of JSON path is not a number or numeric string",
+                    )
+
             else:
                 error_msg = (
                     "Failed to retrieve data"

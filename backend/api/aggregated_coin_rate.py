@@ -155,34 +155,44 @@ class AggregatedCoinRate:
         valid_rates = []
 
         for response, provider in zip(responses, providers):
+            # Initialize a dictionary to hold response details
             provider_response = {
-                "provider_id": response.get("provider_id"),
+                "provider_id": None,
                 "feed_id": self.feed_id,
                 "request_timestamp": request_time,
-                "symbol": response.get("symbol"),
-                "rate": (
-                    None if isinstance(response, Exception) else response.get("rate")
-                ),
-                "path": (
-                    None if isinstance(response, Exception) else response.get("path")
-                ),
-                "response_code": (
-                    None
-                    if isinstance(response, Exception)
-                    else response.get("response_code")
-                ),
-                "response_body": (
-                    str(response)
-                    if isinstance(response, Exception)
-                    else response.get("response_body")
-                ),
-                "rate_type": (
-                    None
-                    if isinstance(response, Exception)
-                    else response.get("rate_type")
-                ),
+                "symbol": None,
+                "rate": None,
+                "path": None,
+                "response_code": None,
+                "response_body": None,
+                "rate_type": None,
             }
-            provider_responses.append(provider_response)
+
+            if isinstance(response, Exception):
+                # Log the error but do not process further
+                logger.error(
+                    "Error fetching data from provider %s: %s", provider, response
+                )
+
+            elif isinstance(response, dict) and response.get("provider_id"):
+                # Process only if response is a dictionary and provider_id is present
+                provider_response.update(
+                    {
+                        "provider_id": response.get("provider_id"),
+                        "symbol": response.get("symbol"),
+                        "rate": response.get("rate"),
+                        "path": response.get("path"),
+                        "response_code": response.get("response_code"),
+                        "response_body": response.get("response_body"),
+                        "rate_type": response.get("rate_type"),
+                    }
+                )
+                # Append the response to the list of provider responses
+                provider_responses.append(provider_response)
+            else:
+                logger.warning(
+                    "Invalid response from provider %s: %s", provider, response
+                )
 
             if (
                 not isinstance(response, Exception)

@@ -124,6 +124,38 @@ class MinswapApi(CoinRate):
                 self.provider_id, self.pool_tokens, self.pool_tokens, None, None, str(e)
             )
 
+        except TimeoutError as e:
+            logger.error(
+                "Timeout error occurred while fetching Minswap %s-%s pool value: %s",
+                self.token_a,
+                self.token_b,
+                e,
+            )
+            return self._construct_response_dict(
+                self.provider_id,
+                self.pool_tokens,
+                self.pool_tokens,
+                None,
+                None,
+                "Timeout error",
+            )
+
+        except Exception as e:
+            logger.error(
+                "Failed to get rate for Minswap %s-%s: %s",
+                self.token_a,
+                self.token_b,
+                e,
+            )
+            return self._construct_response_dict(
+                self.provider_id,
+                self.pool_tokens,
+                self.pool_tokens,
+                None,
+                None,
+                str(e),
+            )
+
     async def _get_and_validate_pool(self, pool_id):
         """Get and validate pool utxo"""
         pool = await self._get_pool_by_id(pool_id)
