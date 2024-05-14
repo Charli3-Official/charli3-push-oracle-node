@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "backend"
-version = "2.0.3"
+version = "2.0.4"
 description = "Charli3 Node Operator Backend."
 authors = ["Deep Bhatt <deep.bhatt@charli3.io>"]
 license = "MIT"

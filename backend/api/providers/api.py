@@ -43,7 +43,7 @@ class Api:
         path: str,
         data: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
-        timeout_seconds: int = 30,  # Default timeout of 30 seconds
+        timeout_seconds: int = 120,  # Default timeout of 120 seconds
     ) -> ApiResponse:
         """
         Send a request to the API and return the response.
