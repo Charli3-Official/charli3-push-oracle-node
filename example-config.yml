@@ -31,6 +31,9 @@ ChainQuery:
     kupo_url: kupo-preprod-api-charli3-49bb04.us1.demeter.run
 
 Rate:
+  # Ensure the symbols are used correctly (e.g., ADA-SHEN instead of SHEN-ADA)
+  general_base_symbol: ADA-SHEN
+  general_quote_symbol: ADA-USD
   base_currency:
     sundaeswap:
       type: sundaeswap

@@ -243,11 +243,10 @@ async def setup_node_and_chain_query(config):
         )
 
         async with get_session() as db_session:
-            first_key = next(iter(config["Rate"]["base_currency"]))
-            symbol = config["Rate"]["base_currency"][first_key]["symbol"]
+            base_symbol = config.get("Rate").get("general_base_symbol", None)
             feed = await ensure_feed_in_db(
                 node_config["oracle_address"],
-                symbol,
+                base_symbol,
                 str(aggstate_nft),
                 str(oracle_nft),
                 str(node_nft),
@@ -273,8 +272,7 @@ async def setup_aggregated_coin_rate(
     async with get_session() as db_session:
         # Initialize AggregatedCoinRate instance
         if "quote_currency" in config["Rate"] and config["Rate"]["quote_currency"]:
-            first_key = next(iter(config["Rate"]["quote_currency"]))
-            quote_symbol = config["Rate"]["quote_currency"][first_key]["symbol"]
+            quote_symbol = config.get("Rate").get("general_quote_symbol", None)
             rate_class = AggregatedCoinRate(
                 quote_currency=True,
                 quote_symbol=quote_symbol,
