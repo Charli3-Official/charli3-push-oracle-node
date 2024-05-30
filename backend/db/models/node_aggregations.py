@@ -1,6 +1,7 @@
 """Model for the node aggregations entity."""
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
@@ -16,7 +17,7 @@ class NodeAggregationBase(SQLModel):
     feed_id: UUID = Field(foreign_key="feed.id")
     timestamp: datetime
     status: str
-    aggregated_value: Optional[int] = Field(default=None, nullable=True)
+    aggregated_value: Optional[Decimal] = Field(default=None, nullable=True)
     nodes_count: Optional[int] = Field(default=None, nullable=True)
     tx_hash: Optional[str] = Field(default=None, nullable=True, index=True)
     trigger: Optional[str] = Field(default=None, nullable=True)

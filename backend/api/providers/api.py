@@ -1,10 +1,13 @@
 """Main Api abstract class and a response class to keep the information"""
 
+import json
 import logging
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 import aiohttp
+
+from backend.utils.decimal_encoder import DecimalEncoder
 
 logger = logging.getLogger("api")
 
@@ -64,14 +67,15 @@ class Api:
         # Create a ClientTimeout object
         timeout = aiohttp.ClientTimeout(total=timeout_seconds)
 
-        async with aiohttp.ClientSession(
-            # connector=aiohttp.TCPConnector(ssl=False) # TESTING
-        ) as session:
+        async with aiohttp.ClientSession() as session:
             logger.debug("Request to %s%s with data: %s", self.api_url, path, str(data))
+            json_data = (
+                json.dumps(data, cls=DecimalEncoder) if data is not None else None
+            )
             async with session.request(
                 method,
                 f"{self.api_url}{path}",
-                json=data,
+                data=json_data,
                 headers=headers,
                 timeout=timeout,
             ) as resp:
