@@ -104,7 +104,7 @@ class AggregatedCoinRate:
         )
         if provider and hasattr(provider, "id"):
             provider_instance = apiTypes[feed_type](
-                provider, provider_id=provider.id, **pair
+                provider, provider_id=provider.id, rate_type="base", **pair
             )
             self.base_data_providers.append(provider_instance)
         return provider
@@ -122,7 +122,7 @@ class AggregatedCoinRate:
         )
         if provider and hasattr(provider, "id"):
             provider_instance = apiTypes[feed_type](
-                provider, provider_id=provider.id, **pair
+                provider, provider_id=provider.id, rate_type="quote", **pair
             )
             self.quote_data_providers.append(provider_instance)
         return provider

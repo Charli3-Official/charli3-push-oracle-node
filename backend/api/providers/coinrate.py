@@ -89,14 +89,11 @@ class CoinRate(Api):
         provider_id: str,
         path: str,
         symbol: str,
+        rate_type: str,
         response: Optional[ApiResponse],
         rate: Optional[float],
         error: Optional[str] = None,
     ) -> Dict[str, Any]:
-        quote_currency = getattr(
-            self, "quote_currency", False
-        )  # Default to False if not present
-        rate_type = "quote" if not quote_currency else "base"
         return {
             "provider_id": provider_id,
             "path": path,

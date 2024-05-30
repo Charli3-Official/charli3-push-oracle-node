@@ -20,12 +20,14 @@ class InverseCurrencyRate(CoinRate):
         symbol: str,
         quote_currency: bool = True,
         rate_calculation_method: str = "divide",
+        rate_type: str = "base",
         provider_id: Optional[str] = None,
     ):
         self.provider = provider
         self.symbol = symbol
         self.quote_currency = quote_currency
         self.rate_calculation_method = rate_calculation_method
+        self.rate_type = rate_type
         self.provider_id = provider_id
 
     async def get_rate(
@@ -47,13 +49,19 @@ class InverseCurrencyRate(CoinRate):
                 )
                 logger.info("%s %s Rate: %s", self.provider, output_symbol, rate)
                 return self._construct_response_dict(
-                    self.provider_id, self.symbol, output_symbol, None, rate
+                    self.provider_id,
+                    self.symbol,
+                    output_symbol,
+                    self.rate_type,
+                    None,
+                    rate,
                 )
         except UnsuccessfulResponse:
             return self._construct_response_dict(
                 self.provider_id,
                 self.symbol,
                 self.symbol,
+                self.rate_type,
                 None,
                 None,
                 "Failed to get rate",

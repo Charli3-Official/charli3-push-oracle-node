@@ -41,6 +41,7 @@ class MinswapApi(CoinRate):
         get_second_pool_price: bool = False,
         quote_currency: bool = False,
         rate_calculation_method: str = "multiply",
+        rate_type: str = "base",
         provider_id: Optional[str] = None,
     ):
         self.provider = provider
@@ -53,6 +54,7 @@ class MinswapApi(CoinRate):
         self.get_second_pool_price = get_second_pool_price
         self.quote_currency = quote_currency
         self.rate_calculation_method = rate_calculation_method
+        self.rate_type = rate_type
         self.pool_nft_policy_id = (
             "0be55d262b29f564998ff81efe21bdc0022621c12f15af08d0f2ddb1"
         )
@@ -78,6 +80,7 @@ class MinswapApi(CoinRate):
                 self.provider_id,
                 self.pool_tokens,
                 self.pool_tokens,
+                self.rate_type,
                 None,
                 None,
                 "Chain query or Blockfrost context is None",
@@ -111,7 +114,12 @@ class MinswapApi(CoinRate):
 
             logger.info("%s %s Rate: %s", self.provider, output_symbol, rate)
             return self._construct_response_dict(
-                self.provider_id, self.pool_tokens, output_symbol, None, rate
+                self.provider_id,
+                self.pool_tokens,
+                output_symbol,
+                self.rate_type,
+                None,
+                rate,
             )
         except UnsuccessfulResponse as e:  # pylint: disable=invalid-name
             logger.error(
@@ -121,7 +129,13 @@ class MinswapApi(CoinRate):
                 e,
             )
             return self._construct_response_dict(
-                self.provider_id, self.pool_tokens, self.pool_tokens, None, None, str(e)
+                self.provider_id,
+                self.pool_tokens,
+                self.pool_tokens,
+                self.rate_type,
+                None,
+                None,
+                str(e),
             )
 
         except TimeoutError as e:
@@ -135,6 +149,7 @@ class MinswapApi(CoinRate):
                 self.provider_id,
                 self.pool_tokens,
                 self.pool_tokens,
+                self.rate_type,
                 None,
                 None,
                 "Timeout error",
@@ -151,6 +166,7 @@ class MinswapApi(CoinRate):
                 self.provider_id,
                 self.pool_tokens,
                 self.pool_tokens,
+                self.rate_type,
                 None,
                 None,
                 str(e),
@@ -167,6 +183,7 @@ class MinswapApi(CoinRate):
                 self.provider_id,
                 self.pool_tokens,
                 self.pool_tokens,
+                self.rate_type,
                 None,
                 None,
                 "Factory token not located in the pool, or multiple tokens detected",
@@ -304,6 +321,7 @@ class MinswapApi(CoinRate):
                 self.provider_id,
                 self.pool_tokens,
                 self.pool_tokens,
+                self.rate_type,
                 None,
                 None,
                 "Multiple UTxO pools found, or none at all",
@@ -345,6 +363,7 @@ class MinswapApi(CoinRate):
                 self.provider_id,
                 self.pool_tokens,
                 self.pool_tokens,
+                self.rate_type,
                 None,
                 None,
                 f"Symbol does not match the combination of {self.token_a}-{self.token_b}",

@@ -35,6 +35,7 @@ class Charli3Api(CoinRate):
         network_minting_policy: str,
         quote_currency: bool = False,
         rate_calculation_method: str = "multiply",
+        rate_type: str = "base",
         provider_id: Optional[str] = None,
     ):
         self.provider = provider
@@ -43,6 +44,7 @@ class Charli3Api(CoinRate):
         self.network_minting_policy = network_minting_policy
         self.quote_currency = quote_currency
         self.rate_calculation_method = rate_calculation_method
+        self.rate_type = rate_type
         self.provider_id = provider_id
 
     async def get_rate(
@@ -69,6 +71,7 @@ class Charli3Api(CoinRate):
                     self.provider_id,
                     self.network_tokens,
                     self.network_tokens,
+                    self.rate_type,
                     None,
                     None,
                     "ChainQuery object not found",
@@ -94,7 +97,12 @@ class Charli3Api(CoinRate):
             )
             logger.info("%s %s Rate: %s", self.provider, output_symbol, rate)
             return self._construct_response_dict(
-                self.provider_id, self.network_tokens, output_symbol, None, rate
+                self.provider_id,
+                self.network_tokens,
+                output_symbol,
+                self.rate_type,
+                None,
+                rate,
             )
 
         except UnsuccessfulResponse as e:  # pylint: disable=invalid-name
@@ -105,6 +113,7 @@ class Charli3Api(CoinRate):
                 self.provider_id,
                 self.network_tokens,
                 self.network_tokens,
+                self.rate_type,
                 None,
                 None,
                 str(e),
