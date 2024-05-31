@@ -1,6 +1,7 @@
 """Model for the node updates entity."""
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
@@ -16,7 +17,7 @@ class NodeUpdateBase(SQLModel):
     feed_id: UUID = Field(foreign_key="feed.id")
     timestamp: datetime
     status: str
-    updated_value: Optional[int] = Field(default=None, nullable=True)
+    updated_value: Optional[Decimal] = Field(default=None, nullable=True)
     rate_aggregation_id: Optional[UUID] = Field(
         default=None, foreign_key="aggregatedratedetails.id", nullable=True
     )
