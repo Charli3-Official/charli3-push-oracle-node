@@ -26,6 +26,7 @@ class VyFiApi(CoinRate):
         get_second_pool_price: bool = False,
         quote_currency: bool = False,
         rate_calculation_method: str = "multiply",
+        rate_type: str = "base",
         provider_id: Optional[str] = None,
     ):
         self.provider = provider
@@ -36,6 +37,7 @@ class VyFiApi(CoinRate):
         self.get_second_pool_price = get_second_pool_price
         self.quote_currency = quote_currency
         self.rate_calculation_method = rate_calculation_method
+        self.rate_type = rate_type
         self.provider_id = provider_id
         self.min_ada_per_utxo = 2000000  # Min ADA required per UTxO
 
@@ -54,6 +56,7 @@ class VyFiApi(CoinRate):
                     self.provider_id,
                     self.pool_tokens,
                     self.pool_tokens,
+                    self.rate_type,
                     None,
                     None,
                     "ChainQuery object not found",
@@ -81,6 +84,7 @@ class VyFiApi(CoinRate):
                         self.provider_id,
                         self.pool_tokens,
                         self.pool_tokens,
+                        self.rate_type,
                         None,
                         None,
                         "Expected one UTxO with token B, found %d",
@@ -102,6 +106,7 @@ class VyFiApi(CoinRate):
                         self.provider_id,
                         self.pool_tokens,
                         self.pool_tokens,
+                        self.rate_type,
                         None,
                         None,
                         "Bar fees datum not found",
@@ -136,6 +141,7 @@ class VyFiApi(CoinRate):
                         self.provider_id,
                         self.pool_tokens,
                         self.pool_tokens,
+                        self.rate_type,
                         None,
                         None,
                         "Expected one UTxO with token A and B, found %d",
@@ -158,6 +164,7 @@ class VyFiApi(CoinRate):
                         self.provider_id,
                         self.pool_tokens,
                         self.pool_tokens,
+                        self.rate_type,
                         None,
                         None,
                         "Bar fees datum not found",
@@ -188,13 +195,24 @@ class VyFiApi(CoinRate):
             )
             logger.info("%s %s Rate: %s", self.provider, output_symbol, rate)
             return self._construct_response_dict(
-                self.provider_id, self.pool_tokens, output_symbol, None, rate
+                self.provider_id,
+                self.pool_tokens,
+                output_symbol,
+                self.rate_type,
+                None,
+                rate,
             )
 
         except UnsuccessfulResponse as e:  # pylint: disable=invalid-name
             logger.error("Failed to get rate for VyFi %s: %s", self.pool_tokens, e)
             return self._construct_response_dict(
-                self.provider_id, self.pool_tokens, self.pool_tokens, None, None, str(e)
+                self.provider_id,
+                self.pool_tokens,
+                self.pool_tokens,
+                self.rate_type,
+                None,
+                None,
+                str(e),
             )
 
     def get_symbol(self, token_a, token_b) -> str:
@@ -229,6 +247,7 @@ class VyFiApi(CoinRate):
             self.provider_id,
             self.pool_tokens,
             self.pool_tokens,
+            self.rate_type,
             None,
             None,
             "Bar fees datum not found in the pool UTxO.",

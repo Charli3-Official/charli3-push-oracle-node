@@ -25,12 +25,14 @@ class MuesliswapApi(CoinRate):
         token_name: str,
         quote_currency: bool = False,
         rate_calculation_method: str = "multiply",
+        rate_type: str = "base",
         provider_id: Optional[str] = None,
     ):
         self.provider = provider
         self.symbol = symbol
         self.quote_currency = quote_currency
         self.rate_calculation_method = rate_calculation_method
+        self.rate_type = rate_type
         self.provider_id = provider_id
         self.additional_path = (
             self.path
@@ -66,13 +68,19 @@ class MuesliswapApi(CoinRate):
                     )
                     logger.info("%s %s Rate: %f", self.provider, output_symbol, rate)
                     return self._construct_response_dict(
-                        self.provider_id, self.get_path(), output_symbol, resp, rate
+                        self.provider_id,
+                        self.get_path(),
+                        output_symbol,
+                        self.rate_type,
+                        resp,
+                        rate,
                     )
                 logger.error("JSON data is invalid or missing 'price' key")
                 return self._construct_response_dict(
                     self.provider_id,
                     self.get_path(),
                     self.symbol,
+                    self.rate_type,
                     resp,
                     None,
                     "JSON data is invalid or missing 'price' key",
@@ -80,5 +88,11 @@ class MuesliswapApi(CoinRate):
         except UnsuccessfulResponse as e:  # pylint: disable=invalid-name
             logger.error("Failed to get rate for Muesliswap %s: %s", self.symbol, e)
             return self._construct_response_dict(
-                self.provider_id, self.get_path(), self.symbol, None, None, str(e)
+                self.provider_id,
+                self.get_path(),
+                self.symbol,
+                self.rate_type,
+                None,
+                None,
+                str(e),
             )

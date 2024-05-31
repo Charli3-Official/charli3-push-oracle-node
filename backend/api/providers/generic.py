@@ -24,6 +24,7 @@ class Generic(CoinRate):
         key: Optional[Dict[Any, Any]] = None,
         quote_currency: bool = False,
         rate_calculation_method: str = "multiply",
+        rate_type: str = "base",
         token: Optional[str] = None,
         provider_id: Optional[str] = None,
     ):
@@ -35,6 +36,7 @@ class Generic(CoinRate):
         self.key = {} if not key else key
         self.quote_currency = quote_currency
         self.rate_calculation_method = rate_calculation_method
+        self.rate_type = rate_type
         self.token = token
         self.provider_id = provider_id
 
@@ -69,7 +71,12 @@ class Generic(CoinRate):
                     logger.info("%s %s Rate: %s", self.provider, output_symbol, rate)
 
                     return self._construct_response_dict(
-                        self.provider_id, self.get_path(), output_symbol, resp, rate
+                        self.provider_id,
+                        self.get_path(),
+                        output_symbol,
+                        self.rate_type,
+                        resp,
+                        rate,
                     )
                 else:
                     logger.error(
@@ -79,6 +86,7 @@ class Generic(CoinRate):
                         self.provider_id,
                         self.get_path(),
                         self.symbol,
+                        self.rate_type,
                         resp,
                         None,
                         "Data at the end of JSON path is not a number or numeric string",
@@ -95,6 +103,7 @@ class Generic(CoinRate):
                     self.provider_id,
                     self.get_path(),
                     self.symbol,
+                    self.rate_type,
                     resp if resp else None,
                     None,
                     error_msg,
@@ -105,7 +114,13 @@ class Generic(CoinRate):
                 "Failed to get rate for %s %s: %s", self.provider, self.symbol, e
             )
             return self._construct_response_dict(
-                self.provider_id, self.get_path(), self.symbol, None, None, str(e)
+                self.provider_id,
+                self.get_path(),
+                self.symbol,
+                self.rate_type,
+                None,
+                None,
+                str(e),
             )
         except Exception as e:
             logger.error(
@@ -115,6 +130,7 @@ class Generic(CoinRate):
                 self.provider_id,
                 self.get_path(),
                 self.symbol,
+                self.rate_type,
                 None,
                 None,
                 "Unexpected error",
