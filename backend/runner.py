@@ -420,8 +420,9 @@ class FeedUpdater:
             a string indicating the trigger reason ('time_expiry', 'rate_change', or '').
         """
         if not oracle_feed:
-            # If there's no oracle feed, aggregation can't proceed.
-            return False, ""
+            # If there's no oracle feed, aggregation can proceed because
+            # the feed is being initialized.
+            return True, "Initial_Feed_Value"
 
         current_price = oracle_feed.get_price()
         timestamp = oracle_feed.get_timestamp()
