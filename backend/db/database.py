@@ -4,12 +4,12 @@ import logging
 import time
 from contextlib import asynccontextmanager
 
-import yaml
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel
 
 from backend.db.no_op_session import NoOpSession
+from backend.utils.config_utils import load_config
 
 # Initialize logging
 logger = logging.getLogger("database")
@@ -20,10 +20,8 @@ DATABASE_URL = None
 
 # Try to load configuration from the config.yml file
 try:
-    with open("config.yml", encoding="utf-8") as ymlfile:
-        config = yaml.load(ymlfile, Loader=yaml.FullLoader)
-        # Safely get the database URL if it exists
-        DATABASE_URL = config.get("database", {}).get("url", None)
+    config = load_config("config.yml")
+    DATABASE_URL = config.get("database", {}).get("url", None)
 except FileNotFoundError:
     logger.error(
         "Configuration file not found. Proceeding without a database connection..."

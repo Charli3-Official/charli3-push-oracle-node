@@ -4,14 +4,10 @@ import argparse
 import asyncio
 import logging
 
-from backend.app_setup import (
-    load_config,
-    record_factory,
-    setup_feed_updater,
-    setup_logging,
-)
+from backend.app_setup import record_factory, setup_feed_updater, setup_logging
 from backend.db.database import init_db
 from backend.db.service import periodic_cleanup_task
+from backend.utils.config_utils import load_config
 
 
 async def main(config_file):
@@ -24,7 +20,7 @@ async def main(config_file):
     try:
         # Initialize database
         await init_db()
-        print("Database initialized successfully.")
+        logging.info("Database initialized successfully.")
     except Exception as e:
         logging.error("Database initialization failed: %s", e)
         return

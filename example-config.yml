@@ -1,14 +1,7 @@
-Updater:
-  update_inter: 180
-  verbosity: INFO
-  percent_resolution: 10000
-
-database:
-  url: # "postgresql+asyncpg://postgres:password@localhost:5432/node-operator"
+include: example-dynamic-config.yml
 
 Node:
-  signing_key: node3.skey
-  verification_key: node3.vkey
+  mnemonic: <%= @mnemonic_ada_charli3 %>
   oracle_curr: 2e527c8e42d0f28fd3f4025f60c0a89bc5815c8e2efc3fb973e3fc20
   oracle_address: addr_test1wz6jdu4f0eeamgzz2a8wt3eufux33nv6ju35z6r4de5rl0sncyqgh
   c3_token_hash: 436941ead56c61dbf9b92b5f566f7d5b9cac08f8c957f28f0bd60d4b
@@ -19,16 +12,6 @@ Node:
   reward_collection_trigger: 100000000
   reward_destination_address: "addr_test1wqf99gagnjgfamek9v9vyrwulwh64xdnerq9xkvfhwyeu3qdufj2x"
   node_sync_api: "http://localhost:3000" # Optional to sync nodes with the Charli3 DB
-
-ChainQuery:
-  network: TESTNET
-  blockfrost:
-    base_url: https://cardano-preprod.blockfrost.io/api
-    project_id: preprodVPAHdGNLvQtM3Ppkxtvd2oEVhHFxZ6MD
-    max_api_calls: 50000
-  ogmios:
-    ws_url:  wss://ogmios-preprod-api-charli3-49bb04.us1.demeter.run
-    kupo_url: kupo-preprod-api-charli3-49bb04.us1.demeter.run
 
 Rate:
   # Ensure the symbols are used correctly (e.g., ADA-SHEN instead of SHEN-ADA)
@@ -79,14 +62,14 @@ Rate:
       symbol: ADA-USDT
       api_url: https://api.kucoin.com
       path: /api/v1/prices?currencies=ADA
-      json_path: ["data","ADA"]
+      json_path: ["data", "ADA"]
       key: {}
     kraken:
       type: generic
       symbol: ADAUSD
       api_url: https://api.kraken.com
       path: /0/public/Ticker?pair=ADAUSD
-      json_path: ["result","ADAUSD","o"]
+      json_path: ["result", "ADAUSD", "o"]
       key: {}
     bitrue:
       type: generic

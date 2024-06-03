@@ -159,6 +159,7 @@ cython_debug/
 # Ignore all config files
 config*.ini
 config*.yml
+dynamic_config*.yml
 
 node*.skey
 node*.vkey

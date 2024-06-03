@@ -3,9 +3,8 @@
 import logging
 import os
 from logging.config import dictConfig
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
-import yaml
 from charli3_offchain_core import ChainQuery, Node
 from pycardano import (
     Address,
@@ -29,14 +28,6 @@ from backend.db.database import get_session
 from backend.db.models.provider import Provider
 from backend.logfiles.logging_config import LEVEL_COLORS, get_log_config
 from backend.runner import FeedUpdater
-
-
-# Load Configuration
-def load_config(config_path="config.yml") -> Dict:
-    """Load the configuration from the specified file path."""
-    with open(config_path, "r", encoding="UTF-8") as ymlfile:
-        config = yaml.load(ymlfile, Loader=yaml.FullLoader)
-    return config
 
 
 # Setup Logging
