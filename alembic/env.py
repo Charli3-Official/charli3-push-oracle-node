@@ -8,6 +8,7 @@ from sqlmodel import SQLModel
 
 
 from alembic import context
+from backend.utils.config_utils import load_config
 
 from backend.db.models import (
     AggregatedRateDetails,
@@ -27,6 +28,14 @@ from backend.db.models import (
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+
+try:
+    app_config = load_config("config.yml")
+    DATABASE_URL = app_config.get("database", {}).get("url")
+    if DATABASE_URL:
+        config.set_main_option("sqlalchemy.url", DATABASE_URL)
+except Exception as e:
+    raise RuntimeError(f"Failed to load database configuration: {e}")
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
