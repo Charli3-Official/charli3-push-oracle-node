@@ -19,6 +19,7 @@ sqlmodel = "^0.0.16"
 asyncpg = "^0.29.0"
 alembic = "^1.13.1"
 cachetools = "^5.3.3"
+slack-sdk = "^3.27.2"
 
 [tool.poetry.group.dev.dependencies]
 mocket = "^3.11.0"

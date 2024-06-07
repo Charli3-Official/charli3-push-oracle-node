@@ -269,10 +269,14 @@ async def setup_aggregated_coin_rate(
                 quote_symbol=quote_symbol,
                 chain_query=chain_query,
                 feed_id=feed_id,
+                slack_alerts=config.get("SlackAlerts", {}),
             )
         else:
             rate_class = AggregatedCoinRate(
-                quote_currency=False, chain_query=chain_query, feed_id=feed_id
+                quote_currency=False,
+                chain_query=chain_query,
+                feed_id=feed_id,
+                slack_alerts=config.get("SlackAlerts", {}),
             )
 
         # Add quote data providers

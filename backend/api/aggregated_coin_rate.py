@@ -7,6 +7,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from charli3_offchain_core.chain_query import ChainQuery
 from charli3_offchain_core.consensus import random_median
+from slack_sdk import WebClient
+from slack_sdk.errors import SlackApiError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.providers import (
@@ -52,6 +54,7 @@ class AggregatedCoinRate:
         quote_symbol: Optional[str] = None,
         chain_query: ChainQuery = None,
         feed_id: Optional[str] = None,
+        slack_alerts: Optional[Dict[str, str]] = None,
     ):
         self.quote_currency = quote_currency
         self.quote_symbol = quote_symbol
@@ -59,6 +62,7 @@ class AggregatedCoinRate:
         self.quote_data_providers: List[CoinRate] = []
         self.chain_query = chain_query
         self.feed_id = feed_id
+        self.slack_alerts = slack_alerts or {}
 
     async def _ensure_provider_in_db(
         self,
@@ -153,6 +157,9 @@ class AggregatedCoinRate:
 
         provider_responses = []
         valid_rates = []
+        no_response_providers = []
+        invalid_providers = []
+        valid_providers = []
 
         for response, provider in zip(responses, providers):
             # Initialize a dictionary to hold response details
@@ -174,6 +181,7 @@ class AggregatedCoinRate:
                     "Error fetching data from provider %s: %s", provider, response
                 )
 
+                no_response_providers.append(provider.provider.name)
             elif isinstance(response, dict) and response.get("provider_id"):
                 # Process only if response is a dictionary and provider_id is present
                 provider_response.update(
@@ -189,18 +197,32 @@ class AggregatedCoinRate:
                 )
                 # Append the response to the list of provider responses
                 provider_responses.append(provider_response)
+                rate = response.get("rate")
+                if rate is not None and isinstance(rate, (int, float)) and rate > 0:
+                    valid_rates.append(rate)
+                    valid_providers.append(provider.provider.name)
+                else:
+                    invalid_providers.append(provider.provider.name)
             else:
                 logger.warning(
                     "Invalid response from provider %s: %s", provider, response
                 )
+                no_response_providers.append(provider.provider.name)
 
-            if (
-                not isinstance(response, Exception)
-                and response.get("rate") is not None
-                and isinstance(response.get("rate"), (int, float))
-                and response.get("rate") > 0
-            ):
-                valid_rates.append(response.get("rate"))
+        # Slack Alert system
+        minimum_data_sources = int(self.slack_alerts.get("minimum_data_sources", 2))
+        if len(valid_rates) <= minimum_data_sources:
+            valid_provider_names = valid_providers
+            no_response_provider_names = no_response_providers
+            invalid_data_provider_names = invalid_providers
+            alert_message = (
+                f"*Insufficient Data Sources*: Valid [{len(valid_rates)}], Minimum Required [{minimum_data_sources}], Total Configured [{len(responses)}]\n"
+                f"*Valid Data Sources*: {valid_provider_names if valid_provider_names else 'None'} ({len(valid_provider_names)})\n"
+                f"*No Response (exceptions)*: {no_response_provider_names if no_response_provider_names else 'None'} ({len(no_response_provider_names)})\n"
+                f"*Invalid Data Source*: {invalid_data_provider_names if invalid_data_provider_names else 'None'} ({len(invalid_data_provider_names)})\n"
+                f"*Feed ID*: {self.feed_id}\n"
+            )
+            self.send_slack_alert(alert_message)
 
         if not valid_rates:
             logger.critical("No data prices are available to estimate the median")
@@ -263,3 +285,17 @@ class AggregatedCoinRate:
             return base_rate, aggregation_id
 
         return base_rate, aggregation_id
+
+    def send_slack_alert(self, message: str):
+        slack_token = self.slack_alerts.get("token")
+        slack_channel = self.slack_alerts.get("channel")
+
+        if slack_token and slack_channel:
+            logger.critical(message)
+            slack_client = WebClient(token=slack_token)
+            try:
+                slack_client.chat_postMessage(channel=slack_channel, text=message)
+            except SlackApiError as e:
+                logger.error(f"Slack API error: {e.response['error']}")
+        else:
+            logger.warning("Slack alert configuration is missing or incomplete.")

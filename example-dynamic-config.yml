@@ -6,6 +6,10 @@ Updater:
 database:
   url: "postgresql+asyncpg://postgres:password@localhost:5432/node-operator"
 
+SlackAlerts:
+  token:
+  channel:
+  minimum_data_sources:
 
 ChainQuery:
   network: TESTNET
