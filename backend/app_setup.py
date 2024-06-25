@@ -5,7 +5,9 @@ import os
 from logging.config import dictConfig
 from typing import List, Optional, Tuple
 
+import ogmios
 from charli3_offchain_core import ChainQuery, Node
+from charli3_offchain_core.backend.kupo import KupoContext
 from pycardano import (
     Address,
     AssetName,
@@ -82,12 +84,25 @@ def setup_ogmios_context(config, network) -> Optional[OgmiosChainContext]:
     """Setup the Ogmios chain context based on the specified configuration."""
     ogmios_config = config.get("ogmios")
     if ogmios_config and "ws_url" in ogmios_config and ogmios_config["ws_url"]:
+        ogmios_ws_url = ogmios_config["ws_url"]
+        kupo_url = ogmios_config.get("kupo_url")
+        if ogmios_config.get("pogmios"):
+            _, ws_string = ogmios_ws_url.split("ws://")
+            ws_url, port = ws_string.split(":")
+            return ogmios.OgmiosChainContext(
+                host=ws_url, port=int(port), network=network
+            )
         return OgmiosChainContext(
-            network=network,
-            ws_url=ogmios_config["ws_url"],
-            kupo_url=ogmios_config.get("kupo_url", ""),
+            network=network, ws_url=ogmios_ws_url, kupo_url=kupo_url
         )
     return None
+
+
+def setup_kupo_context(config) -> Optional[KupoContext]:
+    """Setup the Kupo context based on ogmios configuration."""
+    ogmios_config = config.get("ogmios")
+    if ogmios_config and "kupo_url" in ogmios_config and ogmios_config["kupo_url"]:
+        return KupoContext(kupo_url=ogmios_config["kupo_url"])
 
 
 # Setup Chain Query
@@ -100,6 +115,7 @@ def setup_chain_query(config, network) -> Optional[ChainQuery]:
             blockfrost_context=setup_blockfrost_context(chain_query_config, network),
             ogmios_context=setup_ogmios_context(chain_query_config, network),
             oracle_address=node_config["oracle_address"],
+            kupo_context=setup_kupo_context(chain_query_config),
         )
     return None
 
@@ -140,6 +156,8 @@ async def setup_node_and_chain_query(config):
     """Setup the node based on the specified configuration."""
     node_config = config.get("Node")
     chain_query_config = config.get("ChainQuery")
+
+    network = Network.TESTNET
     if node_config:
         if chain_query_config["network"] == "TESTNET":
             network = Network.TESTNET

@@ -5,6 +5,7 @@ import time
 from typing import List, Optional
 
 from charli3_offchain_core import Node
+from charli3_offchain_core.backend import Api, ApiResponse
 
 from ..db.crud import (
     aggregated_rate_details_crud,
@@ -14,7 +15,6 @@ from ..db.crud import (
 )
 from ..db.database import get_session
 from ..db.models import Feed, NodeUpdate, Provider
-from .providers.api import Api, ApiResponse
 
 logger = logging.getLogger("node_sync_api")
 logging.Formatter.converter = time.gmtime

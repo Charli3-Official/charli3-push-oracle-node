@@ -4,10 +4,9 @@ import json
 
 import pytest
 import sure  # pylint: disable=unused-import
+from charli3_offchain_core.backend import Api
 from mocket import async_mocketize
 from mocket.plugins.httpretty import httpretty
-
-from backend.api import Api
 
 
 @pytest.mark.asyncio

@@ -10,6 +10,7 @@ from typing import List, Optional, Tuple
 
 from charli3_offchain_core import ChainQuery, Node
 from charli3_offchain_core.aggregate_conditions import check_oracle_settings
+from charli3_offchain_core.backend import UnsuccessfulResponse
 from charli3_offchain_core.datums import (
     AggDatum,
     NodeDatum,
@@ -29,7 +30,6 @@ from charli3_offchain_core.utils.exceptions import CollateralException
 from pycardano import Address
 
 from .api import AggregatedCoinRate, NodeSyncApi
-from .api.providers.api import UnsuccessfulResponse
 from .db.crud import (
     node_aggregation_crud,
     node_crud,

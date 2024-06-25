@@ -3,10 +3,10 @@
 import logging
 from typing import Any, Dict, Optional
 
+from charli3_offchain_core.backend import UnsuccessfulResponse
 from charli3_offchain_core.chain_query import ChainQuery
 from pycardano import AssetName, ScriptHash, UTxO
 
-from .api import UnsuccessfulResponse
 from .coinrate import CoinRate
 from .datums import VyFiBarFees
 

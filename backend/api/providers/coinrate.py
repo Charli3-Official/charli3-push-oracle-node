@@ -4,7 +4,7 @@ import logging
 import re
 from typing import Any, Dict, Optional, Tuple
 
-from .api import Api, ApiResponse
+from charli3_offchain_core.backend import Api, ApiResponse
 
 logger = logging.getLogger("CoinRate")
 

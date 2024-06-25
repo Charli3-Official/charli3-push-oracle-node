@@ -4,11 +4,10 @@ import logging
 from decimal import Decimal
 from typing import Dict, Optional, Tuple
 
+from charli3_offchain_core.backend import KupoContext, UnsuccessfulResponse
 from charli3_offchain_core.chain_query import ChainQuery
 from pycardano import AssetName, ScriptHash, UTxO
 
-from ..kupo import Kupo
-from .api import UnsuccessfulResponse
 from .coinrate import CoinRate
 
 logger = logging.getLogger(__name__)
@@ -88,10 +87,8 @@ class MinswapApi(CoinRate):
         try:
             logger.info("Getting Minswap %s-%s pool value", self.token_a, self.token_b)
 
-            self.kupo_url = chain_query.ogmios_context._kupo_url
-
             # Pool UTxO
-            pool = await self._get_and_validate_pool(self.pool_id)
+            pool = await self._get_and_validate_pool(self.pool_id, chain_query)
 
             # Get the correct symbols
             symbol = self._get_symbol(pool)
@@ -172,9 +169,9 @@ class MinswapApi(CoinRate):
                 str(e),
             )
 
-    async def _get_and_validate_pool(self, pool_id):
+    async def _get_and_validate_pool(self, pool_id, chain_query):
         """Get and validate pool utxo"""
-        pool = await self._get_pool_by_id(pool_id)
+        pool = await self._get_pool_by_id(pool_id, chain_query)
         if not self._check_valid_pool_output(pool):
             logger.error(
                 "Factory token not located in the pool, or multiple tokens detected"
@@ -294,7 +291,7 @@ class MinswapApi(CoinRate):
         """
         return Decimal(amount) / Decimal(10**decimal)
 
-    async def _get_pool_by_id(self, pool_id: str) -> UTxO:
+    async def _get_pool_by_id(self, pool_id: str, chain_query) -> UTxO:
         """Latest UTxO of a pool.
 
         This method searches for the latest Unspent Transaction Output (UTxO) for
@@ -310,7 +307,7 @@ class MinswapApi(CoinRate):
         # https://cardanosolutions.github.io/kupo/#section/Patterns
         # Polocy ID . AssetName
         nft = f"{self.pool_nft_policy_id}.{pool_id}"
-        pool_utxos = await Kupo(self.kupo_url).utxos_kupo(nft)
+        pool_utxos = await chain_query.kupo_context.utxos_kupo(nft)
 
         if not pool_utxos:
             return None

@@ -1,6 +1,5 @@
 """Api function, classes and dataclasses"""
 
-from .api import Api, UnsuccessfulResponse
 from .binance import BinanceApi
 from .charli3_api import Charli3Api
 from .coingecko import CoingeckoApi
