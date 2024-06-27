@@ -86,15 +86,9 @@ def setup_ogmios_context(config, network) -> Optional[OgmiosChainContext]:
     if ogmios_config and "ws_url" in ogmios_config and ogmios_config["ws_url"]:
         ogmios_ws_url = ogmios_config["ws_url"]
         kupo_url = ogmios_config.get("kupo_url")
-        if ogmios_config.get("pogmios"):
-            _, ws_string = ogmios_ws_url.split("ws://")
-            ws_url, port = ws_string.split(":")
-            return ogmios.OgmiosChainContext(
-                host=ws_url, port=int(port), network=network
-            )
-        return OgmiosChainContext(
-            network=network, ws_url=ogmios_ws_url, kupo_url=kupo_url
-        )
+        _, ws_string = ogmios_ws_url.split("ws://")
+        ws_url, port = ws_string.split(":")
+        return ogmios.OgmiosChainContext(host=ws_url, port=int(port), network=network)
     return None
 
 
