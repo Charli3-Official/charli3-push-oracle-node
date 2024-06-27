@@ -1,6 +1,8 @@
 # Charli3 Node Operator Backend
 This project provides a backend for Node Operators using the Charli3 Oracle. It is designed to fetch, aggregate and update price data for specified assets. The script can be configured with a custom config.yaml file and it utilizes the pycardano library for Cardano blockchain interactions.
 
+**Note**: The following demo was tested with Cardano-node v8.9.3, Ogmios v6.4.0, and Kupo v2.8.0. Older versions may not work properly.
+
 ## Getting Started
 ### Dependencies
 This project uses Poetry to manage dependencies. If you don't have Poetry installed, you can install it by following the instructions at [Poetry documentation](https://python-poetry.org/docs/) or enter [Nix](https://nixos.org/) shell with `nix develop`.
