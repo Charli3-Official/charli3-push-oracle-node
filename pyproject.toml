@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "backend"
-version = "2.8.2"
+version = "2.8.3"
 description = "Charli3 Node Operator Backend."
 authors = ["Deep Bhatt <deep.bhatt@charli3.io>"]
 license = "MIT"
@@ -13,7 +13,7 @@ pycardano = "0.10.0"
 aiohttp = "^3.8.4"
 python-json-logger = "^2.0.7"
 pycryptodome = "^3.18.0"
-charli3-offchain-core = {git = "https://***REMOVED***@github.com/Charli3-Official/charli3-offchain-core.git", rev = "v1.8.2"}
+charli3-offchain-core = {git = "https://***REMOVED***@github.com/Charli3-Official/charli3-offchain-core.git", rev = "v1.8.3"}
 types-pyyaml = "^6.0.12.12"
 sqlmodel = "^0.0.16"
 asyncpg = "^0.29.0"
