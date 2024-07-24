@@ -241,7 +241,11 @@ class MinswapApi(CoinRate):
         Returns:
             The associated asset's amount, default 0
         """
-        token_asset_name = AssetName(token_name.encode())
+        if self._is_hexadecimal(token_name):
+            token_asset_name = AssetName(bytes.fromhex(token_name))
+        else:
+            token_asset_name = AssetName(token_name.encode())
+
         total_amount = 0
         for _, assets in pool_utxo.output.amount.multi_asset.items():
             token_amount = assets.get(token_asset_name)
@@ -333,7 +337,10 @@ class MinswapApi(CoinRate):
         asset_a = None
         asset_b = None
         if self.token_a == "ADA":
-            token_name_b = AssetName(self.token_b.encode())
+            if self._is_hexadecimal(self.token_b):
+                token_name_b = AssetName(bytes.fromhex(self.token_b))
+            else:
+                token_name_b = AssetName(self.token_b.encode())
 
             # Since ADA is not part of multi_asset, only check for token_b
             for _, assets in pool.output.amount.multi_asset.items():
@@ -342,8 +349,14 @@ class MinswapApi(CoinRate):
                     asset_a = "ADA"
                     break
         else:
-            token_name_a = AssetName(self.token_a.encode())
-            token_name_b = AssetName(self.token_b.encode())
+            if self._is_hexadecimal(self.token_a) and self._is_hexadecimal(
+                self.token_b
+            ):
+                token_name_a = AssetName(bytes.fromhex(self.token_a))
+                token_name_b = AssetName(bytes.fromhex(self.token_b))
+            else:
+                token_name_a = AssetName(self.token_a.encode())
+                token_name_b = AssetName(self.token_b.encode())
 
             for _, assets in pool.output.amount.multi_asset.items():
                 if token_name_a in assets:
