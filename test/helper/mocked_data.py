@@ -97,7 +97,8 @@ MOCKED_SCRIPT_HASH = ScriptHash.from_primitive(
 )
 
 MOCKED_API_URL = "http://localhost:9083/api"
-MOCKED_OGMIOS_URL = "ws://localhost:1337 "
+MOCKED_OGMIOS_URL = "ws://localhost:1337"
+MOCKED_KUPO_URL = "http://localhost:1447"
 
 MOCKED_BLOCKFROST_CONTEXT = (
     "preprodjxcUodunMUMtjBqnyQ0bLMnREkXHa6CN",

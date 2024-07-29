@@ -31,6 +31,8 @@ from backend.db.models.provider import Provider
 from backend.logfiles.logging_config import LEVEL_COLORS, get_log_config
 from backend.runner import FeedUpdater
 
+logger = logging.getLogger(__name__)
+
 
 # Setup Logging
 def setup_logging(config):
@@ -104,12 +106,15 @@ def setup_chain_query(config, network) -> Optional[ChainQuery]:
     """Setup the chain query based on the specified configuration."""
     chain_query_config = config.get("ChainQuery")
     node_config = config.get("Node")
+    is_local_testnet = chain_query_config.get("is_local_testnet", False)
+    logger.debug(f"Is operating in local testnet mode: {is_local_testnet}")
     if chain_query_config:
         return ChainQuery(
             blockfrost_context=setup_blockfrost_context(chain_query_config, network),
             ogmios_context=setup_ogmios_context(chain_query_config, network),
             oracle_address=node_config["oracle_address"],
             kupo_context=setup_kupo_context(chain_query_config),
+            is_local_testnet=is_local_testnet,
         )
     return None
 
