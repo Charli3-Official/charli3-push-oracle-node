@@ -291,7 +291,10 @@ class VyFiApi(CoinRate):
         self, pool_utxo: UTxO, token_name: str, token_script_hash: ScriptHash
     ):
         """Retrieve the token amount associated with a specified asset name and script hash"""
-        token_asset_name = AssetName(token_name.encode())
+        if self._is_hexadecimal(token_name):
+            token_asset_name = AssetName(bytes.fromhex(token_name))
+        else:
+            token_asset_name = AssetName(token_name.encode())
         return pool_utxo.output.amount.multi_asset[token_script_hash].get(
             token_asset_name, 0
         )

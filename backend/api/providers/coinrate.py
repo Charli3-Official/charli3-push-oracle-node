@@ -103,3 +103,10 @@ class CoinRate(Api):
             "rate": rate,
             "rate_type": rate_type,
         }
+
+    def _is_hexadecimal(self, hash_input: str):
+        try:
+            int(hash_input, 16)
+            return True
+        except ValueError:
+            return False
