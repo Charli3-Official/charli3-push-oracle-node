@@ -13,9 +13,9 @@ SlackAlerts:
 
 ChainQuery:
   network: TESTNET
+  is_local_testnet: False
   ogmios:
     ws_url: ws://35.222.137.225:1337
     kupo_url: http://35.222.137.225:1442
-    pyogmios: # False
 
 mnemonic_ada_charli3: "your mnemonic here"

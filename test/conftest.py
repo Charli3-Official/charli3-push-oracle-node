@@ -1,7 +1,9 @@
 """Pytest fixtures for tests"""
 
+import time
 from test.helper.mocked_data import (
     GENESIS_RESULT,
+    MOCKED_KUPO_URL,
     MOCKED_OGMIOS_URL,
     MOCKED_ORACLE_ADDRESS,
     PROTOCOL_RESULT,
@@ -10,6 +12,7 @@ from test.helper.mocked_data import (
 
 import pytest
 from charli3_offchain_core import ChainQuery
+from charli3_offchain_core.backend.kupo import KupoContext
 from pycardano import Network, OgmiosChainContext
 
 
@@ -33,12 +36,30 @@ def ogmios_context(monkeypatch):
 
 
 @pytest.fixture
-async def get_chain_query(monkeypatch, ogmios_context):
+def kupo_context():
+    """Kupo context fixture"""
+    context = KupoContext(MOCKED_KUPO_URL)
+    return context
+
+
+@pytest.fixture
+async def get_chain_query(monkeypatch, ogmios_context, kupo_context):
     """ChainQuery fixture with mocked methods"""
+
+    async def get_empty_metadata(self, tx_id, slot):
+        return None
+
+    def get_current_posix_chain_time_ms(self) -> int:
+        return round(time.time_ns() * 1e-6)
+
     monkeypatch.setattr(ChainQuery, "get_utxos", get_mocked_utxos)
-    chain_query_context = (
-        None,
-        ogmios_context,
-        MOCKED_ORACLE_ADDRESS,
+    monkeypatch.setattr(ChainQuery, "get_metadata_cbor", get_empty_metadata)
+    monkeypatch.setattr(
+        ChainQuery, "get_current_posix_chain_time_ms", get_current_posix_chain_time_ms
     )
-    return ChainQuery(*chain_query_context)
+    return ChainQuery(
+        blockfrost_context=None,
+        ogmios_context=ogmios_context,
+        oracle_address=MOCKED_ORACLE_ADDRESS,
+        kupo_context=kupo_context,
+    )

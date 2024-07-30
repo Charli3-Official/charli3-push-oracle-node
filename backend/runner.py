@@ -369,10 +369,10 @@ class FeedUpdater:
             last_time, self.agg_datum.aggstate.ag_settings.os_aggregate_time
         )
 
-    def _is_expired(self, last_time, valid_time):
-        time_ms = time.time_ns() * 1e-6
-        timediff = int(time_ms - last_time)
-        res = timediff > valid_time
+    def _is_expired(self, last_time: int, valid_timediff: int):
+        time_ms = self.node.chain_query.get_current_posix_chain_time_ms()
+        timediff = time_ms - last_time
+        res = timediff > valid_timediff
         logger.info(
             "%s: %s by %s ms", inspect.stack()[1].function, str(res), str(timediff)
         )
@@ -390,7 +390,7 @@ class FeedUpdater:
         """check total nodes updated after last Aggregation"""
         updated = len(nodes_datum)
         ofeed = oracle_datum.price_data
-        time_ms = time.time_ns() * 1e-6
+        time_ms = self.node.chain_query.get_current_posix_chain_time_ms()
         if ofeed:
             for dat in nodes_datum:
                 if dat.node_state.ns_feed == Nothing():
@@ -438,8 +438,13 @@ class FeedUpdater:
         # If none of the conditions are met, return False and an empty reason.
         return False, ""
 
-    def should_update(self, own_feed: PriceFeed, new_rate: int) -> Tuple[bool, str]:
+    def should_update(
+        self, own_feed: PriceFeed | Nothing, new_rate: int
+    ) -> Tuple[bool, str]:
         """Determines if the node should update its feed."""
+
+        if own_feed == Nothing():
+            return True, "Feed_Initialization"
         if self.check_rate_change(new_rate, own_feed.df.df_value):
             return True, "Rate_Change"
         elif self.node_is_expired(own_feed.df.df_last_update):
@@ -470,7 +475,11 @@ class FeedUpdater:
             should_update, update_reason = self.should_update(own_feed, new_rate)
 
             if should_update:
-                tx_status, tx = await self.node.update(new_rate)
+                update_result = await self.node.update(new_rate)
+                if update_result is None:
+                    logger.warning("Was unable to update node feed")
+                    return False
+                tx_status, tx = update_result
                 tx_model = TransactionCreate(
                     node_id=self.node.id,
                     feed_id=self.feed_id,
@@ -503,13 +512,17 @@ class FeedUpdater:
                         db_session=db_session, obj_in=node_update
                     )
             elif (nodes_updated + 1 >= req_nodes) and can_aggregate:
+                aggregate_result = await self.node.aggregate()
+                if aggregate_result is None:
+                    logger.warning("Was unable to aggregate oracle feed")
+                    return should_update
                 (
                     agg_value,
                     valid_nodes,
                     output_reward_datum,
                     tx_status,
                     tx,
-                ) = await self.node.aggregate()
+                ) = aggregate_result
 
                 agg_model = NodeAggregationCreate(
                     node_pkh=str(self.node.pub_key_hash),
