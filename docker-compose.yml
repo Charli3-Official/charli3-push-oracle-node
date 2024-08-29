@@ -5,8 +5,11 @@ services:
     volumes:
       - "./config.yml:/app/config.yml"
     restart: always
+    depends_on:
+      charli3-migrations:
+        condition: service_completed_successfully
 
-  postgres:
+  charli3-node-operator-db:
     image: postgres:latest
     environment:
       POSTGRES_USER: postgres
@@ -17,3 +20,17 @@ services:
     ports:
       - "5432:5432"
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  charli3-migrations:
+    image: charli3-backend:latest
+    volumes:
+      - "./config.yml:/app/config.yml"
+    command: ["python3", "migrations.py"]
+    depends_on:
+      charli3-node-operator-db:
+        condition: service_healthy

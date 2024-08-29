@@ -34,6 +34,10 @@ def is_database_configured():
     return DATABASE_URL is not None
 
 
+def get_database_url():
+    """Get the database URL if configured."""
+    return DATABASE_URL
+
 # Conditional engine creation based on DATABASE_URL presence
 if is_database_configured():
     engine = create_async_engine(DATABASE_URL)

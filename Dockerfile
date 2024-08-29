@@ -16,10 +16,6 @@ COPY alembic/ /app/alembic/
 
 COPY backend/ /app/backend/
 COPY main.py /app/
+COPY migrations.py /app/
 
-# Copy the entrypoint script
-COPY entrypoint.sh /app/entrypoint.sh
-
-# Set the script as the entrypoint
-ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["python3", "main.py"]
