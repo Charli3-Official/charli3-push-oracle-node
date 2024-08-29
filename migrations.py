@@ -1,8 +1,9 @@
 """ This script is used to run database migrations."""
 
 import logging
-from alembic.config import Config
+
 from alembic import command
+from alembic.config import Config
 from backend.db.database import get_database_url
 
 logging.basicConfig(level=logging.INFO)
