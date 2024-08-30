@@ -370,7 +370,7 @@ class FeedUpdater:
         )
 
     def _is_expired(self, last_time: int, valid_timediff: int):
-        time_ms = self.node.chain_query.get_current_posix_chain_time_ms()
+        time_ms = time.time_ns() * 1e-6
         timediff = time_ms - last_time
         res = timediff > valid_timediff
         logger.info(
@@ -390,7 +390,7 @@ class FeedUpdater:
         """check total nodes updated after last Aggregation"""
         updated = len(nodes_datum)
         ofeed = oracle_datum.price_data
-        time_ms = self.node.chain_query.get_current_posix_chain_time_ms()
+        time_ms = time.time_ns() * 1e-6
         if ofeed:
             for dat in nodes_datum:
                 if dat.node_state.ns_feed == Nothing():
