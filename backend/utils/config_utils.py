@@ -1,5 +1,6 @@
 """Utility functions for configuration handling."""
 
+import os
 import re
 from typing import Dict
 
@@ -69,3 +70,20 @@ def resolve_placeholder(value, dynamic_values):
             placeholder, value
         )  # Return the value if found, else the original string
     return value
+
+
+def load_env_vars(name: str, config: dict):
+    """
+    Load environment variables based on the keys in the given config section.
+
+    Args:
+        name (str): The key in the config dictionary for which the environment variables will be set.
+        config (Dict): The configuration dictionary.
+    """
+    if name not in config:
+        raise ValueError(f"Key '{name}' not found in the configuration")
+
+    section_config = config[name]
+    for key, value in section_config.items():
+        env_key = key.upper()
+        os.environ[env_key] = str(value)

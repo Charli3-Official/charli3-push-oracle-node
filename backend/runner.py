@@ -29,7 +29,9 @@ from charli3_offchain_core.oracle_checks import (
 from charli3_offchain_core.utils.exceptions import CollateralException
 from pycardano import Address
 
-from .api import AggregatedCoinRate, NodeSyncApi
+from backend.api.aggregated_coin_rate import AggregatedCoinRate
+
+from .api import NodeSyncApi
 from .db.crud import (
     node_aggregation_crud,
     node_crud,
@@ -40,7 +42,6 @@ from .db.database import get_session
 from .db.models import NodeAggregationCreate, NodeUpdateCreate, TransactionCreate
 from .db.service import (
     process_and_store_nodes_data,
-    store_job,
     store_node_aggregation_participation,
     store_operational_error,
     store_reward_distribution,
@@ -121,7 +122,7 @@ class FeedUpdater:
 
                 self.agg_datum = aggstate_utxo.output.datum
                 self.reward_datum = reward_utxo.output.datum
-                oracle_datum: OracleDatum = oraclefeed_utxo.output.datum
+                self.oracle_datum: OracleDatum = oraclefeed_utxo.output.datum
                 nodes_datum: List[NodeDatum] = [
                     node.output.datum for node in nodes_utxos
                 ]
@@ -131,17 +132,8 @@ class FeedUpdater:
                     nodes_datum, self.node.node_operator
                 )
 
-                # Remove all uninitialized nodes
-
-                valid_nodes_datum = list(
-                    filter(lambda x: x.node_state.ns_feed != Nothing(), nodes_datum)
-                )
-
                 # Prepare the rest of the variables for the checks
-
-                nodes_updated = self.total_nodes_updated(
-                    valid_nodes_datum, oracle_datum
-                )
+                nodes_updated = self.total_nodes_updated(nodes_datum, self.oracle_datum)
                 req_nodes = self.agg_datum.aggstate.ag_settings.required_nodes_num()
                 fees = self.agg_datum.aggstate.ag_settings.os_node_fee_price
                 get_paid = check_utxo_asset_balance(
@@ -166,7 +158,7 @@ class FeedUpdater:
                     },
                 )
                 logger.info(
-                    "Nodes updated: %s from %s",
+                    "Nodes updated: %s, Required minimum: %s",
                     str(nodes_updated),
                     str(req_nodes),
                     extra={
@@ -176,14 +168,13 @@ class FeedUpdater:
                     },
                 )
 
-                # Update or Aggregate
+                # Aggregate, Update or Collect
                 called = await self.feed_operate(
                     nodes_updated,
                     req_nodes,
                     final_rate,
                     get_paid,
                     node_own_datum.node_state.ns_feed,
-                    oracle_datum.price_data,
                     aggregated_rate_id,
                 )
 
@@ -253,8 +244,10 @@ class FeedUpdater:
             await self.node.collect(
                 Address.from_primitive(self.reward_destination_address)
             )
+            return True
         except ValueError as exc:
             logger.error(repr(exc))
+            return False
 
     async def initialize_feed(self):
         """Check that our feed is initialized and do if its not"""
@@ -363,6 +356,21 @@ class FeedUpdater:
             last_time, self.agg_datum.aggstate.ag_settings.os_updated_node_time
         )
 
+    def node_consumed_on_last_aggregation(
+        self, node_updated_time: int, ofeed_updated_time: PriceData | None
+    ) -> bool:
+        """
+        Check if the oracle feed is newer than the node's updated time.
+        This means the node has already consumed, and it should report a new value.
+
+        Returns:
+            If the feed is not initialized, the nodes should proceed;
+            otherwise, validation is performed.
+        """
+        if ofeed_updated_time is None:
+            return True
+        return node_updated_time <= ofeed_updated_time.get_timestamp()
+
     def agg_is_expired(self, last_time: int) -> bool:
         """check time change condition for the aggregation"""
         return self._is_expired(
@@ -370,13 +378,80 @@ class FeedUpdater:
         )
 
     def _is_expired(self, last_time: int, valid_timediff: int):
-        time_ms = time.time_ns() * 1e-6
+        time_ms = self.node.chain_query.get_current_posix_chain_time_ms()
         timediff = time_ms - last_time
         res = timediff > valid_timediff
         logger.info(
             "%s: %s by %s ms", inspect.stack()[1].function, str(res), str(timediff)
         )
         return res
+
+    async def perform_update(
+        self, rate_from_sources: int, update_reason: str, aggregated_rate_id: str | None
+    ) -> bool:
+        """
+        Perform the node update and handle the result.
+
+        Args:
+            rate_from_sources (int): The rate obtained from the data sources.
+            update_reason (str): The reason or condition triggering the update.
+
+        Returns:
+            bool: True if the update was successful, False otherwise.
+        """
+        try:
+            # Perform the update
+            update_result = await self.node.update(rate_from_sources)
+
+            if update_result is None:
+                self._log_update_failure()
+                return False
+
+            # Save the update and associated transaction details
+            await self._save_node_update_and_transaction(
+                update_result, aggregated_rate_id, rate_from_sources, update_reason
+            )
+
+            return True
+
+        except Exception as e:
+            logger.error("Update failed: %s", str(e))
+            return False
+
+    async def perform_aggregation(
+        self, nodes_updated: int, aggregate_reason: str
+    ) -> bool:
+        """
+        Perform the aggregation operation and save the results.
+
+        Args:
+            nodes_updated (int): The number of updated nodes involved in the aggregation.
+            aggregate_reason (str): The reason or condition triggering the aggregation.
+
+        Returns:
+            bool: True if the aggregation was successful, False otherwise.
+        """
+        try:
+            # Perform the aggregation
+            aggregate_response = await self.node.aggregate()
+
+            if aggregate_response is None:
+                self._log_aggregation_failure()
+                return False
+
+            # Save the aggregation and associated transaction details
+            await self._save_aggregation_and_transaction(
+                nodes_updated, aggregate_response, aggregate_reason
+            )
+
+            # Update the oracle feed information
+            self.update_oracle_feed_information()
+
+            # Aggregation was successful
+            return True
+        except Exception as e:
+            logger.error("Aggregation failed: %s", str(e))
+            return False
 
     def timestamp_to_asc(self, timest):
         """transform timestamp on logger readable format"""
@@ -387,30 +462,55 @@ class FeedUpdater:
     def total_nodes_updated(
         self, nodes_datum: list[NodeDatum], oracle_datum: OracleDatum
     ) -> int:
-        """check total nodes updated after last Aggregation"""
-        updated = len(nodes_datum)
-        ofeed = oracle_datum.price_data
-        time_ms = time.time_ns() * 1e-6
-        if ofeed:
-            for dat in nodes_datum:
-                if dat.node_state.ns_feed == Nothing():
-                    updated -= 1
-                else:
-                    timediff = (
-                        dat.node_state.ns_feed.df.df_last_update - ofeed.get_timestamp()
-                    )
-                    delta_update = time_ms - dat.node_state.ns_feed.df.df_last_update
+        """Check total nodes updated after last Aggregation"""
 
-                    if not (
-                        0 < timediff
-                        and delta_update
-                        < self.agg_datum.aggstate.ag_settings.os_updated_node_time
-                    ):
-                        updated -= 1
-        return updated
+        # Remove all uninitialized nodes
+        initialized_nodes_datum = list(
+            filter(lambda x: x.node_state.ns_feed != Nothing(), nodes_datum)
+        )
 
-    def _can_aggregate(
-        self, new_rate: int, oracle_feed: PriceData | None
+        total_updated = len(initialized_nodes_datum)
+
+        if not oracle_datum.price_data:
+            return total_updated
+
+        oracle_feed_generation_time = oracle_datum.price_data.get_timestamp()
+        current_time_ms = self.node.chain_query.get_current_posix_chain_time_ms()
+
+        for node_datum in initialized_nodes_datum:
+            last_update_time = node_datum.node_state.ns_feed.df.df_last_update
+            time_since_feed_generation = last_update_time - oracle_feed_generation_time
+            time_since_last_update = current_time_ms - last_update_time
+
+            if (
+                0 > time_since_feed_generation
+                or time_since_last_update
+                > self.agg_datum.aggstate.ag_settings.os_updated_node_time
+            ):
+                total_updated -= 1
+
+        return total_updated
+
+    def _log_aggregation_failure(self):
+        logger.warning("Failed to aggregate oracle feed despite contract conditions")
+
+    def _log_update_failure(self):
+        logger.warning("Failed to update node despite contract conditions")
+
+    def update_oracle_feed_information(self):
+        """Query the updated oracle feed UTXOs after successful aggregation"""
+        updated_oraclefeed_utxo, *_ = get_oracle_utxos_with_datums(
+            self.context.get_utxos(),
+            self.node.aggstate_nft,
+            self.node.oracle_nft,
+            self.node.reward_nft,
+            self.node.node_nft,
+        )
+        # Update the oracle feed information
+        self.oracle_datum: OracleDatum = updated_oraclefeed_utxo.output.datum
+
+    def _should_aggregate_conditions(
+        self, new_rate: int, oracle_feed: PriceData | None, sufficient_rewards: bool
     ) -> Tuple[bool, str]:
         """
         Determines if the node can aggregate based on the oracle feed and rate change.
@@ -419,157 +519,183 @@ class FeedUpdater:
             A tuple containing a boolean indicating if aggregation can occur and
             a string indicating the trigger reason ('time_expiry', 'rate_change', or '').
         """
+        if not sufficient_rewards:
+            return False, "Insufficient_Rewards"
+
         if not oracle_feed:
-            # If there's no oracle feed, aggregation can proceed because
-            # the feed is being initialized.
             return True, "Initial_Feed_Value"
 
-        current_price = oracle_feed.get_price()
-        timestamp = oracle_feed.get_timestamp()
-
-        # Check for rate change
-        if self.check_rate_change(new_rate, current_price):
+        if self.check_rate_change(new_rate, oracle_feed.get_price()):
             return True, "Rate_Change"
 
-        # Check for time expiry
-        if self.agg_is_expired(timestamp):
+        if self.agg_is_expired(oracle_feed.get_timestamp()):
             return True, "Time_Expiry"
 
-        # If none of the conditions are met, return False and an empty reason.
-        return False, ""
+        return False, "Conditions not met for aggregation"
 
-    def should_update(
-        self, own_feed: PriceFeed | Nothing, new_rate: int
+    def _should_update_conditions(
+        self,
+        own_feed: PriceFeed | Nothing,
+        new_rate: int,
+        oracle_feed: PriceData | None,
+        sufficient_rewards: bool,
     ) -> Tuple[bool, str]:
         """Determines if the node should update its feed."""
 
+        if not sufficient_rewards:
+            return False, "Insuficcient_rewards"
+
         if own_feed == Nothing():
             return True, "Feed_Initialization"
+
         if self.check_rate_change(new_rate, own_feed.df.df_value):
             return True, "Rate_Change"
-        elif self.node_is_expired(own_feed.df.df_last_update):
+
+        if self.node_is_expired(own_feed.df.df_last_update):
             return True, "Time_Expiry"
-        return False, "None"
+
+        if self.node_consumed_on_last_aggregation(
+            own_feed.df.df_last_update, oracle_feed
+        ):
+            return True, "Feed time surpasses node time"
+        return False, "Conditions not met for node-update"
+
+    async def _save_node_update_and_transaction(
+        self,
+        update_result,
+        aggregated_rate_id,
+        new_rate,
+        update_reason,
+    ):
+        tx_status, tx = update_result
+        tx_model = TransactionCreate(
+            node_id=self.node.id,
+            feed_id=self.feed_id,
+            timestamp=datetime.now(),
+            status=tx_status,
+            tx_hash=str(tx.id),
+            tx_fee=tx.transaction_body.fee,
+            tx_body=str(tx.transaction_body),
+        )
+
+        node_update = NodeUpdateCreate(
+            node_id=self.node.id,
+            feed_id=self.feed_id,
+            timestamp=datetime.now(),
+            status=tx_status,
+            updated_value=new_rate,
+            rate_aggregation_id=aggregated_rate_id,
+            tx_hash=str(tx.id),
+            trigger=update_reason,
+        )
+
+        if self.node_sync_api and node_update:
+            await self.node_sync_api.report_update(node_update)
+
+        async with get_session() as db_session:
+            await transaction_crud.create(db_session=db_session, obj_in=tx_model)
+            await node_update_crud.create(db_session=db_session, obj_in=node_update)
+
+    async def _save_aggregation_and_transaction(
+        self, nodes_updated, aggregate_result, agg_reason
+    ):
+        (
+            agg_value,
+            valid_nodes,
+            output_reward_datum,
+            tx_status,
+            tx,
+        ) = aggregate_result
+
+        agg_model = NodeAggregationCreate(
+            node_pkh=str(self.node.pub_key_hash),
+            feed_id=self.feed_id,
+            timestamp=datetime.now(),
+            status=tx_status,
+            aggregated_value=agg_value,
+            nodes_count=nodes_updated,
+            tx_hash=str(tx.id),
+            trigger=agg_reason,
+        )
+
+        tx_model = TransactionCreate(
+            node_id=self.node.id,
+            feed_id=self.feed_id,
+            timestamp=datetime.now(),
+            status=tx_status,
+            tx_hash=str(tx.id),
+            tx_fee=tx.transaction_body.fee,
+            tx_body=str(tx.transaction_body),
+        )
+
+        async with get_session() as db_session:
+            await transaction_crud.create(db_session=db_session, obj_in=tx_model)
+            node_agg = await node_aggregation_crud.create(
+                db_session=db_session, obj_in=agg_model
+            )
+            await store_node_aggregation_participation(
+                db_session,
+                node_agg.id,
+                valid_nodes,
+            )
+            await store_reward_distribution(
+                db_session,
+                node_agg.id,
+                self.reward_datum,
+                output_reward_datum,
+            )
 
     async def feed_operate(
         self,
         nodes_updated: int,
-        req_nodes: int,
-        new_rate: int,
-        get_paid: bool,
+        minimum_required_nodes: int,
+        rate_from_sources: int,
+        sufficient_rewards: bool,
         own_feed: PriceFeed,
-        oracle_feed: PriceData | None,
         aggregated_rate_id: Optional[str] = None,
     ) -> bool:
-        """Main logic of the runnner"""
-        try:
-            can_aggregate, agg_reason = self._can_aggregate(new_rate, oracle_feed)
+        """
+        Primary logic for determining aggregate, update, and collect transactions.
 
-            if not get_paid:
-                logger.warning(
-                    "Not enough funds available at the contract to pay rewards."
-                )
-                return False
+        Args:
+            nodes_updated (int): Number of nodes updated.
+            minimum_required_nodes (int): Minimum number of nodes required for aggregation.
+            rate_from_sources (int): The rate obtained from the sources.
+            sufficient_rewards (bool): Whether there are sufficient rewards.
+            own_feed (PriceFeed): The current feed data of the node.
+            aggregated_rate_id (Optional[str]): ID of the aggregated rate, if any.
+
+        Returns:
+            bool: True if an operation was performed, False otherwise.
+        """
+        try:
+            # Determine if aggregation should proceed based on conditions
+            should_aggregate, aggregate_reason = self._should_aggregate_conditions(
+                rate_from_sources, self.oracle_datum.price_data, sufficient_rewards
+            )
 
             # Determines if the node should update its feed
-            should_update, update_reason = self.should_update(own_feed, new_rate)
-
+            should_update, update_reason = self._should_update_conditions(
+                own_feed,
+                rate_from_sources,
+                self.oracle_datum.price_data,
+                sufficient_rewards,
+            )
             if should_update:
-                update_result = await self.node.update(new_rate)
-                if update_result is None:
-                    logger.warning("Was unable to update node feed")
-                    return False
-                tx_status, tx = update_result
-                tx_model = TransactionCreate(
-                    node_id=self.node.id,
-                    feed_id=self.feed_id,
-                    timestamp=datetime.now(),
-                    status=tx_status,
-                    tx_hash=str(tx.id),
-                    tx_fee=tx.transaction_body.fee,
-                    tx_body=str(tx.transaction_body),
+                return await self.perform_update(
+                    rate_from_sources, update_reason, aggregated_rate_id
                 )
 
-                node_update = NodeUpdateCreate(
-                    node_id=self.node.id,
-                    feed_id=self.feed_id,
-                    timestamp=datetime.now(),
-                    status=tx_status,
-                    updated_value=new_rate,
-                    rate_aggregation_id=aggregated_rate_id,
-                    tx_hash=str(tx.id),
-                    trigger=update_reason,
-                )
+            # Check if enough nodes have been updated to allow aggregation
+            if nodes_updated >= minimum_required_nodes and should_aggregate:
+                if await self.perform_aggregation(nodes_updated, aggregate_reason):
+                    return True  # Aggregation performed
 
-                if self.node_sync_api and node_update:
-                    await self.node_sync_api.report_update(node_update)
+            if self._required_collect_arguments() and self._is_collect_needed():
+                if await self._withdraw_rewards():
+                    return True  # Collected withdraws
 
-                async with get_session() as db_session:
-                    await transaction_crud.create(
-                        db_session=db_session, obj_in=tx_model
-                    )
-                    await node_update_crud.create(
-                        db_session=db_session, obj_in=node_update
-                    )
-            elif (nodes_updated + 1 >= req_nodes) and can_aggregate:
-                aggregate_result = await self.node.aggregate()
-                if aggregate_result is None:
-                    logger.warning("Was unable to aggregate oracle feed")
-                    return should_update
-                (
-                    agg_value,
-                    valid_nodes,
-                    output_reward_datum,
-                    tx_status,
-                    tx,
-                ) = aggregate_result
-
-                agg_model = NodeAggregationCreate(
-                    node_pkh=str(self.node.pub_key_hash),
-                    feed_id=self.feed_id,
-                    timestamp=datetime.now(),
-                    status=tx_status,
-                    aggregated_value=agg_value,
-                    nodes_count=nodes_updated,
-                    tx_hash=str(tx.id),
-                    trigger=agg_reason,
-                )
-
-                tx_model = TransactionCreate(
-                    node_id=self.node.id,
-                    feed_id=self.feed_id,
-                    timestamp=datetime.now(),
-                    status=tx_status,
-                    tx_hash=str(tx.id),
-                    tx_fee=tx.transaction_body.fee,
-                    tx_body=str(tx.transaction_body),
-                )
-
-                async with get_session() as db_session:
-                    await transaction_crud.create(
-                        db_session=db_session, obj_in=tx_model
-                    )
-                    node_agg = await node_aggregation_crud.create(
-                        db_session=db_session, obj_in=agg_model
-                    )
-                    await store_node_aggregation_participation(
-                        db_session,
-                        node_agg.id,
-                        valid_nodes,
-                    )
-                    await store_reward_distribution(
-                        db_session,
-                        node_agg.id,
-                        self.reward_datum,
-                        output_reward_datum,
-                    )
-
-            elif self._required_collect_arguments() and self._is_collect_needed():
-                await self._withdraw_rewards()
-            else:
-                return False
-            return True
-
+            return False  # No operation performed
         except Exception as e:
             logger.error("Operation failed %s", str(e))
             return False

@@ -28,6 +28,13 @@ jobs:
       run: |
         poetry install
     - name: Test with pytest
+      env:
+        DBSYNC_HOST: ${{ secrets.DBSYNC_HOST }}
+        DBSYNC_PORT: ${{ secrets.DBSYNC_PORT }}
+        DBSYNC_DB_NAME: ${{ secrets.DBSYNC_DB_NAME }}
+        DBSYNC_USER: ${{ secrets.DBSYNC_USER }}
+        DBSYNC_PASS: ${{ secrets.DBSYNC_PASS }}
+        AXO_API_KEY: ${{ secrets.AXO_API_KEY }}
       run: |
         poetry run pytest
     - name: Send job status to Slack workflow

@@ -13,9 +13,16 @@ SlackAlerts:
 
 ChainQuery:
   network: TESTNET
-  is_local_testnet: False
+  use_slot_time: false
   ogmios:
     ws_url: ws://35.222.137.225:1337
     kupo_url: http://35.222.137.225:1442
+
+  external:
+    ogmios:
+      ws_url: ws:// #MAINNET
+      kupo_url: http:// #MAINNET
+    blockfrost:
+      project_id: "mainnet....."
 
 mnemonic_ada_charli3: "your mnemonic here"

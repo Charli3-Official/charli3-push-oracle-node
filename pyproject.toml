@@ -9,18 +9,18 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.10"
 PyYAML = "^6.0"
-pycardano = "0.11.1"
+pycardano = { git = "https://github.com/Charli3-Official/pycardano.git", branch = "chang"}
 aiohttp = "^3.8.4"
 python-json-logger = "^2.0.7"
 pycryptodome = "^3.18.0"
-charli3-offchain-core = {git = "https://***REMOVED***@github.com/Charli3-Official/charli3-offchain-core.git", rev = "v1.8.5"}
+charli3-offchain-core = {git = "https://***REMOVED***@github.com/Charli3-Official/charli3-offchain-core.git", rev = "v1.8.6"}
 types-pyyaml = "^6.0.12.12"
 sqlmodel = "^0.0.16"
 asyncpg = "^0.29.0"
 alembic = "^1.13.1"
 cachetools = "^5.3.3"
 slack-sdk = "^3.27.2"
-ogmios = "^1.0.6"
+charli3-dendrite = {git = "https://github.com/Charli3-Official/charli3-dendrite.git", branch = "feat/pycardano-chang"}
 
 [tool.poetry.group.dev.dependencies]
 mocket = "^3.11.0"

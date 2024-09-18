@@ -5,18 +5,19 @@ import os
 from logging.config import dictConfig
 from typing import List, Optional, Tuple
 
-import ogmios
+from charli3_dendrite.backend import set_backend
+from charli3_dendrite.backend.blockfrost import BlockFrostBackend
+from charli3_dendrite.backend.ogmios_kupo import OgmiosKupoBackend
 from charli3_offchain_core import ChainQuery, Node
-from charli3_offchain_core.backend.kupo import KupoContext
 from pycardano import (
     Address,
     AssetName,
     BlockFrostChainContext,
     ExtendedSigningKey,
     HDWallet,
+    KupoOgmiosV6ChainContext,
     MultiAsset,
     Network,
-    OgmiosChainContext,
     PaymentSigningKey,
     PaymentVerificationKey,
     ScriptHash,
@@ -24,9 +25,11 @@ from pycardano import (
     TransactionInput,
 )
 
-from backend.api import AggregatedCoinRate, NodeSyncApi
+from backend.api import NodeSyncApi
+from backend.api.aggregated_coin_rate import AggregatedCoinRate
 from backend.db.crud.feed_crud import feed_crud
 from backend.db.database import get_session
+from backend.db.models.feed import Feed
 from backend.db.models.provider import Provider
 from backend.logfiles.logging_config import LEVEL_COLORS, get_log_config
 from backend.runner import FeedUpdater
@@ -82,7 +85,7 @@ def setup_blockfrost_context(config, network) -> Optional[BlockFrostChainContext
 
 
 # Setup Ogmios Context
-def setup_ogmios_context(config, network) -> Optional[OgmiosChainContext]:
+def setup_ogmios_context(config, network) -> Optional[KupoOgmiosV6ChainContext]:
     """Setup the Ogmios chain context based on the specified configuration."""
     ogmios_config = config.get("ogmios")
     if ogmios_config and "ws_url" in ogmios_config and ogmios_config["ws_url"]:
@@ -90,15 +93,15 @@ def setup_ogmios_context(config, network) -> Optional[OgmiosChainContext]:
         kupo_url = ogmios_config.get("kupo_url")
         _, ws_string = ogmios_ws_url.split("ws://")
         ws_url, port = ws_string.split(":")
-        return ogmios.OgmiosChainContext(host=ws_url, port=int(port), network=network)
+        return KupoOgmiosV6ChainContext(
+            host=ws_url,
+            port=int(port),
+            secure=False,
+            refetch_chain_tip_interval=None,
+            network=network,
+            kupo_url=kupo_url,
+        )
     return None
-
-
-def setup_kupo_context(config) -> Optional[KupoContext]:
-    """Setup the Kupo context based on ogmios configuration."""
-    ogmios_config = config.get("ogmios")
-    if ogmios_config and "kupo_url" in ogmios_config and ogmios_config["kupo_url"]:
-        return KupoContext(kupo_url=ogmios_config["kupo_url"])
 
 
 # Setup Chain Query
@@ -106,15 +109,15 @@ def setup_chain_query(config, network) -> Optional[ChainQuery]:
     """Setup the chain query based on the specified configuration."""
     chain_query_config = config.get("ChainQuery")
     node_config = config.get("Node")
-    is_local_testnet = chain_query_config.get("is_local_testnet", False)
-    logger.debug(f"Is operating in local testnet mode: {is_local_testnet}")
+    use_slot_time = chain_query_config.get("use_slot_time", False)
+    logger.debug(f"The variable use_slot_time set to: {use_slot_time}")
     if chain_query_config:
+        setup_charli3dendrite_backend(chain_query_config)
         return ChainQuery(
             blockfrost_context=setup_blockfrost_context(chain_query_config, network),
-            ogmios_context=setup_ogmios_context(chain_query_config, network),
+            kupo_ogmios_context=setup_ogmios_context(chain_query_config, network),
             oracle_address=node_config["oracle_address"],
-            kupo_context=setup_kupo_context(chain_query_config),
-            is_local_testnet=is_local_testnet,
+            use_slot_time=use_slot_time,
         )
     return None
 
@@ -148,6 +151,53 @@ async def ensure_feed_in_db(
             obj_in=obj_in,
         )
     return feed
+
+
+def setup_charli3dendrite_backend(chain_query_config):
+    """Setup the Charli3 Dendrite backend based on the configuration."""
+    network_config = chain_query_config.get("network", "").lower()
+    external_config = chain_query_config.get("external", {})
+
+    # if the network is Testnet, configure external Ogmios or Blockfrost for Charli3-Dendrite
+    if network_config == "testnet":
+        blockfrost_config = external_config.get("blockfrost", {})
+        blockfrost_id = blockfrost_config.get("project_id")
+
+        external_ogmios_config = external_config.get("ogmios", {})
+        external_ws_url = external_ogmios_config.get("ws_url")
+        external_kupo_url = external_ogmios_config.get("kupo_url")
+
+        if external_ws_url and external_kupo_url:
+            # if external ogmios exists, set up backend with Ogmios Configs
+            set_backend(
+                OgmiosKupoBackend(
+                    external_ws_url,
+                    external_kupo_url,
+                    Network.MAINNET,
+                )
+            )
+            logger.warning("External Ogmios backend configured for Charli3-Dendrite.")
+
+        elif blockfrost_id:
+            set_backend(BlockFrostBackend(blockfrost_id))
+            logger.warning("Blockfrost backend configured for Charli3-Dendrite.")
+
+        else:
+            logger.error("❌ External Ogmios or Blockfrost configuration is missing.")
+            return False
+
+    else:
+        ogmios_config = chain_query_config.get("ogmios", {})
+        set_backend(
+            OgmiosKupoBackend(
+                ogmios_config.get("ws_url"),
+                ogmios_config.get("kupo_url"),
+                Network.MAINNET,
+            )
+        )
+        logger.warning("Ogmios backend configured for Charli3-Dendrite.")
+
+    return True
 
 
 # Setup Node and Chain Query
@@ -266,81 +316,66 @@ async def setup_node_and_chain_query(config):
     return None
 
 
-# Setup Aggregated Rate
 async def setup_aggregated_coin_rate(
     config, chain_query, feed_id
-) -> Tuple[AggregatedCoinRate, List[Provider]]:
-    """
-    Initializes and returns an AggregatedCoinRate instance based on the application configuration.
-    :param config: The loaded application configuration.
-    :param chain_query: An instance of ChainQuery.
-    :return: An instance of AggregatedCoinRate.
-    """
+) -> Tuple[AggregatedCoinRate, list[Provider]]:
     providers = []
+    db_providers: list[Provider] = []
+    quote_currency = config["Rate"].get("quote_currency")
+    quote_symbol = (
+        config["Rate"].get("general_quote_symbol") if quote_currency else None
+    )
+
     async with get_session() as db_session:
-        # Initialize AggregatedCoinRate instance
-        if "quote_currency" in config["Rate"] and config["Rate"]["quote_currency"]:
-            quote_symbol = config.get("Rate").get("general_quote_symbol", None)
-            rate_class = AggregatedCoinRate(
-                quote_currency=True,
-                quote_symbol=quote_symbol,
-                chain_query=chain_query,
-                feed_id=feed_id,
-                slack_alerts=config.get("SlackAlerts", {}),
-            )
-        else:
-            rate_class = AggregatedCoinRate(
-                quote_currency=False,
-                chain_query=chain_query,
-                feed_id=feed_id,
-                slack_alerts=config.get("SlackAlerts", {}),
-            )
+        rate_class = AggregatedCoinRate(
+            quote_currency=quote_currency,
+            quote_symbol=quote_symbol,
+            chain_query=chain_query,
+            feed_id=feed_id,
+            slack_alerts=config.get("SlackAlerts", {}),
+        )
 
         # Add quote data providers
         if rate_class.quote_currency:
-            for provider_key, provider_value in config["Rate"][
-                "quote_currency"
-            ].items():
-                feed_type = provider_value["type"]
-                del provider_value[
-                    "type"
-                ]  # Assuming 'provider_value' includes 'feed_id'
-                provider = await rate_class.add_quote_data_provider(
-                    feed_type,
-                    provider_key,
-                    provider_value,
-                    db_session,
-                )
-                providers.append(provider)
+            quote_providers, db_quote_providers = await rate_class.add_providers(
+                config=config["Rate"]["quote_currency"],
+                db_session=db_session,
+                pair_type="quote",
+            )
+            providers.extend(quote_providers)
+            db_providers.extend(db_quote_providers)
 
         # Add base data providers
-        for provider_key, provider_value in config["Rate"]["base_currency"].items():
-            feed_type = provider_value["type"]
-            del provider_value["type"]  # Assuming 'provider_value' includes 'feed_id'
-            provider = await rate_class.add_base_data_provider(
-                feed_type,
-                provider_key,
-                provider_value,
-                db_session,
-            )
-            providers.append(provider)
+        base_providers, db_base_providers = await rate_class.add_providers(
+            config=config["Rate"]["base_currency"],
+            db_session=db_session,
+            pair_type="base",
+        )
+        providers.extend(base_providers)
+        db_providers.extend(db_base_providers)
 
-    return rate_class, providers
+    for provider in providers:
+        provider.log_summary()
+
+    return rate_class, db_providers
 
 
 # Setup Feed Updater
-async def setup_feed_updater(config) -> Optional[FeedUpdater]:
+async def setup_feed_updater(
+    config, chainquery: ChainQuery, feed: Feed, node: Node
+) -> Optional[FeedUpdater]:
     """Setup the feed updater based on the specified configuration."""
     updater_config = config.get("Updater")
     node_config = config.get("Node")
-    node, chainquery, feed = await setup_node_and_chain_query(config)
-    aggregated_rate, providers = await setup_aggregated_coin_rate(
+
+    aggregated_rate, db_providers = await setup_aggregated_coin_rate(
         config, chainquery, feed.id
     )
+
     if updater_config:
         if "node_sync_api" in node_config:
             node_sync_api = NodeSyncApi(node_config.get("node_sync_api", None))
-            await node_sync_api.report_initialization(feed, node, providers)
+            await node_sync_api.report_initialization(feed, node, db_providers)
         else:
             node_sync_api = None
 

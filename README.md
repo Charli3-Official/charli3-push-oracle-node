@@ -5,7 +5,7 @@ This project provides a backend for Node Operators using the Charli3 Oracle. It 
 
 ## Getting Started
 ### Dependencies
-This project uses Poetry to manage dependencies. If you don't have Poetry installed, you can install it by following the instructions at [Poetry documentation](https://python-poetry.org/docs/) or enter [Nix](https://nixos.org/) shell with `nix develop`.
+This project uses Poetry to manage dependencies. If you don't have Poetry installed, you can install it by following the instructions at [Poetry documentation](https://python-poetry.org/docs/).
 
 To install the required Python packages, run:
 

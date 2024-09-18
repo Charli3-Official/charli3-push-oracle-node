@@ -7,6 +7,7 @@ from test.helper.mocked_data import (
     MOCKED_PERCENT_RESOLUTION,
     MOCKED_RATE_CLASS,
     MOCKED_RUNNER_AGG_STATE,
+    MOCKED_RUNNER_ORACLE_DATUM,
     MOCKED_UPDATE_INTERVAL,
     async_get_mocked_utxos,
     node_config,
@@ -14,7 +15,7 @@ from test.helper.mocked_data import (
 
 import pytest
 from charli3_offchain_core import Node
-from charli3_offchain_core.datums import DataFeed, PriceData, PriceFeed
+from charli3_offchain_core.datums import DataFeed, PriceFeed
 from mocket import async_mocketize
 
 from backend.runner import FeedUpdater
@@ -38,17 +39,10 @@ async def aggregate(self):
 MOCKED_RUNNER_OPERATE_CASES = [
     {
         "nodes_updated": 0,
-        "req_nodes": 3,
-        "new_rate": 445210,
-        "get_paid": 1,
+        "minimum_required_nodes": 3,
+        "rate_from_sources": 445210,
+        "sufficient_rewards": 1,
         "own_feed": PriceFeed(DataFeed(df_value=466087, df_last_update=1657297865999)),
-        "oracle_feed": (
-            PriceData.set_price_map(
-                466087,
-                int(datetime.timestamp(datetime.now())),
-                int(datetime.timestamp(datetime.now())) + 6000,
-            )
-        ),
         "expected_results": {
             "update_calls": 1,
             "aggregate_calls": 0,
@@ -56,13 +50,12 @@ MOCKED_RUNNER_OPERATE_CASES = [
     },
     {
         "nodes_updated": 3,
-        "req_nodes": 3,
-        "new_rate": 445210,
-        "get_paid": 1,
+        "minimum_required_nodes": 3,
+        "rate_from_sources": 445210,
+        "sufficient_rewards": 1,
         "own_feed": PriceFeed(
             DataFeed(df_value=426087, df_last_update=int(1657297865999))
         ),
-        "oracle_feed": (PriceData.set_price_map(466087, 1657297865999, 1657297865999)),
         "expected_results": {
             "update_calls": 1,
             "aggregate_calls": 0,
@@ -123,6 +116,7 @@ class TestFeedOperateClass:
         feed_updater = await self.get_feed_updater(monkeypatch, chain_query)
 
         feed_updater.agg_datum = MOCKED_RUNNER_AGG_STATE
+        feed_updater.oracle_datum = MOCKED_RUNNER_ORACLE_DATUM
 
         update_calls = case["expected_results"]["update_calls"]
         aggregate_calls = case["expected_results"]["aggregate_calls"]

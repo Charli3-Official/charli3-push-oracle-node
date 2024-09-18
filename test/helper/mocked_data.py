@@ -8,6 +8,7 @@ import cbor2
 from charli3_offchain_core.datums import (
     AggDatum,
     AggState,
+    OracleDatum,
     OraclePlatform,
     OracleSettings,
     PriceRewards,
@@ -358,6 +359,8 @@ MOCKED_RUNNER_AGG_STATE = AggDatum(
     )
 )
 
+MOCKED_RUNNER_ORACLE_DATUM = OracleDatum(price_data=None)
+
 PAYMENT_EXTENDED_KEY = {
     "type": "PaymentExtendedSigningKeyShelley_ed25519_bip32",
     "description": "Payment Signing Key",
@@ -457,27 +460,43 @@ async def async_get_mocked_utxos():
 
 
 MOCKED_RATE_CLASS = AggregatedCoinRate()
-MOCKED_RATE_CLASS.add_base_data_provider(
-    "generic",
-    "kraken",
+MOCKED_RATE_CLASS.add_providers(
     {
-        "symbol": "ADAUSD",
-        "api_url": "https://api.kraken.com",
-        "path": "/0/public/Ticker?pair=",
-        "json_path": ["result", "ADAUSD", "o"],
-        "key": {},
+        "api_sources": [
+            {
+                "adapter": "generic-api",
+                "asset_a": "Cornucopias [via ChainPort.io]",
+                "asset_b": "USD",
+                "quote_required": False,
+                "sources": [
+                    {
+                        "name": "gate",
+                        "api_url": "https://api.gateio.ws/api2/1/ticker/copi_usdt",
+                        "json_path": ["last"],
+                        "headers": {},
+                    },
+                    {
+                        "name": "bitrue",
+                        "api_url": "https://openapi.bitrue.com/api/v1/ticker/price?symbol=copiusdt",
+                        "json_path": ["price"],
+                        "headers": {},
+                    },
+                ],
+            }
+        ]
     },
     db_session=None,
+    pair_type="base",
 )
-MOCKED_RATE_CLASS.add_base_data_provider(
-    "generic",
-    "kucoin",
-    {
-        "symbol": "BTC-USDT",
-        "api_url": "https://openapi-sandbox.kucoin.com",
-        "path": "/api/v1/market/orderbook/level1?symbol=",
-        "json_path": ["data", "price"],
-        "key": {},
-    },
-    db_session=None,  # Add the missing argument 'db_session'
-)
+# MOCKED_RATE_CLASS.add_base_data_provider(
+#     "generic",
+#     "kucoin",
+#     {
+#         "symbol": "BTC-USDT",
+#         "api_url": "https://openapi-sandbox.kucoin.com",
+#         "path": "/api/v1/market/orderbook/level1?symbol=",
+#         "json_path": ["data", "price"],
+#         "key": {},
+#     },
+#     db_session=None,  # Add the missing argument 'db_session'
+# )
