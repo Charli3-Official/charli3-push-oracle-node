@@ -54,22 +54,15 @@ class AggregatedCoinRate:
         """
         # Attempt to fetch the provider by name and feed_id
         existing_provider = await providers_crud.get_provider_by_name_and_feed_id(
-            name=provider_name, feed_id=self.feed_id, db_session=db_session
+            name=provider_name,
+            feed_id=self.feed_id,
+            adapter_type=feed_type,
+            db_session=db_session,
         )
         if not existing_provider:
             # logger.info("Provider %s not found in the database", provider_name)
             # If the provider doesn't exist, create a new one
-            if api_url:
-                parsed_url = urlparse(api_url)
-                base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
-                path = (
-                    f"{parsed_url.path}?{parsed_url.query}"
-                    if parsed_url.query
-                    else parsed_url.path
-                )
-            else:
-                base_url = ""
-                path = ""
+            base_url, path = self.parse_api_url(api_url)
 
             provider_data = ProviderCreate(
                 name=provider_name,
@@ -360,14 +353,15 @@ class AggregatedCoinRate:
                     path="",
                 )
             elif isinstance(adapter, GenericApiAdapter):
+                base_url, path = self.parse_api_url(source.get("api_url", ""))
                 provider = Provider(
                     id=adapter.get_source_id(source.get("name")),
                     name=source.get("name"),
                     feed_id=self.feed_id,
                     adapter_type=f"generic-api-{adapter.pair_type}",
                     token=f"{asset_a_name}-{asset_b_name}",
-                    api_url=source.get("api_url", ""),
-                    path=source.get("json_path", ""),
+                    api_url=base_url,
+                    path=path,
                 )
             else:
                 continue
@@ -388,3 +382,18 @@ class AggregatedCoinRate:
                 logger.error(f"Slack API error: {e.response['error']}")
         else:
             logger.warning("Slack alert configuration is missing or incomplete.")
+
+    def parse_api_url(self, api_url: str) -> tuple[str, str]:
+        """Parses the given API URL and returns the base URL and path."""
+        if api_url:
+            parsed_url = urlparse(api_url)
+            base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+            path = (
+                f"{parsed_url.path}?{parsed_url.query}"
+                if parsed_url.query
+                else parsed_url.path
+            )
+        else:
+            base_url = ""
+            path = ""
+        return base_url, path

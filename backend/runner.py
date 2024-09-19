@@ -445,7 +445,7 @@ class FeedUpdater:
             )
 
             # Update the oracle feed information
-            self.update_oracle_feed_information()
+            await self.update_oracle_feed_information()
 
             # Aggregation was successful
             return True
@@ -497,10 +497,11 @@ class FeedUpdater:
     def _log_update_failure(self):
         logger.warning("Failed to update node despite contract conditions")
 
-    def update_oracle_feed_information(self):
+    async def update_oracle_feed_information(self):
         """Query the updated oracle feed UTXOs after successful aggregation"""
+        utxos = await self.context.get_utxos()
         updated_oraclefeed_utxo, *_ = get_oracle_utxos_with_datums(
-            self.context.get_utxos(),
+            utxos,
             self.node.aggstate_nft,
             self.node.oracle_nft,
             self.node.reward_nft,
@@ -533,6 +534,45 @@ class FeedUpdater:
 
         return False, "Conditions not met for aggregation"
 
+    def _should_wait_for_optimal_update(
+        self, oracle_feed: PriceData | None
+    ) -> Tuple[bool, str]:
+        """Determines whether the node should wait before updating, based on time until the next scheduled aggregation."""
+
+        if oracle_feed is None:
+            logger.warning(
+                "Oracle feed data is missing; cannot determine optimal update time."
+            )
+            return False, "Oracle feed data missing"
+
+        aggregation_interval = self.agg_datum.aggstate.ag_settings.os_aggregate_time
+        current_time_ms = self.node.chain_query.get_current_posix_chain_time_ms()
+        next_agg_time_ms = oracle_feed.get_timestamp() + aggregation_interval
+        time_until_next_agg_ms = next_agg_time_ms - current_time_ms
+        time_until_next_agg_mins = time_until_next_agg_ms / (60 * 1000)
+
+        MAX_THRESHOLD_OFFSET_MS = 15 * 60 * 1000
+        threshold_offset_ms = min(aggregation_interval / 3, MAX_THRESHOLD_OFFSET_MS)
+
+        should_wait = time_until_next_agg_ms > threshold_offset_ms
+        logger.info("---------------------------------------")
+        logger.info(
+            "Next scheduled aggregation expected in: %.2f minutes.",
+            time_until_next_agg_mins,
+        )
+        logger.info(
+            "Allowed update window: %.2f minutes.", threshold_offset_ms / (60 * 1000)
+        )
+        logger.info("---------------------------------------")
+        if should_wait:
+            logger.info(
+                "Waiting for optimal update timing that is closer to the next scheduled aggregation."
+            )
+            return True, "There's still time until the next aggregation."
+        else:
+            logger.info("Next scheduled aggregation is approaching soon.")
+            return False, "Next scheduled aggregation is approaching soon."
+
     def _should_update_conditions(
         self,
         own_feed: PriceFeed | Nothing,
@@ -543,7 +583,7 @@ class FeedUpdater:
         """Determines if the node should update its feed."""
 
         if not sufficient_rewards:
-            return False, "Insuficcient_rewards"
+            return False, "Insufficient_rewards"
 
         if own_feed == Nothing():
             return True, "Feed_Initialization"
@@ -551,14 +591,22 @@ class FeedUpdater:
         if self.check_rate_change(new_rate, own_feed.df.df_value):
             return True, "Rate_Change"
 
+        should_wait, _ = self._should_wait_for_optimal_update(oracle_feed)
+
+        if should_wait:
+            return False, "Waiting_For_Optimal_Update_Time"
+
         if self.node_is_expired(own_feed.df.df_last_update):
             return True, "Time_Expiry"
 
         if self.node_consumed_on_last_aggregation(
             own_feed.df.df_last_update, oracle_feed
         ):
-            return True, "Feed time surpasses node time"
-        return False, "Conditions not met for node-update"
+            logger.info("Proceeding with node update...")
+            return True, "Feed time exceeds node time"
+
+        logger.info("Update not required; last update is still valid.")
+        return False, "Node update not required."
 
     async def _save_node_update_and_transaction(
         self,
