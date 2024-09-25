@@ -1,11 +1,9 @@
 """Test for backend runner"""
 
-from datetime import datetime
 from test.helper.mocked_data import (
-    MOCKED_COLLECTION_TRIGGER,
-    MOCKED_DESTINATION_ADDRESS,
     MOCKED_PERCENT_RESOLUTION,
     MOCKED_RATE_CLASS,
+    MOCKED_REWARD_COLLECTION_CONFIG,
     MOCKED_RUNNER_AGG_STATE,
     MOCKED_RUNNER_ORACLE_DATUM,
     MOCKED_UPDATE_INTERVAL,
@@ -101,8 +99,7 @@ class TestFeedOperateClass:
         feed_updater = FeedUpdater(
             MOCKED_UPDATE_INTERVAL,
             MOCKED_PERCENT_RESOLUTION,
-            MOCKED_DESTINATION_ADDRESS,
-            MOCKED_COLLECTION_TRIGGER,
+            MOCKED_REWARD_COLLECTION_CONFIG,
             mocked_node,
             MOCKED_RATE_CLASS,
             mocked_chain_query,

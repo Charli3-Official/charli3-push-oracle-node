@@ -23,11 +23,12 @@ from charli3_offchain_core.datums import (
 from charli3_offchain_core.oracle_checks import (
     check_utxo_asset_balance,
     filter_node_datums_by_node_operator,
+    get_feed_asset_balance,
     get_oracle_datums_only,
     get_oracle_utxos_with_datums,
 )
 from charli3_offchain_core.utils.exceptions import CollateralException
-from pycardano import Address
+from pycardano import UTxO
 
 from backend.api.aggregated_coin_rate import AggregatedCoinRate
 
@@ -46,6 +47,8 @@ from .db.service import (
     store_operational_error,
     store_reward_distribution,
 )
+from .utils.alerts import AlertManager
+from .utils.config_utils import RewardCollectionConfig
 
 logger = logging.getLogger("runner")
 logging.Formatter.converter = time.gmtime
@@ -58,18 +61,17 @@ class FeedUpdater:
         self,
         update_inter: int,
         percent_resolution: int,
-        reward_destination_address: str,
-        reward_collection_trigger: int,
+        reward_collection_config: Optional[RewardCollectionConfig],
         node: Node,
         rate: AggregatedCoinRate,
         context: ChainQuery,
         feed_id: Optional[str] = None,
         node_sync_api: Optional[NodeSyncApi] = None,
+        alerts_manager: Optional[AlertManager] = None,
     ):
         self.update_inter = update_inter
         self.percent_resolution = percent_resolution
-        self.reward_destination_address = reward_destination_address
-        self.reward_collection_trigger = reward_collection_trigger
+        self.reward_collection_config = reward_collection_config
         self.node = node
         self.rate = rate
         self.context = context
@@ -82,6 +84,7 @@ class FeedUpdater:
         self.reward_datum: RewardDatum = None
         self.feed_id = feed_id
         self.node_sync_api = node_sync_api
+        self.alerts_manager = alerts_manager
 
     async def run(self):
         """Checks and if necessary updates and/or aggregates the contract"""
@@ -186,6 +189,10 @@ class FeedUpdater:
                         extra={"operation_time": time.time() - data_time},
                     )
 
+                # Check all alerts at the end of the loop
+                if self.alerts_manager:
+                    await self.check_alerts(node_own_datum, oracle_utxos)
+
             except Exception as exc:
                 async with get_session() as db_session:
                     await store_operational_error(
@@ -210,17 +217,9 @@ class FeedUpdater:
                 logger.info("Loop took: %ss", str(timedelta(seconds=time_elapsed)))
                 await asyncio.sleep(max(self.update_inter - time_elapsed, 0))
 
-    def _is_collect_needed(self):
-        """Determine if a withdrawal is needed based on reward conditions"""
-
-        c3_previous_amount = self._get_previous_node_reward()
-        return c3_previous_amount > self.reward_collection_trigger
-
-    def _get_previous_node_reward(self):
-        """Reuse the already queried reward datum
+    def _get_previous_node_reward(self) -> int:
+        """Utilize the already queried reward datum
         (e.g before aggregate transactions) of the node"""
-        # Reuse the previous reward in order to reduces the number of connection
-        # with the blockchain.
         return next(
             (
                 reward_info.reward_amount
@@ -230,24 +229,20 @@ class FeedUpdater:
             0,
         )
 
-    def _required_collect_arguments(self):
-        """Check argument availability for automatic process."""
-        return (
-            self.reward_destination_address != ""
-            and self.reward_collection_trigger != 0
-        )
-
-    async def _withdraw_rewards(self):
+    async def _withdraw_rewards(self) -> Tuple[bool, Optional[str]]:
         """Handles the logic for withdrawing rewards."""
         try:
-            logger.info("Started automatic node collect")
-            await self.node.collect(
-                Address.from_primitive(self.reward_destination_address)
+            logger.info("Attempting automatic node collect")
+            status, tx = await self.node.collect(
+                self.reward_collection_config.destination_address
             )
-            return True
+            logger.info("Reward collection status: %s", status)
+            if status == "success":
+                return True, str(tx.id)
+            return False, None
         except ValueError as exc:
             logger.error(repr(exc))
-            return False
+            return False, None
 
     async def initialize_feed(self):
         """Check that our feed is initialized and do if its not"""
@@ -739,11 +734,73 @@ class FeedUpdater:
                 if await self.perform_aggregation(nodes_updated, aggregate_reason):
                     return True  # Aggregation performed
 
-            if self._required_collect_arguments() and self._is_collect_needed():
-                if await self._withdraw_rewards():
-                    return True  # Collected withdraws
+            if await self.check_and_perform_collect():
+                return True  # Collected withdraws
 
             return False  # No operation performed
         except Exception as e:
             logger.error("Operation failed %s", str(e))
             return False
+
+    async def check_alerts(self, node_own_datum: NodeDatum, oracle_utxos: list[UTxO]):
+        """Check all relevant alerts"""
+        if self.alerts_manager:
+            c3_balance = get_feed_asset_balance(
+                oracle_utxos,
+                self.node.aggstate_nft,
+                self.fee_asset_hash,
+                self.fee_asset_name,
+            )
+            ada_balance = await self.alerts_manager.get_address_lovelace_balance(
+                str(self.node.address)
+            )
+            last_aggregation_time = (
+                self.oracle_datum.price_data.get_timestamp()
+                if self.oracle_datum.price_data
+                else 0
+            )
+            last_update_time = (
+                node_own_datum.node_state.ns_feed.df.df_last_update
+                if node_own_datum.node_state.ns_feed != Nothing()
+                else 0
+            )
+
+            await asyncio.gather(
+                self.alerts_manager.check_c3_token_balance(
+                    c3_balance, str(self.oracle_address)
+                ),
+                self.alerts_manager.check_ada_balance(
+                    ada_balance, str(self.node.address)
+                ),
+                self.alerts_manager.check_aggregation_timeout(
+                    last_aggregation_time,
+                    self.agg_datum.aggstate.ag_settings.os_aggregate_time,
+                ),
+                self.alerts_manager.check_node_update_timeout(
+                    last_update_time,
+                    self.agg_datum.aggstate.ag_settings.os_updated_node_time,
+                    str(self.node.address),
+                ),
+            )
+
+    async def check_and_perform_collect(self) -> bool:
+        """Check if the node should collect rewards and perform the collection."""
+        if not self.reward_collection_config:
+            return False
+
+        c3_prev_balance = self._get_previous_node_reward()
+
+        if c3_prev_balance < self.reward_collection_config.trigger_amount:
+            return False
+
+        success, tx_hash = await self._withdraw_rewards()
+
+        if self.alerts_manager:
+            await self.alerts_manager.notify_reward_collection(
+                success,
+                c3_prev_balance / 1_000_000,  # Convert to C3 tokens
+                str(self.reward_collection_config.destination_address),
+                tx_hash,
+            )
+
+        return success

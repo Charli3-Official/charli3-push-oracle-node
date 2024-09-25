@@ -10,6 +10,8 @@ The `config.yml` file contains several sections, each responsible for configurin
 - Node
 - ChainQuery
 - Rate
+- Alerts
+- RewardCollection
 
 ### Updater
 
@@ -41,12 +43,10 @@ Node:
   verification_key: node3.vkey
   mnemonic: your_mnemonic_phrase_here
   oracle_curr: 2e527c8e42d0f28fd3f4025f60c0a89bc5815c8e2efc3fb973e3fc20
-  node_nft: NodeFeed
-  aggstate_nft: AggState
-  oracle_nft: OracleFeed
   oracle_addr: addr_test1wz6jdu4f0eeamgzz2a8wt3eufux33nv6ju35z6r4de5rl0sncyqgh
   c3_token_hash: 436941ead56c61dbf9b92b5f566f7d5b9cac08f8c957f28f0bd60d4b
   c3_token_name: PAYMENTTOKEN
+  node_sync_api: "http://localhost:3000"
  ```
  Options:
 
@@ -54,12 +54,10 @@ Node:
 - `verification_key`: The node's verification key file.
 - `mnemonic`: Your mnemonic phrase for the wallet. (Either mnemonic or keys.)
 - `oracle_curr`: The oracle currency script hash.
-- `node_nft`: The node NFT name.
-- `aggstate_nft`: The aggregated state NFT name.
-- `oracle_nft`: The oracle NFT name.
 - `oracle_addr`: The oracle address.
 - `c3_token_hash`: The C3 token hash.
 - `c3_token_name`: The C3 token name.
+- `node_sync_api`: For syncing nodes with the Charli3 DB
 
  ### ChainQuery
 
@@ -174,10 +172,66 @@ Options:
 - `quote_currency`: Configure quote currency settings for each exchange.
   - Options are the same as for `base_currency`.
 
+### Alerts
+
+The Alerts section allows you to configure the alert system for your node.
+
+Example configuration:
+
+```yaml
+Alerts:
+  cooldown: 1800  # 30 minutes (Optional)
+  thresholds:  # (Optional)
+    c3_token_balance: 1000  # in C3 tokens
+    ada_balance: 500  # in ADA
+    timeout_variance: 105  # percentage
+    minimum_data_sources: 3
+  notifications:  # at least one notification is required
+    - type: slack
+      config:
+        webhook_url: "{tokenA}/{tokenB}/{tokenC}"
+    - type: discord
+      config:
+        webhook_url: "{WebhookID}/{WebhookToken}"
+    - type: telegram
+      config:
+        bot_token: your_bot_token
+        chat_id: your_chat_id
+```
+
+Options:
+
+- `cooldown`: Time (in seconds) between repeated alerts of the same type.
+- `thresholds`: Customize alert trigger thresholds:
+  - `c3_token_balance`: Minimum C3 token balance (in whole tokens)
+  - `ada_balance`: Minimum ADA balance (in ADA)
+  - `timeout_variance`: Percentage to adjust timeout thresholds
+  - `minimum_data_sources`: Minimum number of active data sources
+- `notifications`: Configure one or more notification services:
+  - `type`: The service type (slack, discord, or telegram)
+  - `config`: Service-specific configuration
+
+### RewardCollection
+
+The RewardCollection section allows you to configure automatic reward collection for your node.
+
+Example configuration:
+
+```yaml
+RewardCollection:
+  destination_address: "addr_test1wqf99gagnjgfamek9v9vyrwulwh64xdnerq9xkvfhwyeu3qdufj2x"
+  trigger_amount: 1000  # 1000 C3 tokens
+```
+
+Options:
+
+- `destination_address`: The address where collected rewards will be sent
+- `trigger_amount`: The amount of C3 tokens that triggers a reward collection
+
 ## Final Steps
 
 After updating the `config.yml` file based on your requirements, save the changes and start the Charli3 Node Operator application. Ensure that your application is using the correct `config.yml` file and that it has the appropriate permissions to read the file.
 
-When the application is running, it will utilize the configuration provided in the `config.yml` file to retrieve data from the specified sources, perform any necessary calculations, and interact with the Cardano blockchain based on the configured settings.
+When the application is running, it will utilize the configuration provided in the `config.yml` file to retrieve data from the specified sources, perform any necessary calculations, interact with the Cardano blockchain based on the configured settings, and send alerts according to your specifications.
 
-By following the guidelines provided in this document, you can customize your Charli3 Node Operator application to suit your specific needs and preferences, ensuring a seamless and efficient experience as you work with the Cardano blockchain and its associated assets.
+By following the guidelines provided in this document, you can customize your Charli3 Node Operator application to suit your specific needs and preferences, ensuring a seamless and efficient experience as you work with the Cardano blockchain and its associated assets. The new alert system will keep you informed of critical events, while the automatic reward collection feature will help manage your rewards more efficiently.

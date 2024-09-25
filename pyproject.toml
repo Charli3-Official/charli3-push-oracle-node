@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "backend"
-version = "v3.0.0-alpha"
+version = "v3.0.0-beta"
 description = "Charli3 Node Operator Backend."
 authors = ["Deep Bhatt <deep.bhatt@charli3.io>"]
 license = "MIT"
@@ -13,14 +13,14 @@ pycardano = { git = "https://github.com/Charli3-Official/pycardano.git", branch 
 aiohttp = "^3.8.4"
 python-json-logger = "^2.0.7"
 pycryptodome = "^3.18.0"
-charli3-offchain-core = {git = "https://***REMOVED***@github.com/Charli3-Official/charli3-offchain-core.git", rev = "v1.8.6"}
+charli3-offchain-core = {git = "https://***REMOVED***@github.com/Charli3-Official/charli3-offchain-core.git", rev = "v1.8.7"}
 types-pyyaml = "^6.0.12.12"
 sqlmodel = "^0.0.16"
 asyncpg = "^0.29.0"
 alembic = "^1.13.1"
 cachetools = "^5.3.3"
-slack-sdk = "^3.27.2"
 charli3-dendrite = {git = "https://github.com/Charli3-Official/charli3-dendrite.git", branch = "feat/pycardano-chang"}
+apprise = "^1.9.0"
 
 [tool.poetry.group.dev.dependencies]
 mocket = "^3.11.0"

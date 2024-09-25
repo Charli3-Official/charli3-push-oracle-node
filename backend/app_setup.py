@@ -3,7 +3,7 @@
 import logging
 import os
 from logging.config import dictConfig
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 
 from charli3_dendrite.backend import set_backend
 from charli3_dendrite.backend.blockfrost import BlockFrostBackend
@@ -33,6 +33,8 @@ from backend.db.models.feed import Feed
 from backend.db.models.provider import Provider
 from backend.logfiles.logging_config import LEVEL_COLORS, get_log_config
 from backend.runner import FeedUpdater
+from backend.utils.alerts import AlertManager
+from backend.utils.config_utils import RewardCollectionConfig
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +112,7 @@ def setup_chain_query(config, network) -> Optional[ChainQuery]:
     chain_query_config = config.get("ChainQuery")
     node_config = config.get("Node")
     use_slot_time = chain_query_config.get("use_slot_time", False)
-    logger.debug(f"The variable use_slot_time set to: {use_slot_time}")
+    logger.debug("The variable use_slot_time set to: %s", use_slot_time)
     if chain_query_config:
         setup_charli3dendrite_backend(chain_query_config)
         return ChainQuery(
@@ -317,8 +319,12 @@ async def setup_node_and_chain_query(config):
 
 
 async def setup_aggregated_coin_rate(
-    config, chain_query, feed_id
+    config,
+    chain_query: ChainQuery,
+    feed_id: str,
+    alerts_manager: Optional[AlertManager],
 ) -> Tuple[AggregatedCoinRate, list[Provider]]:
+    """Setup the aggregated coin rate based on the specified configuration."""
     providers = []
     db_providers: list[Provider] = []
     quote_currency = config["Rate"].get("quote_currency")
@@ -332,7 +338,7 @@ async def setup_aggregated_coin_rate(
             quote_symbol=quote_symbol,
             chain_query=chain_query,
             feed_id=feed_id,
-            slack_alerts=config.get("SlackAlerts", {}),
+            alerts_manager=alerts_manager,
         )
 
         # Add quote data providers
@@ -367,29 +373,84 @@ async def setup_feed_updater(
     """Setup the feed updater based on the specified configuration."""
     updater_config = config.get("Updater")
     node_config = config.get("Node")
+    network = setup_network(config)
+    alerts_config = config.get("Alerts", {})
+    feed_name = config.get("Rate").get("general_base_symbol", None)
+
+    alerts_manager = setup_alerts_manager(chainquery, feed_name, alerts_config, network)
+    reward_collection_config = parse_reward_collection_config(config)
 
     aggregated_rate, db_providers = await setup_aggregated_coin_rate(
-        config, chainquery, feed.id
+        config, chainquery, feed.id, alerts_manager
     )
 
     if updater_config:
+        node_sync_api = None
         if "node_sync_api" in node_config:
-            node_sync_api = NodeSyncApi(node_config.get("node_sync_api", None))
+            node_sync_api = NodeSyncApi(node_config.get("node_sync_api"))
             await node_sync_api.report_initialization(feed, node, db_providers)
-        else:
-            node_sync_api = None
 
         return FeedUpdater(
             update_inter=int(updater_config["update_inter"]),
             percent_resolution=int(updater_config["percent_resolution"]),
-            reward_collection_trigger=node_config.get("reward_collection_trigger", 0),
-            reward_destination_address=node_config.get(
-                "reward_destination_address", None
-            ),
+            reward_collection_config=reward_collection_config,
             node=node,
             rate=aggregated_rate,
             context=chainquery,
             feed_id=feed.id,
             node_sync_api=node_sync_api,
+            alerts_manager=alerts_manager,
         )
     return None
+
+
+def setup_alerts_manager(
+    chainquery: ChainQuery, feed_name: str, alerts_config: dict, network: Network
+) -> Optional[AlertManager]:
+    """Setup the AlertManager based on the provided configuration."""
+    notification_configs = alerts_config.get("notifications", [])
+
+    if not notification_configs:
+        logger.warning(
+            "No alert notifications configured. AlertManager will not be initialized."
+        )
+        return None
+
+    alert_config = {
+        "cooldown": alerts_config.get("cooldown", 1800),
+        "thresholds": alerts_config.get("thresholds", {}),
+    }
+
+    logger.info(
+        "Initializing AlertManager with %d notification configs",
+        len(notification_configs),
+    )
+
+    return AlertManager(
+        feed_name=feed_name,
+        chain_query=chainquery,
+        alert_config=alert_config,
+        notification_configs=notification_configs,
+        network=network,
+    )
+
+
+def parse_reward_collection_config(config: dict) -> Optional[RewardCollectionConfig]:
+    """Parse the reward collection configuration from the specified configuration."""
+
+    reward_config = config.get("RewardCollection")
+    if (
+        not reward_config
+        or "destination_address" not in reward_config
+        or "trigger_amount" not in reward_config
+    ):
+        return None
+
+    return RewardCollectionConfig(
+        destination_address=Address.from_primitive(
+            reward_config["destination_address"]
+        ),
+        trigger_amount=int(
+            reward_config["trigger_amount"] * 1_000_000
+        ),  # Convert ADA to lovelace
+    )

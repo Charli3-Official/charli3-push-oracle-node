@@ -2,9 +2,17 @@
 
 import os
 import re
-from typing import Dict
+from typing import Dict, NamedTuple
 
 import yaml
+from pycardano import Address
+
+
+class RewardCollectionConfig(NamedTuple):
+    """Configuration for the reward collection service."""
+
+    destination_address: Address
+    trigger_amount: int  # in lovelace
 
 
 # Load Configuration
@@ -77,7 +85,8 @@ def load_env_vars(name: str, config: dict):
     Load environment variables based on the keys in the given config section.
 
     Args:
-        name (str): The key in the config dictionary for which the environment variables will be set.
+        name (str): The key in the config dictionary for which the environment
+                    variables will be set.
         config (Dict): The configuration dictionary.
     """
     if name not in config:

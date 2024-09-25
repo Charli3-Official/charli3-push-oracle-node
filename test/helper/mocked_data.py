@@ -28,6 +28,7 @@ from pycardano import (
 )
 
 from backend.api import AggregatedCoinRate
+from backend.utils.config_utils import RewardCollectionConfig
 
 from .utxo_mocker import utxo_mocker
 
@@ -87,11 +88,16 @@ MOCKED_UPDATE_INTERVAL = 600
 
 MOCKED_PERCENT_RESOLUTION = 10000
 
-MOCKED_DESTINATION_ADDRESS = (
+MOCKED_DESTINATION_ADDRESS = Address.from_primitive(
     "addr_test1wzy3mgdf6t7ltzcekf3dde2t27583q9lwjn2smsqh95g6agwgwcnm"
 )
 
 MOCKED_COLLECTION_TRIGGER = 10000000
+
+MOCKED_REWARD_COLLECTION_CONFIG = RewardCollectionConfig(
+    destination_address=MOCKED_DESTINATION_ADDRESS,
+    trigger_amount=MOCKED_COLLECTION_TRIGGER,
+)
 
 MOCKED_SCRIPT_HASH = ScriptHash.from_primitive(
     "891da1a9d2fdf58b19b262d6e54b57a87880bf74a6a86e00b9688d75"

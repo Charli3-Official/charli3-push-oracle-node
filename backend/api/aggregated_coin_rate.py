@@ -1,6 +1,5 @@
 """Aggregated Coin Rate module."""
 
-import asyncio
 import json
 import logging
 from datetime import datetime
@@ -9,12 +8,11 @@ from typing import Any, Optional, Tuple
 from urllib.parse import urlparse
 
 from charli3_offchain_core.chain_query import ChainQuery
-from slack_sdk import WebClient
-from slack_sdk.errors import SlackApiError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.providers import BaseAdapter, Charli3DendriteAdapter, GenericApiAdapter
 from backend.db.database import get_session
+from backend.utils.alerts import AlertManager
 
 from ..db.crud.providers_crud import Provider, ProviderCreate, providers_crud
 from ..db.service import store_aggregated_rate_details, store_rate_dataflow
@@ -31,7 +29,7 @@ class AggregatedCoinRate:
         quote_symbol: Optional[str] = None,
         chain_query: ChainQuery = None,
         feed_id: Optional[str] = None,
-        slack_alerts: Optional[dict[str, str]] = None,
+        alerts_manager: Optional[AlertManager] = None,
     ):
         self.quote_currency = quote_currency
         self.quote_symbol = quote_symbol
@@ -39,7 +37,7 @@ class AggregatedCoinRate:
         self.quote_data_adapters: Optional[list[BaseAdapter]] = []
         self.chain_query = chain_query
         self.feed_id = feed_id
-        self.slack_alerts = slack_alerts or {}
+        self.alerts_manager = alerts_manager
 
     async def _ensure_provider_in_db(
         self,
@@ -186,10 +184,6 @@ class AggregatedCoinRate:
             Tuple[Optional[float], list[dict[str, Any]]]: aggregated rate and provider responses.
         """
         request_time = datetime.utcnow()
-        # rates_to_get = [adapter.get_rates() for adapter in adapters]
-
-        # # Fetch all the rates concurrently
-        # responses = await asyncio.gather(*rates_to_get, return_exceptions=True)
 
         responses = []
         for adapter in adapters:
@@ -224,7 +218,11 @@ class AggregatedCoinRate:
                         elif calc_method.lower() == "divide":
                             rate = float(rate) / float(quote_rate)
                         logger.info(
-                            f"Conversion: {rate_info.get('source')}- Method: {calc_method} - Rate: {rate} from {rate_info.get('price')}"
+                            "Conversion: %s- Method: %s - Rate: %s from %s",
+                            rate_info.get("source"),
+                            calc_method,
+                            rate,
+                            rate_info.get("price"),
                         )
 
                     provider_response = {
@@ -296,6 +294,10 @@ class AggregatedCoinRate:
             )
 
             logger.info("Quote Rate: %s", quote_rate)
+            if self.alerts_manager:
+                await self.alerts_manager.check_minimum_data_sources(
+                    len(quote_provider_responses), "quote"
+                )
             if quote_rate is None:
                 logger.error("No valid quote rates available.")
         logger.info(
@@ -308,6 +310,11 @@ class AggregatedCoinRate:
         base_rate, base_provider_responses = await self.get_rate_from_providers(
             self.base_data_adapters, quote_rate, self.quote_symbol
         )
+
+        if self.alerts_manager:
+            await self.alerts_manager.check_minimum_data_sources(
+                len(base_provider_responses), "base"
+            )
 
         if base_rate is None:
             logger.error("No valid base rates available.")
@@ -368,20 +375,6 @@ class AggregatedCoinRate:
             providers.append(provider)
 
         return providers
-
-    def send_slack_alert(self, message: str):
-        slack_token = self.slack_alerts.get("token")
-        slack_channel = self.slack_alerts.get("channel")
-
-        if slack_token and slack_channel:
-            logger.critical(message)
-            slack_client = WebClient(token=slack_token)
-            try:
-                slack_client.chat_postMessage(channel=slack_channel, text=message)
-            except SlackApiError as e:
-                logger.error(f"Slack API error: {e.response['error']}")
-        else:
-            logger.warning("Slack alert configuration is missing or incomplete.")
 
     def parse_api_url(self, api_url: str) -> tuple[str, str]:
         """Parses the given API URL and returns the base URL and path."""
