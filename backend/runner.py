@@ -21,6 +21,7 @@ from charli3_offchain_core.datums import (
     RewardDatum,
 )
 from charli3_offchain_core.oracle_checks import (
+    c3_get_rate,
     check_utxo_asset_balance,
     filter_node_datums_by_node_operator,
     get_feed_asset_balance,
@@ -97,9 +98,15 @@ class FeedUpdater:
             logger.info("Requesting data %s", self.node.pub_key_hash)
             try:
                 # Run all of the requests simultaneously
-                data_coro = [self.rate.get_aggregated_rate(), self.context.get_utxos()]
+                data_coro = [
+                    self.rate.get_aggregated_rate(),
+                    self.context.get_utxos(),
+                    self.get_c3_oracle_rate_data(),
+                ]
 
-                rate_tuple, oracle_utxos = await asyncio.gather(*data_coro)
+                rate_tuple, oracle_utxos, c3_oracle_rate = await asyncio.gather(
+                    *data_coro
+                )
 
                 rate, aggregated_rate_id = rate_tuple
 
@@ -139,15 +146,16 @@ class FeedUpdater:
                 nodes_updated = self.total_nodes_updated(nodes_datum, self.oracle_datum)
                 req_nodes = self.agg_datum.aggstate.ag_settings.required_nodes_num()
                 fees = self.agg_datum.aggstate.ag_settings.os_node_fee_price
+                min_c3_required = self.node.calculate_min_c3_required(
+                    fees=fees,
+                    total_nodes=nodes_updated,
+                    c3_oracle_rate_feed=c3_oracle_rate,
+                )
                 get_paid = check_utxo_asset_balance(
                     aggstate_utxo,
                     self.fee_asset_hash,
                     self.fee_asset_name,
-                    (
-                        nodes_updated * fees.node_fee
-                        + fees.aggregate_fee
-                        + fees.platform_fee
-                    ),
+                    min_c3_required,
                 )
 
                 # Logging times.
@@ -804,3 +812,18 @@ class FeedUpdater:
             )
 
         return success
+
+    async def get_c3_oracle_rate_data(self) -> Optional[int]:
+        """Get the C3 oracle rate feed data"""
+        c3_oracle_rate_feed = None
+
+        if self.node.oracle_rate_addr:
+            c3_oracle_rate_utxos = await self.context.get_utxos(
+                self.node.oracle_rate_addr
+            )
+            if c3_oracle_rate_utxos is not None:
+                c3_oracle_rate_feed, _ = c3_get_rate(
+                    c3_oracle_rate_utxos, self.node.rate_nft
+                )
+
+        return c3_oracle_rate_feed
