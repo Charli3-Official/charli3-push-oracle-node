@@ -1,7 +1,7 @@
 version: '3.9'
 services:
   charli3-backend:
-    image: charli3-backend:latest
+    image: ghcr.io/charli3-official/charli3-node-operator-backend:latest
     volumes:
       - "./config.yml:/app/config.yml"
     restart: always
@@ -27,7 +27,7 @@ services:
       retries: 5
 
   charli3-migrations:
-    image: charli3-backend:latest
+    image: ghcr.io/charli3-official/charli3-node-operator-backend:latest
     volumes:
       - "./config.yml:/app/config.yml"
     command: ["python3", "migrations.py"]

@@ -1,4 +1,4 @@
-name: Build and push Docker Image to GAR
+name: Build and push Docker Image to GHCR
 
 on:
   push:
@@ -8,7 +8,6 @@ on:
     types: [published]
     branches:
       - main
-      - indigo
 
 jobs:
   build-and-push:
@@ -23,34 +22,25 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v3
 
-    - id: auth
-      name: Authenticate with Google Cloud
-      uses: google-github-actions/auth@v1
-      with:
-        workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}
-        service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-
-    - name: Configure Docker with GCloud credentials
-      shell: bash
-      run: gcloud auth configure-docker us-central1-docker.pkg.dev
+    - name: Authenticate with GitHub Container Registry
+      run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
     - name: Get tag/ref
       id: get-tag
       run: echo "::set-output name=short_ref::${GITHUB_REF#refs/*/}"
 
-    - name: Build, tag, and push Docker image to GAR
+    - name: Build, tag, and push Docker image to GHCR
       if: github.event_name == 'release'
       uses: docker/build-push-action@v4
       with:
         push: true
         tags: |
-          us-central1-docker.pkg.dev/charli3-mainnet/node-operator-backend/node-operator-backend:${{ steps.get-tag.outputs.short_ref }}
-          ${{ endsWith(steps.get-tag.outputs.short_ref, '-indigo') && 'us-central1-docker.pkg.dev/charli3-mainnet/node-operator-backend/node-operator-backend:latest-indigo' || '' }}
-          ${{ !endsWith(steps.get-tag.outputs.short_ref, '-indigo') && 'us-central1-docker.pkg.dev/charli3-mainnet/node-operator-backend/node-operator-backend:latest' || '' }}
+          ghcr.io/charli3-official/charli3-node-operator-backend:${{ steps.get-tag.outputs.short_ref }}
+          ghcr.io/charli3-official/charli3-node-operator-backend:latest
 
-    - name: Build, tag as develop, and push Docker image to GAR
+    - name: Build, tag as develop, and push Docker image to GHCR
       if: github.ref == 'refs/heads/develop'
       uses: docker/build-push-action@v4
       with:
         push: true
-        tags: us-central1-docker.pkg.dev/charli3-mainnet/node-operator-backend/node-operator-backend:develop
+        tags: ghcr.io/charli3-official/charli3-node-operator-backend:develop
