@@ -27,7 +27,7 @@ async def main(config_file):
     try:
         node_checker = NodeChecker(config)
         await node_checker.run_initial_checks()
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         logging.error("Node checks failed: %s", e)
         return
 
@@ -35,7 +35,7 @@ async def main(config_file):
         # Initialize database
         await init_db()
         logging.info("Database initialized successfully.")
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         logging.error("Database initialization failed: %s", e)
         return
 
@@ -48,7 +48,7 @@ async def main(config_file):
         updater = await setup_feed_updater(config, chainquery, feed, node)
         cleanup_task = asyncio.create_task(periodic_cleanup_task())
         await updater.run()
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         logging.error("Feed updater encountered an error: %s", e)
     finally:
         if cleanup_task is not None:

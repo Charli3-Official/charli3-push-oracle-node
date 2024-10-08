@@ -34,7 +34,7 @@ class ConfigValidator:
 
         if missing_keys:
             logger.error(
-                f"❌ Missing required keys in Node section: {', '.join(missing_keys)}"
+                "❌ Missing required keys in Node section: %s", ", ".join(missing_keys)
             )
             return False
 
@@ -104,10 +104,11 @@ class ConfigValidator:
         """Validate that 'ws_url' and 'kupo_url' are present in the 'ogmios' section."""
         if "ws_url" not in ogmios_section or "kupo_url" not in ogmios_section:
             logger.error(
-                f"❌ 'ws_url' and/or 'kupo_url' are missing in the {config_name} Ogmios section."
+                "❌ 'ws_url' and/or 'kupo_url' are missing in the %s Ogmios section.",
+                config_name,
             )
             return False
-        logger.info(f"✅ {config_name} Ogmios Configurations are present.")
+        logger.info("✅ %s Ogmios Configurations are present.", config_name)
         return True
 
     def _validate_blockfrost_config(
@@ -140,6 +141,15 @@ class ConfigValidator:
             logger.error("❌ Missing 'general_base_symbol' in Rate section.")
             return False
 
+        if "min_requirement" in rate_section:
+            if not isinstance(rate_section["min_requirement"], bool):
+                logger.error("❌ 'min_requirement' in Rate section must be a boolean.")
+                return False
+        else:
+            logger.warning(
+                "'min_requirement' not specified in Rate section. Defaulting to True."
+            )
+
         if not self.validate_base_currency() or not self.validate_quote_currency():
             return False
 
@@ -171,12 +181,13 @@ class ConfigValidator:
 
         if min_requirement and total_sources < 3:
             logger.error(
-                f"❌ Insufficient base data sources. Found {total_sources}, need at least 3."
+                "❌ Insufficient base data sources. Found %d, need at least 3.",
+                total_sources,
             )
             return False
 
         logger.info(
-            f"✅ Base Data Sources requirement met with:  {total_sources} sources."
+            "✅ Base Data Sources requirement met with: %d sources.", total_sources
         )
         return True
 

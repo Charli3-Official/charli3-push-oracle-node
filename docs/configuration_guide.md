@@ -97,63 +97,93 @@ For more details about the different adapters available, their usage, and config
 
 Example configuration:
 ```yaml
-Rate: #SHENUSD Feed Config.
+Rate: #Book/USD Feed Config.
+  general_base_symbol: BOOK-USD
+  general_quote_symbol: ADA-USD
+
   base_currency:
-    sundaeswap:
-      type: sundaeswap
-      symbol: Shen
-      quote_currency: True
-    minswap:
-      type: minswap
-      pool_tokens: ADA-SHEN
-      pool_id: 53225313968e796f2c1e0b57540a13c3b81e06e2ed2637ac1ea9b9f4e27e3dc4
-      get_second_pool_price: False
-      quote_currency: True
-    muesliswap:
-      type: muesliswap
-      symbol: SHEN/ADA
-      currency_symbol: 8db269c3ec630e06ae29f74bc39edd1f87c819f1056206e879a1cd61
-      token_name: 5368656e4d6963726f555344
-      quote_currency: True
-    bitrue:
-      type: generic
-      symbol: SHENUSDT
-      api_url: https://openapi.bitrue.com
-      path: /api/v1/ticker/price?symbol=shenusdt
-      json_path: ["price"]
-      key: {}
+    dexes:
+      - adapter: charli3-dendrite
+        asset_a: 51a5e236c4de3af2b8020442e2a26f454fda3b04cb621c1294a0ef34424f4f4b
+        asset_b: lovelace
+        quote_required: true
+        sources:
+          - minswapv2
+          - vyfi
+          - wingriders
+          - spectrum
+          - sundaeswap
+          - sundaeswapv3
+          - muesliswap
+
   quote_currency:
-    binance:
-      type: binance
-      symbol: ADAUSDT
-    kucoin:
-      type: generic
-      symbol: ADA-USDT
-      api_url: https://api.kucoin.com
-      path: /api/v1/prices?currencies=ADA
-      json_path: ["data","ADA"]
-      key: {}
-    kraken:
-      type: generic
-      symbol: ADAUSD
-      api_url: https://api.kraken.com
-      path: /0/public/Ticker?pair=ADAUSD
-      json_path: ["result","ADAUSD","o"]
-      key: {}
-    bitrue:
-      type: generic
-      symbol: ADAUSDT
-      api_url: https://openapi.bitrue.com
-      path: /api/v1/ticker/price?symbol=adausdt
-      json_path: ["price"]
-      key: {}
-    coinbase:
-      type: generic
-      symbol: ADA-USD
-      api_url: https://api.exchange.coinbase.com
-      path: /products/ADA-USD/ticker/
-      json_path: ["price"]
-      key: {}
+    api_sources:
+      - adapter: generic-api
+        asset_a: ADA
+        asset_b: USDT
+        sources:
+          - name: xt
+            api_url: "https://sapi.xt.com/v4/public/ticker?symbol=ada_usdt"
+            json_path: ["result", 0, "c"]
+            headers: {}
+
+          - name: gate
+            api_url: "https://api.gateio.ws/api2/1/ticker/ada_usdt"
+            json_path: ["last"]
+            headers: {}
+
+          - name: crypto
+            api_url: "https://api.crypto.com/v2/public/get-ticker?instrument_name=ADA_USDT"
+            json_path: ["result", "data", 0, "a"]
+            headers: {}
+
+          - name: huobi
+            api_url: "https://api.huobi.pro/market/trade?symbol=adausdt"
+            json_path: ["tick", "data", 0, "price"]
+            headers: {}
+
+      - adapter: generic-api
+        asset_a: ADA
+        asset_b: USD
+        sources:
+          - name: coinbase
+            api_url: "https://api.exchange.coinbase.com/products/ADA-USD/ticker/"
+            json_path: ["price"]
+            headers: {}
+
+          - name: kraken
+            api_url: "https://api.kraken.com/0/public/Ticker?pair=ADAUSD"
+            json_path: ["result", "ADAUSD", "o"]
+            headers: {}
+
+          - name: btse
+            api_url: "https://api.btse.com/spot/api/v3.2/price?symbol=ADA-USD"
+            json_path: [0, "lastPrice"]
+            headers: {}
+
+          - name: bitfinex
+            api_url: "https://api.bitfinex.com/v2/ticker/tADAUSD"
+            json_path: [6]
+            headers: {}
+
+      - adapter: generic-api
+        asset_a: ADA
+        asset_b: USDC
+        sources:
+          - name: bitget
+            api_url: "https://api.bitget.com/api/spot/v1/market/ticker?symbol=ADAUSDC_SPBL"
+            json_path: ["data", "close"]
+            headers: {}
+
+          - name: kucoin
+            api_url: "https://api.kucoin.com/api/v1/market/orderbook/level1?symbol=ADA-USDC"
+            json_path: ["data", "price"]
+            headers: {}
+
+          - name: okx
+            api_url: "https://www.okx.com/api/v5/market/ticker?instId=ADA-USDC"
+            json_path: ["data", 0, "last"]
+            headers: {}
 
 ```
 Options:
@@ -227,6 +257,18 @@ Options:
 
 - `destination_address`: The address where collected rewards will be sent
 - `trigger_amount`: The amount of C3 tokens that triggers a reward collection
+
+## Configuration Priority
+
+The Charli3 Node Operator Backend supports merging configurations from two files: `config.yml` and `dynamic_config.yml`. Parameters in `config.yml` take precedence over the same parameters in `dynamic_config.yml`. This allows for flexible and dynamic configuration management.
+
+### Merging Configurations
+
+To merge configurations, the backend will load both `config.yml` and `dynamic_config.yml`, with `config.yml` taking precedence. This means that if a parameter is defined in both files, the value from `config.yml` will be used.
+
+### Validation and Warnings
+
+The backend will validate that required parameters are present in at least one of the configuration files. If there are conflicting values between the two files, a warning will be issued, showing which value will be used.
 
 ## Final Steps
 

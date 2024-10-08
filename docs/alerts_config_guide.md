@@ -103,3 +103,14 @@ Adjust the `thresholds` section in the config to customize when alerts are trigg
 ## Testing Your Configuration
 
 After setting up your alerts, restart your node to apply the new configuration. You can temporarily lower the thresholds to test if alerts are working correctly.
+
+## Behavior of Alerts in Relation to the `min_requirement` Parameter
+
+The `min_requirement` parameter in the Rate section of `config.yml` affects the behavior of the "Insufficient Data Sources" alert. Here's how it works:
+
+- If `min_requirement` is set to `false`, the alert logic is adjusted as follows:
+  - The alert will not be triggered if the number of active data sources is less than the default threshold (3) but greater than 0.
+  - The alert will still be triggered if there are no active data sources (0).
+- If `min_requirement` is `true` or not specified, the current alert behavior is maintained, and the alert will be triggered if the number of active data sources is less than the default threshold (3).
+
+This allows for more flexible alerting based on the specific requirements of your node operation.

@@ -376,8 +376,11 @@ async def setup_feed_updater(
     network = setup_network(config)
     alerts_config = config.get("Alerts", {})
     feed_name = config.get("Rate").get("general_base_symbol", None)
+    min_requirement = config.get("Rate").get("min_requirement", True)
 
-    alerts_manager = setup_alerts_manager(chainquery, feed_name, alerts_config, network)
+    alerts_manager = setup_alerts_manager(
+        chainquery, feed_name, alerts_config, network, min_requirement
+    )
     reward_collection_config = parse_reward_collection_config(config)
 
     aggregated_rate, db_providers = await setup_aggregated_coin_rate(
@@ -405,7 +408,11 @@ async def setup_feed_updater(
 
 
 def setup_alerts_manager(
-    chainquery: ChainQuery, feed_name: str, alerts_config: dict, network: Network
+    chainquery: ChainQuery,
+    feed_name: str,
+    alerts_config: dict,
+    network: Network,
+    min_requirement: bool,
 ) -> Optional[AlertManager]:
     """Setup the AlertManager based on the provided configuration."""
     notification_configs = alerts_config.get("notifications", [])
@@ -432,6 +439,7 @@ def setup_alerts_manager(
         alert_config=alert_config,
         notification_configs=notification_configs,
         network=network,
+        min_requirement=min_requirement,
     )
 
 

@@ -1,11 +1,15 @@
 """Utility functions for configuration handling."""
 
+import logging
 import os
 import re
 from typing import Dict, NamedTuple
 
 import yaml
 from pycardano import Address
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 class RewardCollectionConfig(NamedTuple):
@@ -17,20 +21,35 @@ class RewardCollectionConfig(NamedTuple):
 
 # Load Configuration
 def load_config(config_path="config.yml") -> Dict:
-    """Load the configuration from the specified file path, handling includes and placeholders"""
+    """
+    Load the configuration from the specified file path, handling includes and placeholders.
+    config.yml takes priority over the included dynamic_config.yml.
+    """
+    logger.info("Loading configuration from %s", config_path)
     config = load_yaml_file(config_path)
 
     # Handle included configurations if present
     if "include" in config:
         included_config_path = config["include"]
-        additional_config = load_yaml_file(included_config_path)
-        merge_configs(config, additional_config)
-        config.pop("include", None)  # Optionally remove the 'include' key
+        logger.info("Loading dynamic configuration from %s", included_config_path)
+        dynamic_config = load_yaml_file(included_config_path)
 
-    # Resolve placeholders using the combined configuration, if any
-    replace_placeholders(config, config)
+        # Merge configurations, with config taking priority
+        merged_config = merge_configs(dynamic_config, config)
+        logger.info("Merged main and dynamic configurations")
 
-    return config
+        # Remove the 'include' key from the merged config
+        merged_config.pop("include", None)
+    else:
+        merged_config = config
+
+    # Resolve placeholders using the combined configuration
+    replace_placeholders(merged_config, merged_config)
+
+    # Warn about conflicting values
+    warn_conflicting_values(config, dynamic_config if "include" in config else {})
+
+    return merged_config
 
 
 def load_yaml_file(file_path):
@@ -39,14 +58,15 @@ def load_yaml_file(file_path):
         return yaml.safe_load(file)
 
 
-def merge_configs(base_config, additional_config):
-    """Recursively merge two configurations."""
-    if isinstance(additional_config, dict):
-        for key, value in additional_config.items():
-            if key in base_config and isinstance(base_config[key], dict):
-                merge_configs(base_config[key], value)
-            else:
-                base_config[key] = value
+def merge_configs(base_config, override_config):
+    """Recursively merge two configurations, with override_config taking priority."""
+    merged = base_config.copy()
+    for key, value in override_config.items():
+        if isinstance(value, dict) and key in merged and isinstance(merged[key], dict):
+            merged[key] = merge_configs(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
 
 
 def replace_placeholders(config, dynamic_values):
@@ -96,3 +116,15 @@ def load_env_vars(name: str, config: dict):
     for key, value in section_config.items():
         env_key = key.upper()
         os.environ[env_key] = str(value)
+
+
+def warn_conflicting_values(config: Dict, dynamic_config: Dict):
+    """Warn users if there are conflicting values between the two files,
+    showing which value will be used."""
+    for key, value in dynamic_config.items():
+        if key in config and config[key] != value:
+            logger.warning(
+                "Conflicting value for '%s'. Using value from config.yml: %s",
+                key,
+                config[key],
+            )

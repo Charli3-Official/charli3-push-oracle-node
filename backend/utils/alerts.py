@@ -54,11 +54,13 @@ class AlertManager:
         alert_config: AlertConfig,
         notification_configs: List[NotificationConfig],
         network: Network,
+        min_requirement: bool = True,
     ):
         self.feed_name = feed_name
         self.chain_query = chain_query
         self.cooldown = alert_config.get("cooldown", 1800)  # Default 30 minutes
         self.network = network
+        self.min_requirement = min_requirement
 
         # Merge default thresholds with custom thresholds
         custom_thresholds = alert_config.get("thresholds", {})
@@ -154,16 +156,23 @@ class AlertManager:
     ) -> None:
         """Check minimum data sources and send alert if below threshold"""
         try:
-            if active_sources < self.thresholds.minimum_data_sources:
-                await self.send_alert(
-                    f"Insufficient {rate_type.capitalize()} Data Sources",
-                    f"*Active {rate_type} sources*: *{active_sources}*\n*Minimum required*: {self.thresholds.minimum_data_sources}",
-                )
-            elif active_sources == 0:
-                await self.send_alert(
-                    f"No Valid {rate_type.capitalize()} Rates",
-                    f"Failed to obtain any valid {rate_type} rates.",
-                )
+            if self.min_requirement:
+                if active_sources < self.thresholds.minimum_data_sources:
+                    await self.send_alert(
+                        f"Insufficient {rate_type.capitalize()} Data Sources",
+                        f"*Active {rate_type} sources*: *{active_sources}*\n*Minimum required*: {self.thresholds.minimum_data_sources}",
+                    )
+                elif active_sources == 0:
+                    await self.send_alert(
+                        f"No Valid {rate_type.capitalize()} Rates",
+                        f"Failed to obtain any valid {rate_type} rates.",
+                    )
+            else:
+                if active_sources == 0:
+                    await self.send_alert(
+                        f"No Valid {rate_type.capitalize()} Rates",
+                        f"Failed to obtain any valid {rate_type} rates.",
+                    )
         except Exception as e:
             logger.error("Failed to send alert for minimum data sources: %s", str(e))
 
