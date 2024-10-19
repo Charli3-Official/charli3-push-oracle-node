@@ -6,6 +6,7 @@ import time
 import traceback
 from datetime import datetime
 from typing import Any, Dict, List
+from uuid import UUID
 
 from charli3_offchain_core import NodeDatum, RewardDatum
 from pycardano import Address, Network, UTxO, VerificationKeyHash
@@ -184,17 +185,19 @@ async def store_operational_error(
     )
 
 
-async def delete_unlinked_aggregated_rates_and_flows(db_session: AsyncSession):
-    """Delete aggregated rate records older than 24 hours that are not linked to node updates."""
+async def delete_unlinked_aggregated_rates_and_flows(
+    feed_id: UUID, db_session: AsyncSession
+):
+    """Delete aggregated rate records older than 24 hours that are not linked to node updates for a specific feed."""
     # Build a subquery for rate aggregation IDs that are linked to node updates
     linked_aggregation_ids = await node_update_crud.get_linked_aggregation_ids(
-        db_session
+        feed_id, db_session
     )
 
     # Subquery to find unlinked aggregation IDs in AggregatedRate table older than 24 hours
     unlinked_aggregation_ids = (
         await aggregated_rate_details_crud.get_unlinked_aggregation_ids(
-            linked_aggregation_ids, db_session
+            linked_aggregation_ids, feed_id, db_session
         )
     )
 
@@ -213,30 +216,34 @@ async def delete_unlinked_aggregated_rates_and_flows(db_session: AsyncSession):
     return delete_flows_query, delete_rates_query
 
 
-async def periodic_cleanup_task():
-    """Periodic cleanup task to delete unlinked aggregated rates and flows."""
+async def periodic_cleanup_task(feed_id: UUID):
+    """Periodic cleanup task to delete unlinked aggregated rates and flows for a specific feed."""
     while True:
         try:
             # Assuming that get_session() correctly sets up and provides an AsyncSession
             async with get_session() as db_session:
                 try:
                     results = await delete_unlinked_aggregated_rates_and_flows(
-                        db_session
+                        feed_id, db_session
                     )
                     logger.info(
-                        "Deleted %s rate data flows and %s aggregated rates.",
+                        "Deleted %s rate data flows and %s aggregated rates for feed %s.",
                         results[0],
                         results[1],
+                        feed_id,
                     )
-                except Exception as e:
-                    logger.error("Error during cleanup operation: %s", str(e))
-                    # Optionally, handle specific exceptions differently
+                except Exception as e:  # pylint: disable=broad-except
+                    logger.error(
+                        "Error during cleanup operation for feed %s: %s",
+                        feed_id,
+                        str(e),
+                    )
                 finally:
                     # Ensures that the session is closed after processing
                     await db_session.commit()
-        except Exception as e:
-            logger.error("Database session failed: %s", str(e))
+        except Exception as e:  # pylint: disable=broad-except
+            logger.error("Database session failed for feed %s: %s", feed_id, str(e))
         finally:
             # Wait for 24 hours (86400 seconds) before running again
-            logger.info("Waiting for the next cleanup cycle.")
+            logger.info("Waiting for the next cleanup cycle for feed %s.", feed_id)
             await asyncio.sleep(86400)

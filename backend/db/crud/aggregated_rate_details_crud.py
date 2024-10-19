@@ -22,13 +22,17 @@ class AggregatedRateDetailsCrud(
     """Aggregated Rate Details CRUD operations."""
 
     async def get_unlinked_aggregation_ids(
-        self, linked_aggregation_ids: list[UUID], db_session: AsyncSession
+        self,
+        linked_aggregation_ids: list[UUID],
+        feed_id: UUID,
+        db_session: AsyncSession,
     ) -> list[UUID]:
         """
         Fetches IDs of AggregatedRateDetails that are not linked and older than 24 hours.
 
         Args:
             linked_aggregation_ids (list[int]): IDs that should not be considered for deletion.
+            feed_id (UUID): The feed ID to use for the operation.
             db_session (AsyncSession): The database session to use for the operation.
 
         Returns:
@@ -36,6 +40,7 @@ class AggregatedRateDetailsCrud(
         """
         twenty_four_hours_ago = datetime.now() - timedelta(hours=24)
         statement = select(AggregatedRateDetails.id).where(
+            AggregatedRateDetails.feed_id == feed_id,
             AggregatedRateDetails.created_at < twenty_four_hours_ago,
             AggregatedRateDetails.id.not_in(  # pylint: disable=no-member
                 linked_aggregation_ids

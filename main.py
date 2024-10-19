@@ -46,7 +46,7 @@ async def main(config_file):
         await node_checker.run_node_operation_checks(node, chainquery)
 
         updater = await setup_feed_updater(config, chainquery, feed, node)
-        cleanup_task = asyncio.create_task(periodic_cleanup_task())
+        cleanup_task = asyncio.create_task(periodic_cleanup_task(feed.id))
         await updater.run()
     except Exception as e:  # pylint: disable=broad-except
         logging.error("Feed updater encountered an error: %s", e)
