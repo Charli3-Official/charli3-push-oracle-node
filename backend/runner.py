@@ -554,7 +554,7 @@ class FeedUpdater:
         time_until_next_agg_ms = next_agg_time_ms - current_time_ms
         time_until_next_agg_mins = time_until_next_agg_ms / (60 * 1000)
 
-        MAX_THRESHOLD_OFFSET_MS = 15 * 60 * 1000
+        MAX_THRESHOLD_OFFSET_MS = 30 * 60 * 1000
         threshold_offset_ms = min(aggregation_interval / 3, MAX_THRESHOLD_OFFSET_MS)
 
         should_wait = time_until_next_agg_ms > threshold_offset_ms
@@ -591,8 +591,16 @@ class FeedUpdater:
         if own_feed == Nothing():
             return True, "Feed_Initialization"
 
-        if self.check_rate_change(new_rate, own_feed.df.df_value):
-            return True, "Rate_Change"
+        if own_feed != Nothing():
+            # Check against own last reported rate
+            if self.check_rate_change(new_rate, own_feed.df.df_value):
+                # Also check against current aggregated state
+                if oracle_feed and self.check_rate_change(
+                    new_rate, oracle_feed.get_price()
+                ):
+                    return True, "Rate_Change_Significant"
+                else:
+                    return False, "Rate_Change_Insignificant"
 
         should_wait, _ = self._should_wait_for_optimal_update(oracle_feed)
 
