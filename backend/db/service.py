@@ -77,10 +77,16 @@ async def process_and_store_nodes_data(
         await get_or_create_node(db_session, node_create)
 
 
-async def store_aggregated_rate_details(
-    db_session: AsyncSession, aggregated_rate: int, feed_id: str, requested_at
-) -> AggregatedRateDetails:
-    """Store aggregated rate details."""
+async def store_rate_data_for_update(
+    db_session: AsyncSession,
+    aggregated_rate: int,
+    feed_id: str,
+    requested_at: datetime,
+    all_provider_responses: list[dict],
+) -> UUID:
+    """Store rate data only when it's being used for an update."""
+
+    # Store aggregated rate details
     aggregated_rate_details = AggregatedRateDetailsCreate(
         feed_id=feed_id,
         requested_at=requested_at,
@@ -88,28 +94,26 @@ async def store_aggregated_rate_details(
         aggregated_rate=aggregated_rate,
         method="median",
     )
-    return await aggregated_rate_details_crud.create(
+    stored_rate = await aggregated_rate_details_crud.create(
         db_session=db_session, obj_in=aggregated_rate_details
     )
 
-
-async def store_rate_dataflow(
-    db_session: AsyncSession, all_provider_responses: List[Dict[str, Any]]
-) -> None:
-    """Store all provider responses."""
+    # Update and store provider responses
     for provider_response in all_provider_responses:
         rate_dataflow = RateDataFlowCreate(
             provider_id=provider_response["provider_id"],
-            feed_id=provider_response["feed_id"],
+            feed_id=feed_id,
             request_timestamp=provider_response["request_timestamp"],
             symbol=provider_response["symbol"],
             response_code=provider_response["response_code"],
             response_body=provider_response["response_body"],
             rate=provider_response["rate"],
-            rate_aggregation_id=provider_response["rate_aggregation_id"],
+            rate_aggregation_id=stored_rate.id,
             rate_type=provider_response["rate_type"],
         )
         await rate_dataflow_crud.create(db_session=db_session, obj_in=rate_dataflow)
+
+    return stored_rate.id
 
 
 async def store_node_aggregation_participation(

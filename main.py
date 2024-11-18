@@ -11,7 +11,6 @@ from backend.app_setup import (
     setup_node_and_chain_query,
 )
 from backend.db.database import init_db
-from backend.db.service import periodic_cleanup_task
 from backend.node_checker import NodeChecker
 from backend.utils.config_utils import load_config
 
@@ -39,20 +38,15 @@ async def main(config_file):
         logging.error("Database initialization failed: %s", e)
         return
 
-    cleanup_task = None
     try:
         # Set up and run the feed updater
         node, chainquery, feed = await setup_node_and_chain_query(config)
         await node_checker.run_node_operation_checks(node, chainquery)
 
         updater = await setup_feed_updater(config, chainquery, feed, node)
-        cleanup_task = asyncio.create_task(periodic_cleanup_task(feed.id))
         await updater.run()
     except Exception as e:  # pylint: disable=broad-except
         logging.error("Feed updater encountered an error: %s", e)
-    finally:
-        if cleanup_task is not None:
-            cleanup_task.cancel()  # Cancel cleanup task when main task stops
 
 
 if __name__ == "__main__":

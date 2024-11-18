@@ -11,11 +11,9 @@ from charli3_offchain_core.chain_query import ChainQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.providers import BaseAdapter, Charli3DendriteAdapter, GenericApiAdapter
-from backend.db.database import get_session
 from backend.utils.alerts import AlertManager
 
 from ..db.crud.providers_crud import Provider, ProviderCreate, providers_crud
-from ..db.service import store_aggregated_rate_details, store_rate_dataflow
 
 logger = logging.getLogger(__name__)
 
@@ -274,12 +272,11 @@ class AggregatedCoinRate:
         """calculate aggregated rate from list of data providers.
 
         Returns:
-            Tuple[Optional[float], Optional[str]]: aggregated rate and aggregation id
+            Tuple[Optional[float], Optional[str]]: aggregated rate and aggregation rate data.
         """
         request_time = datetime.utcnow()
         quote_rate = None
         quote_provider_responses = []
-        aggregation_id = None  # Default value
 
         # Fetch Median Quote Rate first if quote_currency is True
         if self.quote_currency:
@@ -300,6 +297,7 @@ class AggregatedCoinRate:
                 )
             if quote_rate is None:
                 logger.error("No valid quote rates available.")
+
         logger.info(
             "------------------------------------------------------------------"
         )
@@ -320,27 +318,12 @@ class AggregatedCoinRate:
             logger.error("No valid base rates available.")
             return None, None
 
-        # Save the aggregated rate first
-        try:
-            async with get_session() as db_session:
-                aggregated_rate_details = await store_aggregated_rate_details(
-                    db_session, base_rate, self.feed_id, request_time
-                )
-                aggregation_id = aggregated_rate_details.id
-
-                # Update provider responses with aggregation_id and save them
-                all_provider_responses = (
-                    quote_provider_responses + base_provider_responses
-                )
-                for response in all_provider_responses:
-                    response["rate_aggregation_id"] = aggregation_id
-                await store_rate_dataflow(db_session, all_provider_responses)
-
-        except Exception as db_error:
-            logger.error("Error saving aggregated rate details: %s", db_error)
-            return base_rate, aggregation_id
-
-        return base_rate, aggregation_id
+        # Return rate and provider responses without storing
+        return base_rate, (
+            base_rate,
+            request_time,
+            base_provider_responses + quote_provider_responses,
+        )
 
     def get_providers_from_adapter(self, adapter: BaseAdapter) -> list[Provider]:
         """Get all providers from the adapter."""

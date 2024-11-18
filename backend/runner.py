@@ -46,6 +46,7 @@ from .db.service import (
     process_and_store_nodes_data,
     store_node_aggregation_participation,
     store_operational_error,
+    store_rate_data_for_update,
     store_reward_distribution,
 )
 from .utils.alerts import AlertManager
@@ -108,7 +109,7 @@ class FeedUpdater:
                     *data_coro
                 )
 
-                rate, aggregated_rate_id = rate_tuple
+                rate, aggregated_rate_data = rate_tuple
 
                 # add check to validate the final aggregated rate
                 if rate is None or rate <= 0:
@@ -186,7 +187,7 @@ class FeedUpdater:
                     final_rate,
                     get_paid,
                     node_own_datum.node_state.ns_feed,
-                    aggregated_rate_id,
+                    aggregated_rate_data,
                 )
 
                 # Logging times
@@ -201,7 +202,7 @@ class FeedUpdater:
                 if self.alerts_manager:
                     await self.check_alerts(node_own_datum, oracle_utxos)
 
-            except Exception as exc:
+            except Exception as exc:  # pylint: disable=broad-except
                 async with get_session() as db_session:
                     await store_operational_error(
                         db_session,
@@ -295,47 +296,35 @@ class FeedUpdater:
                     self.node.id = None
 
             if node_own_datum.node_state.ns_feed == Nothing():
-                rate, rate_aggregation_id = await self.rate.get_aggregated_rate()
+                rate, rate_data = await self.rate.get_aggregated_rate()
+                if rate is None:
+                    logger.error("Failed to get initial rate")
+                    return
+
                 final_rate = self._calculate_rate(rate)
-                tx_status, tx = await self.node.update(final_rate)
 
-                tx_model = TransactionCreate(
-                    node_id=self.node.id,
-                    feed_id=self.feed_id,
-                    timestamp=datetime.now(),
-                    status=tx_status,
-                    tx_hash=str(tx.id),
-                    tx_fee=tx.transaction_body.fee,
-                    tx_body=str(tx.transaction_body),
+                # Perform update
+                update_result = await self.node.update(final_rate)
+                if update_result is None:
+                    logger.error("Failed to perform initial update")
+                    return
+
+                # Store rate data
+                aggregated_rate_id = await self._save_rate_data(rate_data)
+                if aggregated_rate_id is None:
+                    logger.error("Failed to save initial rate data")
+                    return
+
+                # Store update and transaction records
+                await self._save_node_update_and_transaction(
+                    update_result, aggregated_rate_id, final_rate, "Time_Expiry"
                 )
-
-                node_update = NodeUpdateCreate(
-                    node_id=self.node.id,
-                    feed_id=self.feed_id,
-                    timestamp=datetime.now(),
-                    status=tx_status,
-                    updated_value=final_rate,
-                    rate_aggregation_id=rate_aggregation_id,
-                    tx_hash=str(tx.id),
-                    trigger="Time_Expiry",
-                )
-
-                if self.node_sync_api and node_update:
-                    await self.node_sync_api.report_update(node_update)
-
-                async with get_session() as db_session:
-                    await transaction_crud.create(
-                        db_session=db_session, obj_in=tx_model
-                    )
-                    await node_update_crud.create(
-                        db_session=db_session, obj_in=node_update
-                    )
 
                 await asyncio.sleep(60)
 
         except CollateralException as error:
             logger.error("Failed to initialize node due to collateral issue: %s", error)
-        except Exception as error:
+        except Exception as error:  # pylint: disable=broad-except
             logger.error("An unexpected error occurred: %s", error)
 
     @staticmethod
@@ -390,14 +379,15 @@ class FeedUpdater:
         return res
 
     async def perform_update(
-        self, rate_from_sources: int, update_reason: str, aggregated_rate_id: str | None
+        self, rate_from_sources: int, update_reason: str, rate_data: tuple
     ) -> bool:
         """
         Perform the node update and handle the result.
 
         Args:
             rate_from_sources (int): The rate obtained from the data sources.
-            update_reason (str): The reason or condition triggering the update.
+            update_reason (str): The reason for the update.
+            rate_data: Tuple containing (rate, request_time, provider_responses)
 
         Returns:
             bool: True if the update was successful, False otherwise.
@@ -410,6 +400,12 @@ class FeedUpdater:
                 self._log_update_failure()
                 return False
 
+            # Store rate data and get aggregation_id
+            aggregated_rate_id = await self._save_rate_data(rate_data)
+            if aggregated_rate_id is None:
+                logger.error("Failed to save rate data during update")
+                return False
+
             # Save the update and associated transaction details
             await self._save_node_update_and_transaction(
                 update_result, aggregated_rate_id, rate_from_sources, update_reason
@@ -417,7 +413,7 @@ class FeedUpdater:
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             logger.error("Update failed: %s", str(e))
             return False
 
@@ -452,7 +448,7 @@ class FeedUpdater:
 
             # Aggregation was successful
             return True
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             logger.error("Aggregation failed: %s", str(e))
             return False
 
@@ -599,8 +595,6 @@ class FeedUpdater:
                     new_rate, oracle_feed.get_price()
                 ):
                     return True, "Rate_Change_Significant"
-                else:
-                    return False, "Rate_Change_Insignificant"
 
         should_wait, _ = self._should_wait_for_optimal_update(oracle_feed)
 
@@ -704,6 +698,34 @@ class FeedUpdater:
                 output_reward_datum,
             )
 
+    async def _save_rate_data(
+        self,
+        rate_data: tuple,
+    ) -> Optional[str]:
+        """
+        Save rate data to database.
+
+        Args:
+            rate_data: Tuple containing (rate, request_time, provider_responses)
+
+        Returns:
+            Optional[str]: Aggregation ID if successful, None otherwise
+        """
+        try:
+            async with get_session() as db_session:
+                rate, request_time, provider_responses = rate_data
+                aggregated_rate_id = await store_rate_data_for_update(
+                    db_session=db_session,
+                    feed_id=self.feed_id,
+                    aggregated_rate=rate,
+                    requested_at=request_time,
+                    all_provider_responses=provider_responses,
+                )
+                return aggregated_rate_id
+        except Exception as e:  # pylint: disable=broad-except
+            logger.error("Failed to save rate data: %s", str(e))
+            return None
+
     async def feed_operate(
         self,
         nodes_updated: int,
@@ -711,7 +733,7 @@ class FeedUpdater:
         rate_from_sources: int,
         sufficient_rewards: bool,
         own_feed: PriceFeed,
-        aggregated_rate_id: Optional[str] = None,
+        rate_data: tuple,
     ) -> bool:
         """
         Primary logic for determining aggregate, update, and collect transactions.
@@ -722,7 +744,7 @@ class FeedUpdater:
             rate_from_sources (int): The rate obtained from the sources.
             sufficient_rewards (bool): Whether there are sufficient rewards.
             own_feed (PriceFeed): The current feed data of the node.
-            aggregated_rate_id (Optional[str]): ID of the aggregated rate, if any.
+            rate_data: Tuple containing (rate, request_time, provider_responses
 
         Returns:
             bool: True if an operation was performed, False otherwise.
@@ -742,7 +764,7 @@ class FeedUpdater:
             )
             if should_update:
                 return await self.perform_update(
-                    rate_from_sources, update_reason, aggregated_rate_id
+                    rate_from_sources, update_reason, rate_data
                 )
 
             # Check if enough nodes have been updated to allow aggregation
@@ -754,7 +776,7 @@ class FeedUpdater:
                 return True  # Collected withdraws
 
             return False  # No operation performed
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             logger.error("Operation failed %s", str(e))
             return False
 

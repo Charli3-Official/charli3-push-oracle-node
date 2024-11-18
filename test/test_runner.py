@@ -1,5 +1,6 @@
 """Test for backend runner"""
 
+from datetime import datetime
 from test.helper.mocked_data import (
     MOCKED_PERCENT_RESOLUTION,
     MOCKED_RATE_CLASS,
@@ -41,6 +42,7 @@ MOCKED_RUNNER_OPERATE_CASES = [
         "rate_from_sources": 445210,
         "sufficient_rewards": 1,
         "own_feed": PriceFeed(DataFeed(df_value=466087, df_last_update=1657297865999)),
+        "rate_data": (445210, "2024-01-01T00:00:00", []),
         "expected_results": {
             "update_calls": 1,
             "aggregate_calls": 0,
@@ -54,6 +56,7 @@ MOCKED_RUNNER_OPERATE_CASES = [
         "own_feed": PriceFeed(
             DataFeed(df_value=426087, df_last_update=int(1657297865999))
         ),
+        "rate_data": (445210, "2024-01-01T00:00:00", []),
         "expected_results": {
             "update_calls": 1,
             "aggregate_calls": 0,
@@ -119,6 +122,26 @@ class TestFeedOperateClass:
         aggregate_calls = case["expected_results"]["aggregate_calls"]
 
         del case["expected_results"]
+
+        # Create mock provider response for the rate data
+        mock_provider_response = {
+            "provider_id": "test_provider",
+            "feed_id": "test_feed",
+            "request_timestamp": "2024-01-01T00:00:00",
+            "symbol": "TEST/USD",
+            "response_code": 200,
+            "response_body": "success",
+            "rate": case["rate_from_sources"],
+            "rate_type": "base",
+        }
+
+        # Update the rate_data tuple with more realistic test data
+
+        case["rate_data"] = (
+            case["rate_from_sources"],
+            datetime.now(),
+            [mock_provider_response],
+        )
 
         await feed_updater.feed_operate(**case)  # pylint: disable = E1123
 
