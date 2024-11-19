@@ -12,6 +12,12 @@ The `config.yml` file contains several sections, each responsible for configurin
 - Rate
 - Alerts
 - RewardCollection
+### NodeSync
+```yaml
+NodeSync:
+  api_url: http://localhost:3000
+```
+For syncing nodes with the Charli3 DB
 
 ### Updater
 
@@ -46,7 +52,6 @@ Node:
   oracle_addr: addr_test1wz6jdu4f0eeamgzz2a8wt3eufux33nv6ju35z6r4de5rl0sncyqgh
   c3_token_hash: 436941ead56c61dbf9b92b5f566f7d5b9cac08f8c957f28f0bd60d4b
   c3_token_name: PAYMENTTOKEN
-  node_sync_api: "http://localhost:3000"
  ```
  Options:
 
@@ -57,7 +62,6 @@ Node:
 - `oracle_addr`: The oracle address.
 - `c3_token_hash`: The C3 token hash.
 - `c3_token_name`: The C3 token name.
-- `node_sync_api`: For syncing nodes with the Charli3 DB
 
  ### ChainQuery
 

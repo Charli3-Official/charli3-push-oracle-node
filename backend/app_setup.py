@@ -372,7 +372,7 @@ async def setup_feed_updater(
 ) -> Optional[FeedUpdater]:
     """Setup the feed updater based on the specified configuration."""
     updater_config = config.get("Updater")
-    node_config = config.get("Node")
+    node_sync_config = config.get("NodeSync")
     network = setup_network(config)
     alerts_config = config.get("Alerts", {})
     feed_name = config.get("Rate").get("general_base_symbol", None)
@@ -389,8 +389,8 @@ async def setup_feed_updater(
 
     if updater_config:
         node_sync_api = None
-        if "node_sync_api" in node_config:
-            node_sync_api = NodeSyncApi(node_config.get("node_sync_api"))
+        if "api_url" in node_sync_config:
+            node_sync_api = NodeSyncApi(node_sync_config.get("api_url"))
             await node_sync_api.report_initialization(feed, node, db_providers)
 
         return FeedUpdater(

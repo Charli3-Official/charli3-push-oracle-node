@@ -11,7 +11,6 @@ Node:
   c3_oracle_rate_address: "addr_test1wqf99gagnjgfamek9v9vyrwulwh64xdnerq9xkvfhwyeu3qdufj2x"
   reward_collection_trigger: 100000000
   reward_destination_address: "addr_test1wqf99gagnjgfamek9v9vyrwulwh64xdnerq9xkvfhwyeu3qdufj2x"
-  node_sync_api: "http://localhost:3000" # Optional to sync nodes with the Charli3 DB
 
 Rate:
   general_base_symbol: COPI-ADA

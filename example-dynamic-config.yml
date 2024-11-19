@@ -3,6 +3,9 @@ Updater:
   verbosity: INFO
   percent_resolution: 10000
 
+NodeSync:
+  api_url: "http://localhost:3000"
+
 database:
   url: "postgresql+asyncpg://postgres:password@localhost:5432/node-operator"
 
