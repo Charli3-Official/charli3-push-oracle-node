@@ -550,7 +550,7 @@ class FeedUpdater:
         time_until_next_agg_ms = next_agg_time_ms - current_time_ms
         time_until_next_agg_mins = time_until_next_agg_ms / (60 * 1000)
 
-        MAX_THRESHOLD_OFFSET_MS = 30 * 60 * 1000
+        MAX_THRESHOLD_OFFSET_MS = 10 * 60 * 1000
         threshold_offset_ms = min(aggregation_interval / 3, MAX_THRESHOLD_OFFSET_MS)
 
         should_wait = time_until_next_agg_ms > threshold_offset_ms
