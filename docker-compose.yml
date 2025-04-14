@@ -4,13 +4,14 @@ services:
     image: ghcr.io/charli3-official/charli3-node-operator-backend:latest
     volumes:
       - "./config.yml:/app/config.yml"
+      - "./dynamic_config.yml:/app/dynamic_config.yml"
     restart: always
     depends_on:
       charli3-migrations:
         condition: service_completed_successfully
 
   charli3-node-operator-db:
-    image: postgres:latest
+    image: postgres:16
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password

@@ -30,7 +30,7 @@ repos:
     hooks:
       - id: poetry-check
         name: poetry-check
-        entry: poetry check
+        entry: poetry check --lock
         language: system
         pass_filenames: false
         always_run: true

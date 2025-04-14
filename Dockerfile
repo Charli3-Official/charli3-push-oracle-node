@@ -9,7 +9,7 @@ COPY poetry.lock poetry.lock
 
 RUN pip3 install poetry \
   && poetry config virtualenvs.create false \
-  && poetry install --no-interaction --no-ansi
+  && poetry install --without dev --no-interaction --no-ansi --no-root
 
 COPY alembic.ini /app/
 COPY alembic/ /app/alembic/
