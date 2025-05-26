@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "backend"
-version = "v3.2.2"
+version = "v3.3.0"
 description = "Charli3 Node Operator Backend."
 authors = ["Deep Bhatt <deep.bhatt@charli3.io>"]
 license = "MIT"
@@ -19,7 +19,7 @@ sqlmodel = "^0.0.16"
 asyncpg = "^0.29.0"
 alembic = "^1.13.1"
 cachetools = "^5.3.3"
-charli3-dendrite = {git = "https://github.com/Charli3-Official/charli3-dendrite.git", branch = "feat/pycardano-chang"}
+charli3-dendrite = {git = "https://github.com/Charli3-Official/charli3-dendrite.git", branch = "fix/backend"}
 apprise = "^1.9.0"
 
 [tool.poetry.group.dev.dependencies]

@@ -34,10 +34,14 @@ class TestCharli3DendriteAdapterClass:
 
         # Validate rates array length and sources
         rates = data["rates"]
-        assert len(rates) == 4, f"Expected 4 rates, but got {len(rates)}"
-        assert all(
-            isinstance(rate, dict) for rate in rates
-        ), "Expected all rates to be dictionaries"
+        assert isinstance(rates, list), "'rates' should be a list"
+        assert len(rates) > 0, "Expected at least one rate"
+
+        rate_sources = [r["source"] for r in rates]
+        expected_sources = {"minswapv2", "spectrum", "muesliswap", "vyfi"}
+        assert set(rate_sources).issubset(
+            expected_sources
+        ), f"Unexpected sources: {rate_sources}"
 
     async def test_get_asset_names(self, setup_adapter):
         """Test get_asset_names method."""

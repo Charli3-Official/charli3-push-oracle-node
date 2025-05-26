@@ -8,10 +8,12 @@ from charli3_dendrite import (
     MinswapV2CPPState,
     MuesliSwapCPPState,
     SpectrumCPPState,
+    SplashCPPState,
     SundaeSwapCPPState,
     SundaeSwapV3CPPState,
     VyFiCPPState,
     WingRidersCPPState,
+    WingRidersV2CPPState,
 )
 from charli3_dendrite.backend import get_backend
 from charli3_dendrite.dexs.amm.amm_base import AbstractPoolState
@@ -28,10 +30,12 @@ logger = logging.getLogger(__name__)
 SUPPORTED_DEXES: list[AbstractPoolState] = {
     "sundaeswapv3": SundaeSwapV3CPPState,
     "sundaeswap": SundaeSwapCPPState,
+    "splash": SplashCPPState,
     "spectrum": SpectrumCPPState,
     "minswap": MinswapCPPState,
     "minswapv2": MinswapV2CPPState,
     "wingriders": WingRidersCPPState,
+    "wingridersv2": WingRidersV2CPPState,
     "muesliswap": MuesliSwapCPPState,
     "vyfi": VyFiCPPState,
 }
