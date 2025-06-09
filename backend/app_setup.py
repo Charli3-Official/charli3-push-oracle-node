@@ -393,6 +393,15 @@ async def setup_feed_updater(
             node_sync_api = NodeSyncApi(node_sync_config.get("api_url"))
             await node_sync_api.report_initialization(feed, node, db_providers)
 
+        # Get precision multiplier from config
+        precision_multiplier = config.get("Rate", {}).get(
+            "precision_multiplier", 1000000
+        )
+        logger.info(
+            "Initializing FeedUpdater with precision multiplier: %d",
+            precision_multiplier,
+        )
+
         return FeedUpdater(
             update_inter=int(updater_config["update_inter"]),
             percent_resolution=int(updater_config["percent_resolution"]),
@@ -403,6 +412,7 @@ async def setup_feed_updater(
             feed_id=feed.id,
             node_sync_api=node_sync_api,
             alerts_manager=alerts_manager,
+            precision_multiplier=precision_multiplier,
         )
     return None
 

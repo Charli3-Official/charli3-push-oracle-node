@@ -70,6 +70,7 @@ class FeedUpdater:
         feed_id: Optional[str] = None,
         node_sync_api: Optional[NodeSyncApi] = None,
         alerts_manager: Optional[AlertManager] = None,
+        precision_multiplier: int = 1000000,
     ):
         self.update_inter = update_inter
         self.percent_resolution = percent_resolution
@@ -87,6 +88,7 @@ class FeedUpdater:
         self.feed_id = feed_id
         self.node_sync_api = node_sync_api
         self.alerts_manager = alerts_manager
+        self.precision_multiplier = precision_multiplier
 
     async def run(self):
         """Checks and if necessary updates and/or aggregates the contract"""
@@ -327,9 +329,8 @@ class FeedUpdater:
         except Exception as error:  # pylint: disable=broad-except
             logger.error("An unexpected error occurred: %s", error)
 
-    @staticmethod
-    def _calculate_rate(rate):
-        return ceil(rate * 1000000)
+    def _calculate_rate(self, rate):
+        return ceil(rate * self.precision_multiplier)
 
     def check_rate_change(self, new_rate: int, prev_rate: int) -> bool:
         """check rate change condition"""
