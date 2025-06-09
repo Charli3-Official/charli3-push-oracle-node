@@ -106,6 +106,7 @@ class TestFeedOperateClass:
             mocked_node,
             MOCKED_RATE_CLASS,
             mocked_chain_query,
+            precision_multiplier=1000000,  # Default precision for tests
         )
 
         return feed_updater

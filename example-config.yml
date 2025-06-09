@@ -15,6 +15,9 @@ Node:
 Rate:
   general_base_symbol: COPI-ADA
   general_quote_symbol: ADA-USD
+  # For micro-cap tokens like HOSKY, use higher precision: 1000000000000 = 1e12
+  # precision_multiplier: 1000000000000
+  precision_multiplier: 1000000  # Default 1e6 precision (suitable for most feeds)
   min_requirement: false # Optional default set to true. This will allow the the node to run even will less than 3 base data sources.
   base_currency:
     dexes:
