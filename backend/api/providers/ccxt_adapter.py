@@ -126,11 +126,6 @@ class CCXTAdapter(BaseAdapter):
                 }
         except Exception as e:
             logger.error(f"Error fetching from {exchange_id}: {str(e)}")
-            logger.error(f"Exception type: {type(e).__name__}")
-            logger.error(f"Full exception details: {repr(e)}")
-            import traceback
-
-            logger.error(f"Traceback: {traceback.format_exc()}")
             return None
         finally:
             try:
