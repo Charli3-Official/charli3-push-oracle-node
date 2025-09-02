@@ -10,7 +10,12 @@ from urllib.parse import urlparse
 from charli3_offchain_core.chain_query import ChainQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.api.providers import BaseAdapter, Charli3DendriteAdapter, GenericApiAdapter
+from backend.api.providers import (
+    BaseAdapter,
+    CCXTAdapter,
+    Charli3DendriteAdapter,
+    GenericApiAdapter,
+)
 from backend.utils.alerts import AlertManager
 
 from ..db.crud.providers_crud import Provider, ProviderCreate, providers_crud
@@ -88,6 +93,7 @@ class AggregatedCoinRate:
         """
         dex_configs = config.get("dexes", [])
         api_configs = config.get("api_sources", [])
+        cex_configs = config.get("cexes", [])
         db_providers = []
 
         # Initialize provider storage based on type (base or quote)
@@ -162,6 +168,31 @@ class AggregatedCoinRate:
 
                 providers.append(generic_adapter)
                 db_providers.extend(self.get_providers_from_adapter(generic_adapter))
+
+        # Handle multiple CCXTAdapter instances
+        for cex_config in cex_configs:
+            if cex_config.get("adapter") == "ccxt":
+                ccxt_adapter = CCXTAdapter(
+                    asset_a=cex_config.get("asset_a", "ADA"),
+                    asset_b=cex_config.get("asset_b", "USDT"),
+                    pair_type=pair_type,
+                    sources=cex_config.get("sources", []),
+                    quote_required=cex_config.get("quote_required", False),
+                    quote_calc_method=cex_config.get("quote_calc_method", None),
+                )
+
+                asset_a_ccxt, asset_b_ccxt = ccxt_adapter.get_asset_names()
+                for source in ccxt_adapter.get_sources():
+                    db_provider = await self._ensure_provider_in_db(
+                        provider_name=source,
+                        feed_type=f"ccxt-{pair_type}",
+                        db_session=db_session,
+                        symbol=f"{asset_a_ccxt}-{asset_b_ccxt}",
+                    )
+                    ccxt_adapter.set_source_id(source, str(db_provider.id))
+
+                providers.append(ccxt_adapter)
+                db_providers.extend(self.get_providers_from_adapter(ccxt_adapter))
 
         return providers, db_providers
 
@@ -352,6 +383,16 @@ class AggregatedCoinRate:
                     token=f"{asset_a_name}-{asset_b_name}",
                     api_url=base_url,
                     path=path,
+                )
+            elif isinstance(adapter, CCXTAdapter):
+                provider = Provider(
+                    id=adapter.get_source_id(source),
+                    name=source,
+                    feed_id=self.feed_id,
+                    adapter_type=f"ccxt-{adapter.pair_type}",
+                    token=f"{asset_a_name}-{asset_b_name}",
+                    api_url="",
+                    path="",
                 )
             else:
                 continue

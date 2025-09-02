@@ -21,6 +21,7 @@ alembic = "^1.13.1"
 cachetools = "^5.3.3"
 charli3-dendrite = {git = "https://github.com/Charli3-Official/charli3-dendrite.git", branch = "fix/backend"}
 apprise = "^1.9.0"
+ccxt = "^4.5.2"
 
 [tool.poetry.group.dev.dependencies]
 mocket = "^3.11.0"
