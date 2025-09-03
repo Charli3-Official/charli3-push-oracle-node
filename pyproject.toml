@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "backend"
-version = "v3.5.0"
+version = "v3.5.1"
 description = "Charli3 Node Operator Backend."
 authors = ["Deep Bhatt <deep.bhatt@charli3.io>"]
 license = "MIT"
@@ -8,6 +8,7 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.10"
+virtualenv = "20.30.0"
 PyYAML = "^6.0"
 pycardano = { git = "https://github.com/Charli3-Official/pycardano.git", branch = "chang"}
 aiohttp = "^3.8.4"
