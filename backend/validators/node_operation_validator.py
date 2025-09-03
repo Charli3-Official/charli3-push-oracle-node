@@ -42,10 +42,9 @@ class NodeOperationValidator:
             if not permission:
                 logger.error("❌ Node is not listed in oracle settings.")
                 logger.info("-------------------MESSAGE----------------")
-                logger.info(
-                    "Contact Oracle Owner to get your Node Public Key Registered."
-                )
-                logger.info("Node Public Key: %s", self.node.pub_key_hash)
+                logger.info("Contact Oracle Owner to get your Node PKH Registered.")
+                logger.info("Node Public Key Hash: %s", self.node.pub_key_hash)
+                logger.info("Node Address: %s", self.node.address)
                 logger.info("------------------------------------------")
                 return False
 

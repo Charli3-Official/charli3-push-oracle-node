@@ -117,3 +117,104 @@ Rate:
             api_url: "https://www.okx.com/api/v5/market/ticker?instId=ADA-USDC"
             json_path: ["data", 0, "last"]
             headers: {}
+
+    cexes:
+      - adapter: ccxt  # Centralized exchange integration adapter
+        asset_a: "ADA"  # First asset symbol in trading pair (e.g., ADA)
+        asset_b: "USDT"  # Second asset symbol in trading pair (e.g., USDT)
+        quote_required: false
+        quote_calc_method: multiply
+        sources:
+          - alpaca
+          - ascendex
+          - bequant
+          - bigone
+          - binance
+          - binancecoinm
+          - binanceus
+          - binanceusdm
+          - bingx
+          - bit2c
+          - bitbank
+          - bitbns
+          - bitfinex
+          - bitflyer
+          - bitget
+          - bithumb
+          - bitmart
+          - bitmex
+          - bitopro
+          - bitrue
+          - bitso
+          - bitstamp
+          - bitteam
+          - bittrade
+          - bitvavo
+          - blockchaincom
+          - blofin
+          - btcalpha
+          - btcbox
+          - btcmarkets
+          - btcturk
+          - bybit
+          - cex
+          - coinbase
+          - coinbaseexchange
+          - coinbaseinternational
+          - coincatch
+          - coincheck
+          - coinex
+          - coinmate
+          - coinmetro
+          - coinone
+          - coinsph
+          - coinspot
+          - cryptocom
+          - cryptomus
+          - delta
+          - deribit
+          - digifinex
+          - exmo
+          - fmfwio
+          - foxbit
+          - gate
+          - gemini
+          - hashkey
+          - hitbtc
+          - hollaex
+          - htx
+          - independentreserve
+          - indodax
+          - kraken
+          - krakenfutures
+          - kucoin
+          - kucoinfutures
+          - latoken
+          - lbank
+          - luno
+          - mercado
+          - mexc
+          - myokx
+          - ndax
+          - novadax
+          - oceanex
+          - okcoin
+          - okx
+          - okxus
+          - onetrading
+          - oxfun
+          - p2b
+          - paymium
+          - phemex
+          - poloniex
+          - probit
+          - timex
+          - tokocrypto
+          - tradeogre
+          - upbit
+          - whitebit
+          - woo
+          - xt
+          - yobit
+          - zaif
+          - zonda

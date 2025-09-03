@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "backend"
-version = "v3.4.0"
+version = "v3.5.0"
 description = "Charli3 Node Operator Backend."
 authors = ["Deep Bhatt <deep.bhatt@charli3.io>"]
 license = "MIT"
@@ -21,9 +21,11 @@ alembic = "^1.13.1"
 cachetools = "^5.3.3"
 charli3-dendrite = {git = "https://github.com/Charli3-Official/charli3-dendrite.git", branch = "fix/backend"}
 apprise = "^1.9.0"
+ccxt = "^4.5.2"
 
 [tool.poetry.group.dev.dependencies]
 mocket = "^3.11.0"
+aioresponses = "^0.7.4"
 pytest = "^7.2.1"
 boto3 = "^1.26.63"
 pylint = "^2.16.1"

@@ -361,7 +361,7 @@ class FeedUpdater:
             otherwise, validation is performed.
         """
         if ofeed_updated_time is None:
-            return True
+            return False
         return node_updated_time <= ofeed_updated_time.get_timestamp()
 
     def agg_is_expired(self, last_time: int) -> bool:
