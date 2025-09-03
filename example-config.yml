@@ -117,7 +117,7 @@ Rate:
             api_url: "https://www.okx.com/api/v5/market/ticker?instId=ADA-USDC"
             json_path: ["data", 0, "last"]
             headers: {}
-    
+
     cexes:
       - adapter: ccxt  # Centralized exchange integration adapter
         asset_a: "ADA"  # First asset symbol in trading pair (e.g., ADA)
