@@ -409,7 +409,7 @@ async def setup_feed_updater(
 
     if updater_config:
         node_sync_api = None
-        if "api_url" in node_sync_config:
+        if node_sync_config and "api_url" in node_sync_config:
             node_sync_api = NodeSyncApi(node_sync_config.get("api_url"))
             await node_sync_api.report_initialization(feed, node, db_providers)
 
