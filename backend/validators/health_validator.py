@@ -5,6 +5,8 @@ import logging
 
 import aiohttp
 
+from backend.app_setup import is_dendrite_configured
+
 logger = logging.getLogger(__name__)
 timeout = aiohttp.ClientTimeout(total=10)
 
@@ -34,16 +36,13 @@ class HealthCheckValidator:
                 health_data = await response.json()
                 ogmios_network = health_data.get("network", "").lower()
 
-                # Handle network mismatch or unexpected network types
-                if expected_network == "testnet":
-                    if ogmios_network not in ["preprod", "preview"]:
-                        logger.error(
-                            "❌ Ogmios service is configured for %s network but expected testnet network.",
-                            ogmios_network.upper(),
-                        )
-                        return False
+                # Validate network compatibility
+                valid_networks = {
+                    "testnet": ["testnet", "preprod", "preview"],
+                    "mainnet": ["mainnet"],
+                }
 
-                if ogmios_network != expected_network:
+                if ogmios_network not in valid_networks.get(expected_network, []):
                     logger.error(
                         "❌ Ogmios service is configured for %s network but expected %s network.",
                         ogmios_network.upper(),
@@ -78,27 +77,30 @@ class HealthCheckValidator:
         async with aiohttp.ClientSession(timeout=timeout) as session:
             health_checks = []
 
-            # Internal check for Mainnet
-            if network_config == "mainnet":
-                if ogmios_config:
-                    ws_url = ogmios_config.get("ws_url")
-                    kupo_url = ogmios_config.get("kupo_url")
-                    health_checks.append(
-                        self.check_ogmios_health(session, ws_url, "mainnet")
-                    )
-                    health_checks.append(self._check_kupo_health(session, kupo_url))
-                elif blockfrost_config:
-                    logger.warning(
-                        "⚠️  Blockfrost is configured, skipping health check for internal Ogmios."
-                    )
-                else:
-                    logger.error(
-                        "❌ Neither internal Ogmios nor Blockfrost is configured."
-                    )
-                    return False
+            # Always check internal configs (for ChainQuery)
+            internal_valid = False
+            if ogmios_config:
+                ws_url = ogmios_config.get("ws_url")
+                kupo_url = ogmios_config.get("kupo_url")
+                expected_network = (
+                    "mainnet" if network_config == "mainnet" else "testnet"
+                )
+                health_checks.append(
+                    self.check_ogmios_health(session, ws_url, expected_network)
+                )
+                health_checks.append(self._check_kupo_health(session, kupo_url))
+                internal_valid = True
+            elif blockfrost_config:
+                logger.warning(
+                    "⚠️  Blockfrost is configured, skipping health check for internal Ogmios."
+                )
+                internal_valid = True
+            else:
+                logger.error("❌ Neither internal Ogmios nor Blockfrost is configured.")
+                return False
 
-            # External check for Testnet
-            if network_config == "testnet":
+            # Check external configs only when dendrite is configured and network is testnet
+            if is_dendrite_configured(self.config) and network_config == "testnet":
                 if external_ogmios_config:
                     external_ws_url = external_ogmios_config.get("ws_url")
                     external_kupo_url = external_ogmios_config.get("kupo_url")
@@ -112,12 +114,15 @@ class HealthCheckValidator:
                     logger.warning(
                         "⚠️  External Blockfrost is configured, skipping health check for external Ogmios."
                     )
-                    return True
                 else:
                     logger.error(
                         "❌ Neither external Ogmios nor Blockfrost is configured for Testnet."
                     )
                     return False
+
+            # If internal is valid and no external checks needed, return True
+            if internal_valid and not health_checks:
+                return True
 
             # Run all health checks in parallel
             if health_checks:

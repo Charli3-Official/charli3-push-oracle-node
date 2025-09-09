@@ -29,7 +29,7 @@ from charli3_offchain_core.oracle_checks import (
     get_oracle_utxos_with_datums,
 )
 from charli3_offchain_core.utils.exceptions import CollateralException
-from pycardano import UTxO
+from pycardano import UTxO, VerificationKeyHash
 
 from backend.api.aggregated_coin_rate import AggregatedCoinRate
 
@@ -89,6 +89,9 @@ class FeedUpdater:
         self.node_sync_api = node_sync_api
         self.alerts_manager = alerts_manager
         self.precision_multiplier = precision_multiplier
+        self.last_oracle_timestamp: Optional[int] = None
+        self.last_oracle_value: Optional[int] = None
+        self.last_reward_datum: Optional[RewardDatum] = None
 
     async def run(self):
         """Checks and if necessary updates and/or aggregates the contract"""
@@ -199,6 +202,9 @@ class FeedUpdater:
                         str(timedelta(seconds=time.time() - data_time)),
                         extra={"operation_time": time.time() - data_time},
                     )
+
+                # NEW CODE: Check for network aggregations
+                await self._check_network_aggregation(oraclefeed_utxo, nodes_utxos)
 
                 # Check all alerts at the end of the loop
                 if self.alerts_manager:
@@ -858,3 +864,197 @@ class FeedUpdater:
                 )
 
         return c3_oracle_rate_feed
+
+    async def _check_network_aggregation(
+        self,
+        oraclefeed_utxo: UTxO,
+        nodes_utxos: List[UTxO],
+    ):
+        """Check if oracle was updated by network and record it."""
+        if not self.oracle_datum.price_data:
+            return
+
+        current_timestamp = self.oracle_datum.price_data.get_timestamp()
+        current_value = self.oracle_datum.price_data.get_price()
+
+        # Initialize on first run
+        if self.last_oracle_timestamp is None:
+            self.last_oracle_timestamp = current_timestamp
+            self.last_oracle_value = current_value
+            self.last_reward_datum = self.reward_datum
+            return
+
+        # Detect network aggregation
+        if current_timestamp > self.last_oracle_timestamp:
+            logger.info("Network aggregation detected - extracting enhanced data")
+
+            # Extract aggregation data
+            aggregator_node_pkh, trigger_reason = self._extract_aggregation_info(
+                current_value, current_timestamp
+            )
+
+            # Get participating node UTXOs for existing store function
+            participating_node_utxos = await self._get_participating_node_utxos(
+                nodes_utxos
+            )
+
+            # Record the network aggregation
+            agg_model = NodeAggregationCreate(
+                node_pkh=aggregator_node_pkh,
+                feed_id=self.feed_id,
+                timestamp=datetime.fromtimestamp(current_timestamp / 1000),
+                status="network_aggregation",
+                aggregated_value=current_value,
+                nodes_count=len(participating_node_utxos),
+                tx_hash=(
+                    str(oraclefeed_utxo.input.transaction_id)
+                    if oraclefeed_utxo
+                    else None
+                ),
+                trigger=trigger_reason,
+            )
+
+            try:
+                async with get_session() as db_session:
+                    # Create the aggregation record
+                    node_agg = await node_aggregation_crud.create(
+                        db_session=db_session, obj_in=agg_model
+                    )
+
+                    # Use existing store functions
+                    await store_node_aggregation_participation(
+                        db_session,
+                        node_agg.id,
+                        participating_node_utxos,
+                    )
+
+                    await store_reward_distribution(
+                        db_session,
+                        node_agg.id,
+                        self.last_reward_datum,  # input_reward_datum
+                        self.reward_datum,  # output_reward_datum
+                    )
+
+            except Exception as e:
+                logger.error("Failed to record network aggregation: %s", e)
+
+            # Update tracking
+            self.last_oracle_timestamp = current_timestamp
+            self.last_oracle_value = current_value
+            self.last_reward_datum = self.reward_datum
+
+    def _extract_aggregation_info(
+        self, current_value: int, current_timestamp: int
+    ) -> tuple[str, str]:
+        """Extract aggregator node and trigger reason."""
+
+        # Find aggregator using reward analysis
+        aggregator_node_pkh = self._find_aggregator_from_rewards()
+
+        # Determine trigger reason
+        trigger_reason = self._determine_trigger_reason(
+            current_value, current_timestamp
+        )
+
+        return aggregator_node_pkh, trigger_reason
+
+    def _determine_trigger_reason(
+        self, current_value: int, current_timestamp: int
+    ) -> str:
+        """Determine trigger reason using monitoring logic patterns."""
+        if self.last_oracle_value is None:
+            return "Initial_Feed_Value"
+
+        # Calculate time and price differences
+        time_difference = current_timestamp - self.last_oracle_timestamp
+        price_change_percentage = (
+            abs(current_value - self.last_oracle_value) / self.last_oracle_value * 100
+        )
+
+        # Get settings
+        os_aggregate_time = self.agg_datum.aggstate.ag_settings.os_aggregate_time
+        os_aggregate_change_percentage = (
+            self.agg_datum.aggstate.ag_settings.os_aggregate_change / 100.0
+        )
+
+        # Check trigger conditions
+        if time_difference > os_aggregate_time:
+            return "Time_Expiry"
+
+        if price_change_percentage > os_aggregate_change_percentage:
+            return "Price_Deviation"
+
+        return "Network_Aggregation"
+
+    async def _get_participating_node_utxos(
+        self, nodes_utxos: List[UTxO]
+    ) -> List[UTxO]:
+        """Get participating node UTXOs in format expected by existing store function."""
+        if not hasattr(self, "last_reward_datum") or self.last_reward_datum is None:
+            return []
+
+        # Find nodes that had reward increases (participated)
+        current_rewards = self.reward_datum.reward_state.node_reward_list
+        previous_rewards = self.last_reward_datum.reward_state.node_reward_list
+
+        # Create mapping of previous rewards
+        prev_reward_map = {
+            reward.reward_address: reward.reward_amount for reward in previous_rewards
+        }
+
+        participating_utxos = []
+
+        for current_reward in current_rewards:
+            node_operator = current_reward.reward_address
+            current_amount = current_reward.reward_amount
+            previous_amount = prev_reward_map.get(node_operator, 0)
+            reward_increase = current_amount - previous_amount
+
+            # If this node had a reward increase, it participated
+            if reward_increase > 0:
+                # Find the corresponding node UTXO
+                for node_utxo in nodes_utxos:
+                    node_datum = node_utxo.output.datum
+                    if not isinstance(node_datum, NodeDatum):
+                        node_datum = NodeDatum.from_cbor(node_datum.cbor)
+
+                    if node_datum.node_state.ns_operator == node_operator:
+                        participating_utxos.append(node_utxo)
+                        break
+
+        return participating_utxos
+
+    def _find_aggregator_from_rewards(self) -> str:
+        """Find aggregator node using reward increase patterns."""
+        if not hasattr(self, "last_reward_datum") or self.last_reward_datum is None:
+            return "UNKNOWN"
+
+        # Get fee amounts
+        node_fee = self.agg_datum.aggstate.ag_settings.os_node_fee_price.node_fee
+        aggregate_fee = (
+            self.agg_datum.aggstate.ag_settings.os_node_fee_price.aggregate_fee
+        )
+
+        current_rewards = self.reward_datum.reward_state.node_reward_list
+        previous_rewards = self.last_reward_datum.reward_state.node_reward_list
+
+        # Create mapping of previous rewards
+        prev_reward_map = {
+            reward.reward_address: reward.reward_amount for reward in previous_rewards
+        }
+
+        # Find aggregator (node with node_fee + aggregate_fee increase)
+        for current_reward in current_rewards:
+            node_operator = current_reward.reward_address
+            current_amount = current_reward.reward_amount
+            previous_amount = prev_reward_map.get(node_operator, 0)
+            reward_increase = current_amount - previous_amount
+
+            # Aggregator gets both fees
+            if (
+                reward_increase == node_fee + aggregate_fee
+                or reward_increase == aggregate_fee
+            ):
+                return str(VerificationKeyHash(node_operator))
+
+        return "UNKNOWN"
