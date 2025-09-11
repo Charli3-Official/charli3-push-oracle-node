@@ -220,6 +220,25 @@ class ConfigValidator:
 
         return True
 
+    def validate_node_sync_keys(self) -> bool:
+        """Ensure NodeSync configuration is present and valid."""
+        node_sync_section = self.config.get("NodeSync", {})
+        if not node_sync_section:
+            logger.error("❌ NodeSync section is missing in the configuration.")
+            return False
+
+        if "api_url" not in node_sync_section:
+            logger.error("❌ 'api_url' is missing in the NodeSync section.")
+            return False
+
+        api_url = node_sync_section["api_url"]
+        if not api_url or not isinstance(api_url, str) or not api_url.strip():
+            logger.error("❌ 'api_url' in NodeSync section must be a non-empty string.")
+            return False
+
+        logger.info("✅ NodeSync Configurations are present.")
+        return True
+
     def run_config_validation(self) -> bool:
         """
         Run all configuration validation checks.
@@ -232,8 +251,9 @@ class ConfigValidator:
         node_valid = self.validate_node_keys()
         rate_valid = self.validate_rate_keys()
         chainquery_valid = self.validate_chain_query_keys()
+        node_sync_valid = self.validate_node_sync_keys()
 
-        if not (node_valid and rate_valid and chainquery_valid):
+        if not (node_valid and rate_valid and chainquery_valid and node_sync_valid):
             logger.error("Configuration validation failed.")
             logger.info(
                 "-------------------- Configuration Validation Failed ------------------"

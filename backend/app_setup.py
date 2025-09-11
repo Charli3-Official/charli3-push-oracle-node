@@ -114,7 +114,7 @@ def setup_chain_query(config, network) -> Optional[ChainQuery]:
     use_slot_time = chain_query_config.get("use_slot_time", False)
     logger.debug("The variable use_slot_time set to: %s", use_slot_time)
     if chain_query_config:
-        setup_charli3dendrite_backend(chain_query_config)
+        setup_charli3dendrite_backend(config)
         return ChainQuery(
             blockfrost_context=setup_blockfrost_context(chain_query_config, network),
             kupo_ogmios_context=setup_ogmios_context(chain_query_config, network),
@@ -155,8 +155,26 @@ async def ensure_feed_in_db(
     return feed
 
 
-def setup_charli3dendrite_backend(chain_query_config):
+def is_dendrite_configured(config):
+    """Check if charli3-dendrite adapter is configured in the rates."""
+    rate_config = config.get("Rate", {})
+
+    for currency_type in ["base_currency", "quote_currency"]:
+        currency_config = rate_config.get(currency_type, {})
+        for source_type in ["dexes", "api_sources", "cexes"]:
+            sources = currency_config.get(source_type, [])
+            for source in sources:
+                if source.get("adapter") == "charli3-dendrite":
+                    return True
+    return False
+
+
+def setup_charli3dendrite_backend(config):
     """Setup the Charli3 Dendrite backend based on the configuration."""
+    if not is_dendrite_configured(config):
+        return True
+
+    chain_query_config = config.get("ChainQuery")
     network_config = chain_query_config.get("network", "").lower()
     external_config = chain_query_config.get("external", {})
 
@@ -185,7 +203,9 @@ def setup_charli3dendrite_backend(chain_query_config):
             logger.warning("Blockfrost backend configured for Charli3-Dendrite.")
 
         else:
-            logger.error("❌ External Ogmios or Blockfrost configuration is missing.")
+            logger.error(
+                "❌ External Ogmios or Blockfrost configuration is missing, required for Charli3-Dendrite."
+            )
             return False
 
     else:
@@ -389,7 +409,7 @@ async def setup_feed_updater(
 
     if updater_config:
         node_sync_api = None
-        if "api_url" in node_sync_config:
+        if node_sync_config and "api_url" in node_sync_config:
             node_sync_api = NodeSyncApi(node_sync_config.get("api_url"))
             await node_sync_api.report_initialization(feed, node, db_providers)
 
