@@ -92,6 +92,7 @@ class FeedUpdater:
         self.last_oracle_timestamp: Optional[int] = None
         self.last_oracle_value: Optional[int] = None
         self.last_reward_datum: Optional[RewardDatum] = None
+        self.is_waiting_for_optimal_update: bool = False
 
     async def run(self):
         """Checks and if necessary updates and/or aggregates the contract"""
@@ -418,6 +419,9 @@ class FeedUpdater:
                 update_result, aggregated_rate_id, rate_from_sources, update_reason
             )
 
+            # Reset the optimal update waiting state after successful update
+            self.is_waiting_for_optimal_update = False
+
             return True
 
         except Exception as e:  # pylint: disable=broad-except
@@ -592,6 +596,9 @@ class FeedUpdater:
             return False, "Insufficient_rewards"
 
         if own_feed == Nothing():
+            self.is_waiting_for_optimal_update = (
+                False  # Reset state for feed initialization
+            )
             return True, "Feed_Initialization"
 
         if own_feed != Nothing():
@@ -601,20 +608,30 @@ class FeedUpdater:
                 if oracle_feed and self.check_rate_change(
                     new_rate, oracle_feed.get_price()
                 ):
+                    self.is_waiting_for_optimal_update = (
+                        False  # Reset state for significant rate change
+                    )
                     return True, "Rate_Change_Significant"
 
         should_wait, _ = self._should_wait_for_optimal_update(oracle_feed)
 
         if should_wait:
+            self.is_waiting_for_optimal_update = True
             return False, "Waiting_For_Optimal_Update_Time"
+        else:
+            self.is_waiting_for_optimal_update = False
 
         if self.node_is_expired(own_feed.df.df_last_update):
+            self.is_waiting_for_optimal_update = False  # Reset state for time expiry
             return True, "Time_Expiry"
 
         if self.node_consumed_on_last_aggregation(
             own_feed.df.df_last_update, oracle_feed
         ):
             logger.info("Proceeding with node update...")
+            self.is_waiting_for_optimal_update = (
+                False  # Reset state for feed time update
+            )
             return True, "Feed time exceeds node time"
 
         logger.info("Update not required; last update is still valid.")
@@ -825,6 +842,10 @@ class FeedUpdater:
                     last_update_time,
                     self.agg_datum.aggstate.ag_settings.os_updated_node_time,
                     str(self.node.address),
+                    is_waiting_for_optimal_update=self.is_waiting_for_optimal_update,
+                    oracle_feed_data=(
+                        self.oracle_datum.price_data if self.oracle_datum else None
+                    ),
                 ),
             )
 
