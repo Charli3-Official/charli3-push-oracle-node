@@ -139,17 +139,54 @@ class AlertManager:
             )
 
     async def check_node_update_timeout(
-        self, last_update_time: int, node_expiry: int, node_address: str
+        self,
+        last_update_time: int,
+        node_expiry: int,
+        node_address: str,
+        is_waiting_for_optimal_update: bool = False,
+        oracle_feed_data=None,
     ) -> None:
         """Check node update timeout and send alert if expired"""
         timeout = self._calculate_timeout(node_expiry)
         current_time = self.chain_query.get_current_posix_chain_time_ms()
         time_since_last = current_time - last_update_time
-        if time_since_last > timeout:
-            await self.send_alert(
-                "Node Update Timeout",
-                f"*No update for* *{time_since_last / 60000:.2f} minutes*\n*Node*: {node_address}\n*Last update*: {self._format_time(last_update_time)}\n*Timeout threshold*: {timeout / 60000:.2f} minutes",
+
+        # If node is waiting for optimal update timing, use extended timeout
+        if is_waiting_for_optimal_update and oracle_feed_data is not None:
+            # Calculate when the next aggregation is expected to occur
+            aggregation_interval = (
+                node_expiry  # os_updated_node_time roughly equals os_aggregate_time
             )
+            next_agg_time_ms = oracle_feed_data.get_timestamp() + aggregation_interval
+
+            # Add a reasonable buffer after the next aggregation time
+            # If the node doesn't update by then, it missed its opportunity
+            buffer_time = 2 * 60 * 1000  # 2 minutes buffer after next aggregation
+            extended_timeout_until = next_agg_time_ms + buffer_time
+
+            # Calculate how long that is from the last update time
+            extended_timeout = extended_timeout_until - last_update_time
+
+            # Use the longer of standard timeout or time until next aggregation + buffer
+            extended_timeout = max(timeout, extended_timeout)
+
+            logger.debug(
+                f"Node waiting for optimal update. Extended timeout: {extended_timeout / 60000:.2f} min "
+                f"(until next aggregation + buffer) (original: {timeout / 60000:.2f} min)"
+            )
+
+            if time_since_last > extended_timeout:
+                await self.send_alert(
+                    "Node Update Timeout",
+                    f"*No update for* *{time_since_last / 60000:.2f} minutes*\n*Node*: {node_address}\n*Last update*: {self._format_time(last_update_time)}\n*Next aggregation expected*: {self._format_time(next_agg_time_ms)}\n*Timeout threshold*: {extended_timeout / 60000:.2f} minutes\n*Note*: Node was waiting for optimal update timing but missed the next aggregation window",
+                )
+        else:
+            # Standard timeout check
+            if time_since_last > timeout:
+                await self.send_alert(
+                    "Node Update Timeout",
+                    f"*No update for* *{time_since_last / 60000:.2f} minutes*\n*Node*: {node_address}\n*Last update*: {self._format_time(last_update_time)}\n*Timeout threshold*: {timeout / 60000:.2f} minutes",
+                )
 
     async def check_minimum_data_sources(
         self, active_sources: int, rate_type: str
