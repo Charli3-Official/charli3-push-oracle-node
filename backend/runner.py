@@ -956,7 +956,10 @@ class FeedUpdater:
 
                             if node_datums:
                                 await process_and_store_nodes_data(
-                                    node_datums, self.node.network, self.feed_id, db_session
+                                    node_datums,
+                                    self.node.network,
+                                    self.feed_id,
+                                    db_session,
                                 )
                                 node_exists = await node_crud.get_node_by_pkh(
                                     aggregator_node_pkh, db_session
