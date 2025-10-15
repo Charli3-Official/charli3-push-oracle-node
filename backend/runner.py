@@ -914,50 +914,79 @@ class FeedUpdater:
                 current_value, current_timestamp
             )
 
-            # Get participating node UTXOs for existing store function
-            participating_node_utxos = await self._get_participating_node_utxos(
-                nodes_utxos
-            )
+            if aggregator_node_pkh is None:
+                logger.warning(
+                    "Unable to determine aggregator node from rewards; skipping record"
+                )
+            else:
+                # Get participating node UTXOs for existing store function
+                participating_node_utxos = await self._get_participating_node_utxos(
+                    nodes_utxos
+                )
 
-            # Record the network aggregation
-            agg_model = NodeAggregationCreate(
-                node_pkh=aggregator_node_pkh,
-                feed_id=self.feed_id,
-                timestamp=datetime.fromtimestamp(current_timestamp / 1000),
-                status="network_aggregation",
-                aggregated_value=current_value,
-                nodes_count=len(participating_node_utxos),
-                tx_hash=(
-                    str(oraclefeed_utxo.input.transaction_id)
-                    if oraclefeed_utxo
-                    else None
-                ),
-                trigger=trigger_reason,
-            )
+                # Record the network aggregation
+                agg_model = NodeAggregationCreate(
+                    node_pkh=aggregator_node_pkh,
+                    feed_id=self.feed_id,
+                    timestamp=datetime.fromtimestamp(current_timestamp / 1000),
+                    status="network_aggregation",
+                    aggregated_value=current_value,
+                    nodes_count=len(participating_node_utxos),
+                    tx_hash=(
+                        str(oraclefeed_utxo.input.transaction_id)
+                        if oraclefeed_utxo
+                        else None
+                    ),
+                    trigger=trigger_reason,
+                )
 
-            try:
-                async with get_session() as db_session:
-                    # Create the aggregation record
-                    node_agg = await node_aggregation_crud.create(
-                        db_session=db_session, obj_in=agg_model
-                    )
+                try:
+                    async with get_session() as db_session:
+                        node_exists = await node_crud.get_node_by_pkh(
+                            aggregator_node_pkh, db_session
+                        )
 
-                    # Use existing store functions
-                    await store_node_aggregation_participation(
-                        db_session,
-                        node_agg.id,
-                        participating_node_utxos,
-                    )
+                        if node_exists is None:
+                            node_datums: List[NodeDatum] = []
+                            for node_utxo in nodes_utxos:
+                                node_datum = node_utxo.output.datum
+                                if not isinstance(node_datum, NodeDatum):
+                                    node_datum = NodeDatum.from_cbor(node_datum.cbor)
+                                node_datums.append(node_datum)
 
-                    await store_reward_distribution(
-                        db_session,
-                        node_agg.id,
-                        self.last_reward_datum,  # input_reward_datum
-                        self.reward_datum,  # output_reward_datum
-                    )
+                            if node_datums:
+                                await process_and_store_nodes_data(
+                                    node_datums, self.node.network, self.feed_id, db_session
+                                )
+                                node_exists = await node_crud.get_node_by_pkh(
+                                    aggregator_node_pkh, db_session
+                                )
 
-            except Exception as e:
-                logger.error("Failed to record network aggregation: %s", e)
+                        if node_exists is None:
+                            logger.warning(
+                                "Aggregator node %s not found in database after refresh; skipping record",
+                                aggregator_node_pkh,
+                            )
+                        else:
+                            node_agg = await node_aggregation_crud.create(
+                                db_session=db_session, obj_in=agg_model
+                            )
+
+                            await store_node_aggregation_participation(
+                                db_session,
+                                node_agg.id,
+                                participating_node_utxos,
+                            )
+
+                            await store_reward_distribution(
+                                db_session,
+                                node_agg.id,
+                                self.last_reward_datum,
+                                self.reward_datum,
+                            )
+
+                except Exception as e:
+                    logger.error("Failed to record network aggregation: %s", e)
 
             # Update tracking
             self.last_oracle_timestamp = current_timestamp
@@ -966,7 +995,7 @@ class FeedUpdater:
 
     def _extract_aggregation_info(
         self, current_value: int, current_timestamp: int
-    ) -> tuple[str, str]:
+    ) -> tuple[Optional[str], str]:
         """Extract aggregator node and trigger reason."""
 
         # Find aggregator using reward analysis
@@ -1045,10 +1074,10 @@ class FeedUpdater:
 
         return participating_utxos
 
-    def _find_aggregator_from_rewards(self) -> str:
+    def _find_aggregator_from_rewards(self) -> Optional[str]:
         """Find aggregator node using reward increase patterns."""
         if not hasattr(self, "last_reward_datum") or self.last_reward_datum is None:
-            return "UNKNOWN"
+            return None
 
         # Get fee amounts
         node_fee = self.agg_datum.aggstate.ag_settings.os_node_fee_price.node_fee
@@ -1078,4 +1107,4 @@ class FeedUpdater:
             ):
                 return str(VerificationKeyHash(node_operator))
 
-        return "UNKNOWN"
+        return None

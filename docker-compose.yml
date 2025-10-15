@@ -5,6 +5,7 @@ services:
     volumes:
       - "./config.yml:/app/config.yml"
       - "./dynamic_config.yml:/app/dynamic_config.yml"
+      - "./keys:/app/keys:ro"  # Place optional signing/verification key files here
     restart: always
     depends_on:
       charli3-migrations:
