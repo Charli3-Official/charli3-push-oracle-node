@@ -942,35 +942,54 @@ class FeedUpdater:
 
                 try:
                     async with get_session() as db_session:
+                        # Extract all node datums from UTxOs
+                        node_datums: List[NodeDatum] = []
+                        for node_utxo in nodes_utxos:
+                            node_datum = node_utxo.output.datum
+                            if not isinstance(node_datum, NodeDatum):
+                                node_datum = NodeDatum.from_cbor(node_datum.cbor)
+                            node_datums.append(node_datum)
+
+                    # Check each node and register if missing
+                    for node_datum in node_datums:
+                        pub_key_hash = str(
+                            VerificationKeyHash(node_datum.node_state.ns_operator)
+                        )
                         node_exists = await node_crud.get_node_by_pkh(
-                            aggregator_node_pkh, db_session
+                            pub_key_hash, db_session
                         )
 
                         if node_exists is None:
-                            node_datums: List[NodeDatum] = []
-                            for node_utxo in nodes_utxos:
-                                node_datum = node_utxo.output.datum
-                                if not isinstance(node_datum, NodeDatum):
-                                    node_datum = NodeDatum.from_cbor(node_datum.cbor)
-                                node_datums.append(node_datum)
-
-                            if node_datums:
-                                await process_and_store_nodes_data(
-                                    node_datums,
-                                    self.node.network,
-                                    self.feed_id,
-                                    db_session,
+                            # Node not registered - create it now
+                            node_address = str(
+                                Address(
+                                    VerificationKeyHash(
+                                        node_datum.node_state.ns_operator
+                                    ),
+                                    network=self.node.network,
                                 )
-                                node_exists = await node_crud.get_node_by_pkh(
-                                    aggregator_node_pkh, db_session
-                                )
+                            )
+                            node_create = NodeCreate(
+                                feed_id=self.feed_id,
+                                pub_key_hash=pub_key_hash,
+                                node_operator_address=node_address,
+                            )
+                            await node_crud.create(
+                                db_session=db_session, obj_in=node_create
+                            )
+                            logger.info(f"Registered new node: {pub_key_hash}")
 
-                        if node_exists is None:
+                        # Verify aggregator exists after registration
+                        aggregator_exists = await node_crud.get_node_by_pkh(
+                            aggregator_node_pkh, db_session
+                        )
+                        if aggregator_exists is None:
                             logger.warning(
                                 "Aggregator node %s not found in database after refresh; skipping record",
                                 aggregator_node_pkh,
                             )
                         else:
+                            # Now safe to create all records
                             node_agg = await node_aggregation_crud.create(
                                 db_session=db_session, obj_in=agg_model
                             )
@@ -987,7 +1006,6 @@ class FeedUpdater:
                                 self.last_reward_datum,
                                 self.reward_datum,
                             )
-
                 except Exception as e:
                     logger.error("Failed to record network aggregation: %s", e)
 
