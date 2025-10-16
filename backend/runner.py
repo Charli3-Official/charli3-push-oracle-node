@@ -29,7 +29,7 @@ from charli3_offchain_core.oracle_checks import (
     get_oracle_utxos_with_datums,
 )
 from charli3_offchain_core.utils.exceptions import CollateralException
-from pycardano import UTxO, VerificationKeyHash
+from pycardano import Address, UTxO, VerificationKeyHash
 
 from backend.api.aggregated_coin_rate import AggregatedCoinRate
 
@@ -41,7 +41,12 @@ from .db.crud import (
     transaction_crud,
 )
 from .db.database import get_session
-from .db.models import NodeAggregationCreate, NodeUpdateCreate, TransactionCreate
+from .db.models import (
+    NodeAggregationCreate,
+    NodeCreate,
+    NodeUpdateCreate,
+    TransactionCreate,
+)
 from .db.service import (
     process_and_store_nodes_data,
     store_node_aggregation_participation,
