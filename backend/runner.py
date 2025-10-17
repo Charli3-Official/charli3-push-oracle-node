@@ -29,7 +29,7 @@ from charli3_offchain_core.oracle_checks import (
     get_oracle_utxos_with_datums,
 )
 from charli3_offchain_core.utils.exceptions import CollateralException
-from pycardano import UTxO, VerificationKeyHash
+from pycardano import Address, UTxO, VerificationKeyHash
 
 from backend.api.aggregated_coin_rate import AggregatedCoinRate
 
@@ -41,7 +41,12 @@ from .db.crud import (
     transaction_crud,
 )
 from .db.database import get_session
-from .db.models import NodeAggregationCreate, NodeUpdateCreate, TransactionCreate
+from .db.models import (
+    NodeAggregationCreate,
+    NodeCreate,
+    NodeUpdateCreate,
+    TransactionCreate,
+)
 from .db.service import (
     process_and_store_nodes_data,
     store_node_aggregation_participation,
@@ -914,50 +919,102 @@ class FeedUpdater:
                 current_value, current_timestamp
             )
 
-            # Get participating node UTXOs for existing store function
-            participating_node_utxos = await self._get_participating_node_utxos(
-                nodes_utxos
-            )
+            if aggregator_node_pkh is None:
+                logger.warning(
+                    "Unable to determine aggregator node from rewards; skipping record"
+                )
+            else:
+                # Get participating node UTXOs for existing store function
+                participating_node_utxos = await self._get_participating_node_utxos(
+                    nodes_utxos
+                )
 
-            # Record the network aggregation
-            agg_model = NodeAggregationCreate(
-                node_pkh=aggregator_node_pkh,
-                feed_id=self.feed_id,
-                timestamp=datetime.fromtimestamp(current_timestamp / 1000),
-                status="network_aggregation",
-                aggregated_value=current_value,
-                nodes_count=len(participating_node_utxos),
-                tx_hash=(
-                    str(oraclefeed_utxo.input.transaction_id)
-                    if oraclefeed_utxo
-                    else None
-                ),
-                trigger=trigger_reason,
-            )
+                # Record the network aggregation
+                agg_model = NodeAggregationCreate(
+                    node_pkh=aggregator_node_pkh,
+                    feed_id=self.feed_id,
+                    timestamp=datetime.fromtimestamp(current_timestamp / 1000),
+                    status="network_aggregation",
+                    aggregated_value=current_value,
+                    nodes_count=len(participating_node_utxos),
+                    tx_hash=(
+                        str(oraclefeed_utxo.input.transaction_id)
+                        if oraclefeed_utxo
+                        else None
+                    ),
+                    trigger=trigger_reason,
+                )
 
-            try:
-                async with get_session() as db_session:
-                    # Create the aggregation record
-                    node_agg = await node_aggregation_crud.create(
-                        db_session=db_session, obj_in=agg_model
-                    )
+                try:
+                    async with get_session() as db_session:
+                        # Extract all node datums from UTxOs
+                        node_datums: List[NodeDatum] = []
+                        for node_utxo in nodes_utxos:
+                            node_datum = node_utxo.output.datum
+                            if not isinstance(node_datum, NodeDatum):
+                                node_datum = NodeDatum.from_cbor(node_datum.cbor)
+                            node_datums.append(node_datum)
 
-                    # Use existing store functions
-                    await store_node_aggregation_participation(
-                        db_session,
-                        node_agg.id,
-                        participating_node_utxos,
-                    )
+                        # Check each node and register if missing
+                        for node_datum in node_datums:
+                            pub_key_hash = str(
+                                VerificationKeyHash(node_datum.node_state.ns_operator)
+                            )
+                            node_exists = await node_crud.get_node_by_pkh(
+                                pub_key_hash, db_session
+                            )
 
-                    await store_reward_distribution(
-                        db_session,
-                        node_agg.id,
-                        self.last_reward_datum,  # input_reward_datum
-                        self.reward_datum,  # output_reward_datum
-                    )
+                            if node_exists is None:
+                                # Node not registered - create it now
+                                node_address = str(
+                                    Address(
+                                        VerificationKeyHash(
+                                            node_datum.node_state.ns_operator
+                                        ),
+                                        network=self.node.network,
+                                    )
+                                )
+                                node_create = NodeCreate(
+                                    feed_id=self.feed_id,
+                                    pub_key_hash=pub_key_hash,
+                                    node_operator_address=node_address,
+                                )
+                                await node_crud.create(
+                                    db_session=db_session, obj_in=node_create
+                                )
+                                logger.info(f"Registered new node: {pub_key_hash}")
 
-            except Exception as e:
-                logger.error("Failed to record network aggregation: %s", e)
+                        # After all nodes registered, verify aggregator exists
+                        aggregator_exists = await node_crud.get_node_by_pkh(
+                            aggregator_node_pkh, db_session
+                        )
+
+                        if aggregator_exists is None:
+                            logger.warning(
+                                "Aggregator node %s not found in database after refresh; skipping record",
+                                aggregator_node_pkh,
+                            )
+                        else:
+                            # Now safe to create all records
+                            node_agg = await node_aggregation_crud.create(
+                                db_session=db_session, obj_in=agg_model
+                            )
+
+                            await store_node_aggregation_participation(
+                                db_session,
+                                node_agg.id,
+                                participating_node_utxos,
+                            )
+
+                            await store_reward_distribution(
+                                db_session,
+                                node_agg.id,
+                                self.last_reward_datum,
+                                self.reward_datum,
+                            )
+
+                except Exception as e:
+                    logger.error("Failed to record network aggregation: %s", e)
 
             # Update tracking
             self.last_oracle_timestamp = current_timestamp
@@ -966,7 +1023,7 @@ class FeedUpdater:
 
     def _extract_aggregation_info(
         self, current_value: int, current_timestamp: int
-    ) -> tuple[str, str]:
+    ) -> tuple[Optional[str], str]:
         """Extract aggregator node and trigger reason."""
 
         # Find aggregator using reward analysis
@@ -1045,10 +1102,10 @@ class FeedUpdater:
 
         return participating_utxos
 
-    def _find_aggregator_from_rewards(self) -> str:
+    def _find_aggregator_from_rewards(self) -> Optional[str]:
         """Find aggregator node using reward increase patterns."""
         if not hasattr(self, "last_reward_datum") or self.last_reward_datum is None:
-            return "UNKNOWN"
+            return None
 
         # Get fee amounts
         node_fee = self.agg_datum.aggstate.ag_settings.os_node_fee_price.node_fee
@@ -1078,4 +1135,4 @@ class FeedUpdater:
             ):
                 return str(VerificationKeyHash(node_operator))
 
-        return "UNKNOWN"
+        return None

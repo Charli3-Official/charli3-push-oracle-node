@@ -707,7 +707,7 @@ requests = "^2.31.0"
 type = "git"
 url = "https://github.com/Charli3-Official/charli3-dendrite.git"
 reference = "fix/backend"
-resolved_reference = "cdc49fc0d3a94326b1844924038cd6b593f09241"
+resolved_reference = "f82e4442f8fec216f4347c25913a3b4689ee82bc"
 
 [[package]]
 name = "charli3-offchain-core"
