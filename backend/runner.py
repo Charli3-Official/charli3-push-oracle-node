@@ -955,39 +955,40 @@ class FeedUpdater:
                                 node_datum = NodeDatum.from_cbor(node_datum.cbor)
                             node_datums.append(node_datum)
 
-                    # Check each node and register if missing
-                    for node_datum in node_datums:
-                        pub_key_hash = str(
-                            VerificationKeyHash(node_datum.node_state.ns_operator)
-                        )
-                        node_exists = await node_crud.get_node_by_pkh(
-                            pub_key_hash, db_session
-                        )
+                        # Check each node and register if missing
+                        for node_datum in node_datums:
+                            pub_key_hash = str(
+                                VerificationKeyHash(node_datum.node_state.ns_operator)
+                            )
+                            node_exists = await node_crud.get_node_by_pkh(
+                                pub_key_hash, db_session
+                            )
 
-                        if node_exists is None:
-                            # Node not registered - create it now
-                            node_address = str(
-                                Address(
-                                    VerificationKeyHash(
-                                        node_datum.node_state.ns_operator
-                                    ),
-                                    network=self.node.network,
+                            if node_exists is None:
+                                # Node not registered - create it now
+                                node_address = str(
+                                    Address(
+                                        VerificationKeyHash(
+                                            node_datum.node_state.ns_operator
+                                        ),
+                                        network=self.node.network,
+                                    )
                                 )
-                            )
-                            node_create = NodeCreate(
-                                feed_id=self.feed_id,
-                                pub_key_hash=pub_key_hash,
-                                node_operator_address=node_address,
-                            )
-                            await node_crud.create(
-                                db_session=db_session, obj_in=node_create
-                            )
-                            logger.info(f"Registered new node: {pub_key_hash}")
+                                node_create = NodeCreate(
+                                    feed_id=self.feed_id,
+                                    pub_key_hash=pub_key_hash,
+                                    node_operator_address=node_address,
+                                )
+                                await node_crud.create(
+                                    db_session=db_session, obj_in=node_create
+                                )
+                                logger.info(f"Registered new node: {pub_key_hash}")
 
-                        # Verify aggregator exists after registration
+                        # After all nodes registered, verify aggregator exists
                         aggregator_exists = await node_crud.get_node_by_pkh(
                             aggregator_node_pkh, db_session
                         )
+
                         if aggregator_exists is None:
                             logger.warning(
                                 "Aggregator node %s not found in database after refresh; skipping record",
@@ -1011,6 +1012,7 @@ class FeedUpdater:
                                 self.last_reward_datum,
                                 self.reward_datum,
                             )
+
                 except Exception as e:
                     logger.error("Failed to record network aggregation: %s", e)
 
