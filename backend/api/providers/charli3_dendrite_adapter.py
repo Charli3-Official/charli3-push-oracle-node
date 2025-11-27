@@ -206,38 +206,80 @@ class Charli3DendriteAdapter(BaseAdapter):
             if name == "vyfi":
                 # Special handling for VyFi DEX
                 selector = dex.pool_selector(assets=[asset_a, asset_b]).model_dump()
-                assets = selector.pop("assets", [])
+                query_assets = []
             else:
                 # Original handling for other DEXes
                 selector = dex.pool_selector().model_dump()
-                assets = selector.pop("assets") or []
-                assets.extend([a for a in [asset_a, asset_b] if a != "lovelace"])
+                # We only want to query for the specific assets we are interested in
+                # Including the default selector assets (often factory tokens) causes us to fetch ALL pools
+                # which hits the limit and misses our target pool, and causes excessive API calls.
+                query_assets = [a for a in [asset_a, asset_b] if a != "lovelace"]
+                query_assets = list(set(query_assets))  # Remove duplicates
 
             result = await asyncio.to_thread(
                 get_backend().get_pool_utxos,
-                limit=10,
-                assets=assets,
+                addresses=selector.get("addresses"),
+                limit=50,
+                assets=query_assets,
                 historical=False,
-                **selector,
             )
+
+            best_pool = None
+            best_tvl = 0
+
             for record in result:
                 try:
-                    pool = dex.model_validate(record.model_dump())
+                    # Fix None datum_hash issue
+                    record_dict = record.model_dump()
+                    if record_dict.get("datum_hash") is None:
+                        record_dict["datum_hash"] = ""
+                    if record_dict.get("datum_cbor") is None:
+                        record_dict["datum_cbor"] = ""
+
+                    pool = dex.model_validate(record_dict)
+
+                    # Check if this pool contains our target assets
+                    pool_assets = pool.assets.model_dump()
+                    if not (asset_a in pool_assets and asset_b in pool_assets):
+                        continue
+
                     price = Charli3DendriteAdapter.get_correct_price(
                         pool, [asset_a, asset_b]
                     )
 
                     if price:
-                        logger.info(
-                            "%s - %s - POOL_ID: %s",
-                            dex.dex(),
-                            price,
-                            pool.pool_id,
-                        )
-                        return float(price)
+                        # Get pool TVL for comparison
+                        try:
+                            tvl = float(pool.tvl)
+                        except Exception:
+                            # Fallback TVL calculation for ADA pools
+                            if "lovelace" in pool_assets:
+                                ada_reserve = pool_assets["lovelace"]
+                                tvl = 2 * (ada_reserve / 10**6)
+                            else:
+                                tvl = 0
+
+                        if tvl > best_tvl:
+                            best_tvl = tvl
+                            best_pool = pool
+                            best_price = price
+
                 except (NoAssetsError, InvalidLPError, InvalidPoolError) as e:
                     logger.warning("Invalid pool data in %s: %s", dex.dex(), e)
                     continue
+                except Exception as e:
+                    logger.debug("Error processing pool in %s: %s", dex.dex(), e)
+                    continue
+
+            if best_pool:
+                logger.info(
+                    "%s - Price: %s - TVL: %.2f ADA - Pool: %s",
+                    dex.dex(),
+                    best_price,
+                    best_tvl,
+                    best_pool.pool_id,
+                )
+                return float(best_price)
 
         except Exception as dex_error:
             logger.error("Error fetching Pool Utxos for %s: %s", name, dex_error)
