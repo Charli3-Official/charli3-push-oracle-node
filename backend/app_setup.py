@@ -210,14 +210,29 @@ def setup_charli3dendrite_backend(config):
 
     else:
         ogmios_config = chain_query_config.get("ogmios", {})
-        set_backend(
-            OgmiosKupoBackend(
-                ogmios_config.get("ws_url"),
-                ogmios_config.get("kupo_url"),
-                Network.MAINNET,
+        ogmios_ws = ogmios_config.get("ws_url")
+        ogmios_kupo = ogmios_config.get("kupo_url")
+
+        if ogmios_ws and ogmios_kupo:
+            set_backend(
+                OgmiosKupoBackend(
+                    ogmios_ws,
+                    ogmios_kupo,
+                    Network.MAINNET,
+                )
             )
-        )
-        logger.warning("Ogmios backend configured for Charli3-Dendrite.")
+            logger.warning("Ogmios backend configured for Charli3-Dendrite.")
+        else:
+            blockfrost_config = chain_query_config.get("blockfrost", {})
+            blockfrost_id = blockfrost_config.get("project_id")
+            if blockfrost_id:
+                set_backend(BlockFrostBackend(blockfrost_id))
+                logger.warning("Blockfrost backend configured for Charli3-Dendrite.")
+            else:
+                logger.error(
+                    "❌ Ogmios (ws_url/kupo_url) not configured and no Blockfrost project_id found for Charli3-Dendrite."
+                )
+                return False
 
     return True
 
