@@ -4,8 +4,10 @@ Tests for LP Token Adapter
 Tests for LP token pricing using on-chain NAV calculation.
 """
 
+# pylint: disable=protected-access  # Testing private methods is acceptable in unit tests
+
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -31,7 +33,11 @@ class TestLPTokenAdapter:
             "usdc_policy_id": 1_000_000_000,  # 1M USDC (6 decimals)
         }
 
-        # Mock LP token with 500K total supply
+        # Mock pool_datum with lp_tokens (VyFi style)
+        pool.pool_datum = MagicMock()
+        pool.pool_datum.lp_tokens = 500_000  # 500K LP tokens
+
+        # Mock LP token with 500K total supply (fallback method)
         # LP tokens are typically whole numbers (no decimals like lovelace)
         pool.lp_token.unit.return_value = "test_lp_token_id"
         pool.lp_token.quantity.return_value = 500_000  # 500K LP tokens
@@ -42,58 +48,62 @@ class TestLPTokenAdapter:
         return pool
 
     @pytest.fixture
-    def sample_lp_token_id(self):
-        """Sample LP token ID for testing"""
-        return (
-            "b6a7467ea1deb012808ef4e87b5ff371e85f7142d7b356a40d9b42a0"
-            + "4c505f544f4b454e"
-        )  # "LP_TOKEN" in hex
+    def sample_pool_assets(self):
+        """Sample pool assets for testing"""
+        return [
+            "279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b",  # SNEK
+            "lovelace",  # ADA
+        ]
 
-    def test_adapter_initialization(self, sample_lp_token_id):
+    def test_adapter_initialization(self, sample_pool_assets):
         """Test LP token adapter initialization"""
         adapter = LPTokenAdapter(
-            lp_token_id=sample_lp_token_id,
             pool_dex="vyfi",
+            pool_assets=sample_pool_assets,
             pair_type="base",
-            sources=["vyfi"],
             quote_required=False,
         )
 
-        assert adapter.lp_token_id == sample_lp_token_id
         assert adapter.pool_dex == "vyfi"
+        assert adapter.pool_assets == sample_pool_assets
         assert adapter.pair_type == "base"
         assert adapter.sources == ["vyfi"]
         assert adapter.quote_required is False
 
-    def test_adapter_initialization_invalid_dex(self, sample_lp_token_id):
+    def test_adapter_initialization_invalid_dex(self, sample_pool_assets):
         """Test that adapter raises error for unsupported DEX"""
         with pytest.raises(ValueError, match="Unsupported LP DEX"):
             LPTokenAdapter(
-                lp_token_id=sample_lp_token_id,
-                pool_dex="vyfi",
+                pool_dex="unsupported_dex",
+                pool_assets=sample_pool_assets,
                 pair_type="base",
-                sources=["unsupported_dex"],
             )
 
-    def test_get_asset_names(self, sample_lp_token_id):
-        """Test asset name extraction from LP token ID"""
+    def test_get_asset_names(self, sample_pool_assets):
+        """Test asset name extraction from pool assets"""
         adapter = LPTokenAdapter(
-            lp_token_id=sample_lp_token_id,
             pool_dex="vyfi",
+            pool_assets=sample_pool_assets,
+            pair_type="base",
+        )
+        adapter = LPTokenAdapter(
+            pool_dex="vyfi",
+            pool_assets=sample_pool_assets,
             pair_type="base",
         )
 
         lp_name, ada_name = adapter.get_asset_names()
 
         assert ada_name == "ADA"
-        # LP token name should be decoded from hex
+        # LP token name should be generated from pool assets
         assert isinstance(lp_name, str)
+        assert "vyfi" in lp_name.lower()
 
     def test_calculate_lp_nav_price_vyfi(self, mock_pool_state):
         """Test NAV calculation for VyFi pool with known values"""
         adapter = LPTokenAdapter(
-            lp_token_id="test_lp_token_id",
             pool_dex="vyfi",
+            pool_assets=["test_asset", "lovelace"],
             pair_type="base",
         )
 
@@ -109,8 +119,8 @@ class TestLPTokenAdapter:
         delattr(mock_pool_state.lp_token, "quantity")
 
         adapter = LPTokenAdapter(
-            lp_token_id="test_lp_token_id",
             pool_dex="minswapv2",
+            pool_assets=["test_asset", "lovelace"],
             pair_type="base",
         )
 
@@ -128,8 +138,8 @@ class TestLPTokenAdapter:
         }
 
         adapter = LPTokenAdapter(
-            lp_token_id="test_lp_token_id",
             pool_dex="vyfi",
+            pool_assets=["usdc_policy", "usdt_policy"],
             pair_type="base",
         )
 
@@ -144,8 +154,8 @@ class TestLPTokenAdapter:
         }
 
         adapter = LPTokenAdapter(
-            lp_token_id="test_lp_token_id",
             pool_dex="vyfi",
+            pool_assets=["usdc_policy", "lovelace"],
             pair_type="base",
         )
 
@@ -154,12 +164,14 @@ class TestLPTokenAdapter:
 
     def test_calculate_lp_nav_price_invalid_lp_supply(self, mock_pool_state):
         """Test error handling for invalid LP token supply"""
+        # Set all LP supply sources to 0
+        mock_pool_state.pool_datum.lp_tokens = 0  # Invalid: zero supply
         mock_pool_state.lp_token.quantity.return_value = 0  # Invalid: zero supply
         mock_pool_state.total_liquidity = 0  # Also set total_liquidity to 0
 
         adapter = LPTokenAdapter(
-            lp_token_id="test_lp_token_id",
             pool_dex="vyfi",
+            pool_assets=["test_asset", "lovelace"],
             pair_type="base",
         )
 
@@ -168,9 +180,9 @@ class TestLPTokenAdapter:
 
     @patch("backend.api.providers.lp_token_adapter.get_backend")
     async def test_query_pool_by_lp_token_found(
-        self, mock_get_backend, mock_pool_state, sample_lp_token_id
+        self, mock_get_backend, mock_pool_state, sample_pool_assets
     ):
-        """Test querying pool by LP token when pool is found"""
+        """Test querying pool by trading pair assets when pool is found"""
         # Setup mock backend
         mock_backend = MagicMock()
         mock_get_backend.return_value = mock_backend
@@ -188,13 +200,17 @@ class TestLPTokenAdapter:
         mock_dex_class.pool_selector.return_value.model_dump.return_value = {
             "addresses": ["test_address"]
         }
-        mock_pool_state.lp_token.unit.return_value = sample_lp_token_id
+        # Mock pool assets to match query
+        mock_pool_state.assets.model_dump.return_value = {
+            sample_pool_assets[0]: 1000,
+            sample_pool_assets[1]: 1000,
+        }
         mock_dex_class.model_validate.return_value = mock_pool_state
 
         with patch.dict(SUPPORTED_LP_DEXES, {"vyfi": mock_dex_class}):
             adapter = LPTokenAdapter(
-                lp_token_id=sample_lp_token_id,
                 pool_dex="vyfi",
+                pool_assets=sample_pool_assets,
                 pair_type="base",
             )
 
@@ -205,9 +221,9 @@ class TestLPTokenAdapter:
 
     @patch("backend.api.providers.lp_token_adapter.get_backend")
     async def test_query_pool_by_lp_token_not_found(
-        self, mock_get_backend, sample_lp_token_id
+        self, mock_get_backend, sample_pool_assets
     ):
-        """Test querying pool by LP token when pool is not found"""
+        """Test querying pool by trading pair when pool is not found"""
         mock_backend = MagicMock()
         mock_get_backend.return_value = mock_backend
         mock_backend.get_pool_utxos.return_value = []  # No pools found
@@ -219,8 +235,8 @@ class TestLPTokenAdapter:
 
         with patch.dict(SUPPORTED_LP_DEXES, {"vyfi": mock_dex_class}):
             adapter = LPTokenAdapter(
-                lp_token_id=sample_lp_token_id,
                 pool_dex="vyfi",
+                pool_assets=sample_pool_assets,
                 pair_type="base",
             )
 
@@ -230,12 +246,12 @@ class TestLPTokenAdapter:
 
     @patch("backend.api.providers.lp_token_adapter.get_backend")
     async def test_get_rates_success(
-        self, mock_get_backend, mock_pool_state, sample_lp_token_id
+        self, _mock_get_backend, mock_pool_state, sample_pool_assets
     ):
         """Test get_rates returns expected format when pool is found"""
         adapter = LPTokenAdapter(
-            lp_token_id=sample_lp_token_id,
             pool_dex="vyfi",
+            pool_assets=sample_pool_assets,
             pair_type="base",
         )
 
@@ -263,11 +279,11 @@ class TestLPTokenAdapter:
                 assert result["rates"][0]["source_id"] == "123"
 
     @patch("backend.api.providers.lp_token_adapter.get_backend")
-    async def test_get_rates_no_pool_found(self, mock_get_backend, sample_lp_token_id):
+    async def test_get_rates_no_pool_found(self, _mock_get_backend, sample_pool_assets):
         """Test get_rates returns None when no pool is found"""
         adapter = LPTokenAdapter(
-            lp_token_id=sample_lp_token_id,
             pool_dex="vyfi",
+            pool_assets=sample_pool_assets,
             pair_type="base",
         )
 
@@ -277,25 +293,23 @@ class TestLPTokenAdapter:
 
             assert result is None
 
-    def test_get_sources(self, sample_lp_token_id):
+    def test_get_sources(self, sample_pool_assets):
         """Test get_sources returns configured sources"""
         adapter = LPTokenAdapter(
-            lp_token_id=sample_lp_token_id,
             pool_dex="vyfi",
+            pool_assets=sample_pool_assets,
             pair_type="base",
-            sources=["vyfi", "minswapv2"],
         )
 
         sources = adapter.get_sources()
-        assert sources == ["vyfi", "minswapv2"]
+        assert sources == ["vyfi"]
 
-    def test_log_sources_summary(self, sample_lp_token_id, caplog):
+    def test_log_sources_summary(self, sample_pool_assets, caplog):
         """Test logging of adapter configuration summary"""
         adapter = LPTokenAdapter(
-            lp_token_id=sample_lp_token_id,
             pool_dex="vyfi",
+            pool_assets=sample_pool_assets,
             pair_type="base",
-            sources=["vyfi"],
         )
 
         adapter._log_sources_summary()
@@ -303,28 +317,25 @@ class TestLPTokenAdapter:
         # Check that logging occurred (logs should mention vyfi and LP token info)
         assert any("vyfi" in record.message for record in caplog.records)
 
-    def test_default_sources(self, sample_lp_token_id):
+    def test_default_sources(self, sample_pool_assets):
         """Test that sources defaults to [pool_dex] when not specified"""
         adapter = LPTokenAdapter(
-            lp_token_id=sample_lp_token_id,
             pool_dex="vyfi",
+            pool_assets=sample_pool_assets,
             pair_type="base",
         )
 
         assert adapter.sources == ["vyfi"]
 
-    def test_source_id_management(self, sample_lp_token_id):
+    def test_source_id_management(self, sample_pool_assets):
         """Test setting and getting source IDs"""
         adapter = LPTokenAdapter(
-            lp_token_id=sample_lp_token_id,
             pool_dex="vyfi",
+            pool_assets=sample_pool_assets,
             pair_type="base",
-            sources=["vyfi", "minswapv2"],
         )
 
         adapter.set_source_id("vyfi", "123")  # Pass as string like in actual code
-        adapter.set_source_id("minswapv2", "456")
 
         assert adapter.get_source_id("vyfi") == "123"
-        assert adapter.get_source_id("minswapv2") == "456"
         assert adapter.get_source_id("unknown") is None

@@ -134,7 +134,11 @@ class LPTokenAdapter(BaseAdapter):
                 "rates": rates,
             }
 
-        logger.warning("No matching LP pool found for token %s", self.lp_token_id)
+        logger.warning(
+            "No matching LP pool found for %s with assets %s",
+            self.pool_dex,
+            self.pool_assets,
+        )
         return None
 
     def _generate_lp_token_name(self, dex: str, pool_assets: list[str]) -> str:
@@ -262,11 +266,11 @@ class LPTokenAdapter(BaseAdapter):
                         )
                         return pool
 
-                except (NoAssetsError, InvalidLPError, InvalidPoolError) as e:
-                    logger.debug("Invalid pool data: %s", e)
+                except (NoAssetsError, InvalidLPError, InvalidPoolError) as exc:
+                    logger.debug("Invalid pool data: %s", exc)
                     continue
-                except Exception as e:
-                    logger.debug("Error processing pool: %s", e)
+                except Exception as exc:
+                    logger.debug("Error processing pool: %s", exc)
                     continue
 
             logger.warning(
@@ -354,7 +358,11 @@ class LPTokenAdapter(BaseAdapter):
             if ada_reserve_lovelace <= 0:
                 raise ValueError(f"Invalid ADA reserve: {ada_reserve_lovelace}")
             if total_lp_tokens <= 0:
-                raise ValueError(f"Invalid LP token supply: {total_lp_tokens}")
+                raise ValueError(
+                    f"Invalid LP token supply: {total_lp_tokens}. "
+                    "Cannot calculate NAV price for pool with zero or "
+                    "negative LP token supply."
+                )
 
             # Calculate NAV: (ADA_reserves × 2) / LP_supply
             # Note: LP tokens typically have 0 decimals (indivisible)
@@ -392,5 +400,6 @@ class LPTokenAdapter(BaseAdapter):
         logger.info("SOURCES:")
         for source in self.sources:
             logger.info("  - %s", source)
-        logger.info("LP Token ID: %s", self.lp_token_id)
+        logger.info("LP Token Name: %s", self.get_lp_token_name())
         logger.info("Pool DEX: %s", self.pool_dex)
+        logger.info("Pool Assets: %s", self.pool_assets)
