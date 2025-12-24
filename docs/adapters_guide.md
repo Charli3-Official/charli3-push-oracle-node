@@ -292,8 +292,7 @@ base_currency:
 ```yaml
 base_currency:
   lp_token:
-    - adapter: "lp_token"
-      dex: "vyfi"
+    - dex: "vyfi"
       pool_assets: ["279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b", "lovelace"]
 ```
 
@@ -301,8 +300,7 @@ base_currency:
 ```yaml
 base_currency:
   lp_token:
-    - adapter: "lp_token"
-      dex: "minswapv2"
+    - dex: "minswapv2"
       pool_assets: ["279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b", "lovelace"]
 ```
 
@@ -310,8 +308,7 @@ base_currency:
 ```yaml
 base_currency:
   lp_token:
-    - adapter: "lp_token"
-      dex: "spectrum"
+    - dex: "spectrum"
       pool_assets: ["a0028f350aaabe0545fdcb56b039bfb08e4bb4d8c4d7c3c7d481c235484f534b59", "lovelace"]
 ```
 
@@ -319,26 +316,27 @@ base_currency:
 ```yaml
 base_currency:
   lp_token:
-    # VyFi ADA/USDC LP token
-    - adapter: "lp_token"
-      lp_token_id: "vyfi_lp_token_id_in_hex"
-      pool_dex: "vyfi"
-      sources: ["vyfi"]
+    # VyFi SNEK/ADA LP token
+    - dex: "vyfi"
+      pool_assets:
+        - "279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b"  # SNEK
+        - "lovelace"
 
-    # Minswap ADA/USDC LP token (different from VyFi's)
-    - adapter: "lp_token"
-      lp_token_id: "minswap_lp_token_id_in_hex"
-      pool_dex: "minswapv2"
-      sources: ["minswapv2"]
+    # Minswap SNEK/ADA LP token (different price than VyFi's)
+    - dex: "minswapv2"
+      pool_assets:
+        - "279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b"  # SNEK
+        - "lovelace"
 ```
 
 **Using quote currency conversion:**
 ```yaml
 base_currency:
   lp_token:
-    - adapter: "lp_token"
-      lp_token_id: "lp_token_id_in_hex"
-      pool_dex: "vyfi"
+    - dex: "vyfi"
+      pool_assets:
+        - "279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b"  # SNEK
+        - "lovelace"
       quote_required: true  # Convert LP price to quote currency
       quote_calc_method: multiply
 
