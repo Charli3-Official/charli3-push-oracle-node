@@ -238,6 +238,8 @@ This NAV-based approach:
 - Works even when LP tokens themselves have no direct trading pairs
 - Provides accurate pricing based on the underlying pool composition
 
+The adapter finds the correct pool by matching the trading pair assets (e.g., SNEK and ADA) on the specified DEX. If multiple pools exist for the same pair, it automatically selects the one with the highest Total Value Locked (TVL).
+
 ### Configuration
 
 Configuration for LP Token Adapter:
@@ -246,9 +248,8 @@ Configuration for LP Token Adapter:
 base_currency:
   lp_token:
     - adapter: "lp_token"
-      lp_token_id: "full_policy_id_and_asset_name_in_hex"  # Full LP token ID
-      pool_dex: "vyfi"  # DEX that issued this LP token
-      sources: ["vyfi"]  # Optional: multiple sources for aggregation
+      dex: "vyfi"  # DEX that issued this LP token
+      pool_assets: ["asset_policy_id_and_name_hex", "lovelace"]  # Trading pair assets
       quote_required: false  # Set to true if pricing in quote currency
       quote_calc_method: multiply  # multiply or divide
 ```
@@ -256,12 +257,13 @@ base_currency:
 ### Configuration Options
 
 - **adapter**: Should be set to `"lp_token"`.
-- **lp_token_id** (required): Full token identifier (policy_id + asset_name in hex). This is the complete hex representation of the LP token you want to price.
-- **pool_dex** (required): DEX name that issued this LP token. Supported values:
+- **dex** (required): DEX name to query. Supported values:
   - `"vyfi"` - VyFi DEX
   - `"minswapv2"` - MinswapV2 DEX
   - `"spectrum"` - Spectrum DEX
-- **sources** (optional): List of DEX names to query. Defaults to `[pool_dex]`. Can include multiple DEXes for aggregation if the same LP token exists on multiple platforms.
+- **pool_assets** (required): List of exactly two asset identifiers representing the trading pair.
+  - Must include `"lovelace"` (ADA).
+  - Other asset must be the full hex identifier (Policy ID + Asset Name in hex).
 - **quote_required** (optional): If set to True, the LP token price will be converted using the quote currency rate. Defaults to False.
 - **quote_calc_method** (optional): The method to use for quote currency conversion. Options are "multiply" and "divide". Defaults to "multiply".
 
@@ -273,30 +275,44 @@ base_currency:
 
 ### Important Notes
 
-1. **Different LP tokens per DEX**: Each DEX issues its own unique LP token for the same trading pair
-   - VyFi ADA/USDC LP token ≠ Minswap ADA/USDC LP token
-   - They have different prices based on their respective pool reserves and LP token supplies
-   - You must specify the exact LP token ID and the DEX that issued it
+1. **Different LP tokens per DEX**: Each DEX issues its own unique LP token for the same trading pair.
+   - VyFi SNEK/ADA LP token ≠ Minswap SNEK/ADA LP token
+   - They have different prices based on their respective pool reserves and LP token supplies.
+   - You must configure separate adapter entries for each DEX's LP token if you want to track them all.
 
 2. **ADA-paired pools only**: Currently, the adapter only supports pools paired with ADA (lovelace). Pools with other base assets (e.g., USDC/USDT) are not yet supported.
 
 3. **No market price**: LP token price is derived from the pool's underlying composition, not from trading activity of the LP token itself. This makes it resistant to manipulation and always reflects the true value of the pool shares.
 
-4. **Finding LP Token IDs**: You can find LP token IDs by:
-   - Querying the pool directly on-chain
-   - Using block explorers (e.g., CardanoScan, Cexplorer)
-   - Checking the DEX's documentation or API
+4. **Asset Identifiers**: Use the full hex string for non-ADA assets. This is the Policy ID (56 chars) concatenated with the Asset Name (in hex).
 
 ### Example Use Cases
 
-**Pricing a single DEX's LP token:**
+**Pricing a VyFi SNEK/ADA LP token:**
 ```yaml
 base_currency:
   lp_token:
     - adapter: "lp_token"
-      lp_token_id: "4086577ed57c514f8e29b78f42ef4f379363355a3b65b9a032ee30c9_lp_vyfi_ada_usdc"
-      pool_dex: "vyfi"
-      sources: ["vyfi"]
+      dex: "vyfi"
+      pool_assets: ["279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b", "lovelace"]
+```
+
+**Pricing a MinswapV2 SNEK/ADA LP token:**
+```yaml
+base_currency:
+  lp_token:
+    - adapter: "lp_token"
+      dex: "minswapv2"
+      pool_assets: ["279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b", "lovelace"]
+```
+
+**Pricing a Spectrum HOSKY/ADA LP token:**
+```yaml
+base_currency:
+  lp_token:
+    - adapter: "lp_token"
+      dex: "spectrum"
+      pool_assets: ["a0028f350aaabe0545fdcb56b039bfb08e4bb4d8c4d7c3c7d481c235484f534b59", "lovelace"]
 ```
 
 **Pricing multiple different LP tokens (different DEXes):**

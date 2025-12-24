@@ -14,10 +14,14 @@ Supports: VyFi (initial), expandable to Minswap, Spectrum, etc.
 
 import asyncio
 import logging
+import binascii
 from decimal import Decimal
 from typing import Any, Optional
 
 from charli3_dendrite import MinswapV2CPPState, SpectrumCPPState, VyFiCPPState
+from charli3_dendrite.dexs.amm.vyfi import VyFiPoolDatum
+from charli3_dendrite.dexs.amm.minswap import MinswapV2PoolDatum
+from charli3_dendrite.dexs.amm.spectrum import SpectrumPoolDatum
 from charli3_dendrite.backend import get_backend
 from charli3_dendrite.dexs.core.errors import (
     InvalidLPError,
@@ -59,6 +63,29 @@ class LPTokenAdapter(BaseAdapter):
     ):
         if pool_dex not in SUPPORTED_LP_DEXES:
             raise ValueError(f"Unsupported LP DEX: {pool_dex}")
+
+        # Validate pool_assets
+        if len(pool_assets) != 2:
+            raise ValueError(
+                f"pool_assets must contain exactly 2 assets, got {len(pool_assets)}"
+            )
+
+        if "lovelace" not in pool_assets:
+            raise ValueError(
+                "LP token adapter currently only supports ADA-paired pools. "
+                "pool_assets must include 'lovelace'"
+            )
+
+        # Validate asset IDs (non-lovelace)
+        for asset in pool_assets:
+            if asset != "lovelace":
+                try:
+                    # Check if it's a valid hex string
+                    int(asset, 16)
+                except ValueError:
+                    raise ValueError(
+                        f"Invalid asset ID format: {asset}. Expected hex string or 'lovelace'"
+                    )
 
         # For LP tokens, use pool_dex as identifier
         lp_token_name = self._generate_lp_token_name(pool_dex, pool_assets)
@@ -158,8 +185,24 @@ class LPTokenAdapter(BaseAdapter):
             if asset == "lovelace":
                 asset_names.append("ADA")
             else:
-                # Use last 8 chars of asset ID as identifier
-                asset_names.append(asset[-8:].upper())
+                # Try to extract and decode asset name
+                # Format: policy_id (56 chars) + asset_name (hex)
+                if len(asset) > 56:
+                    asset_name_hex = asset[56:]
+                    try:
+                        decoded = binascii.unhexlify(asset_name_hex).decode("utf-8")
+                        # Use decoded name if it's printable
+                        if decoded.isprintable() and decoded.strip():
+                            asset_names.append(decoded.upper())
+                        else:
+                            # Fallback to hex if not printable
+                            asset_names.append(asset[-12:].upper())
+                    except (binascii.Error, UnicodeDecodeError):
+                        # Fallback if decoding fails
+                        asset_names.append(asset[-12:].upper())
+                else:
+                    # Just policy ID or short hex
+                    asset_names.append(asset[-8:].upper())
 
         return f"{'-'.join(asset_names)}-LP-{dex}"
 
@@ -192,7 +235,7 @@ class LPTokenAdapter(BaseAdapter):
             LP token price in ADA or None if not found
         """
         try:
-            pool_state = await self._query_pool_by_lp_token(dex_name)
+            pool_state = await self._query_pool_by_assets(dex_name)
             if pool_state:
                 lp_price = self._calculate_lp_nav_price(pool_state)
                 logger.info(
@@ -207,7 +250,7 @@ class LPTokenAdapter(BaseAdapter):
 
         return None
 
-    async def _query_pool_by_lp_token(self, dex_name: str) -> Optional[Any]:
+    async def _query_pool_by_assets(self, dex_name: str) -> Optional[Any]:
         """
         Query a specific pool by its trading pair assets.
 
@@ -241,7 +284,9 @@ class LPTokenAdapter(BaseAdapter):
                 historical=False,
             )
 
-            # Return the first valid pool for this trading pair
+            matching_pools = []
+
+            # Collect all valid pools for this trading pair
             for record in result:
                 try:
                     record_dict = record.model_dump()
@@ -259,12 +304,7 @@ class LPTokenAdapter(BaseAdapter):
                     )
 
                     if has_all_assets:
-                        logger.info(
-                            "Found pool %s for assets %s",
-                            pool.pool_id,
-                            self.pool_assets,
-                        )
-                        return pool
+                        matching_pools.append(pool)
 
                 except (NoAssetsError, InvalidLPError, InvalidPoolError) as exc:
                     logger.debug("Invalid pool data: %s", exc)
@@ -273,10 +313,55 @@ class LPTokenAdapter(BaseAdapter):
                     logger.debug("Error processing pool: %s", exc)
                     continue
 
-            logger.warning(
-                "No pool found for assets %s on %s", self.pool_assets, dex_name
+            if not matching_pools:
+                logger.warning(
+                    "No pool found for assets %s on %s", self.pool_assets, dex_name
+                )
+                return None
+
+            # If multiple pools found, select the one with highest TVL
+            if len(matching_pools) > 1:
+                logger.warning(
+                    "Found %d matching pools for %s on %s. Selecting highest TVL.",
+                    len(matching_pools),
+                    self.pool_assets,
+                    dex_name,
+                )
+                
+                def get_safe_tvl(pool):
+                    try:
+                        return pool.tvl
+                    except Exception:
+                        # Fallback: calculate TVL based on ADA reserves
+                        try:
+                            assets = pool.assets.model_dump()
+                            if "lovelace" in assets:
+                                # TVL = ADA amount * 2 (roughly)
+                                return Decimal(assets["lovelace"]) / Decimal(1_000_000) * 2
+                        except Exception:
+                            pass
+                        return Decimal(0)
+
+                # Sort by TVL descending
+                matching_pools.sort(key=get_safe_tvl, reverse=True)
+                selected_pool = matching_pools[0]
+                
+                logger.info(
+                    "Selected pool %s with TVL %s ADA (Next highest: %s ADA)",
+                    selected_pool.pool_id,
+                    get_safe_tvl(selected_pool),
+                    get_safe_tvl(matching_pools[1]) if len(matching_pools) > 1 else "N/A",
+                )
+                return selected_pool
+            
+            # Only one pool found
+            pool = matching_pools[0]
+            logger.info(
+                "Found pool %s for assets %s",
+                pool.pool_id,
+                self.pool_assets,
             )
-            return None
+            return pool
 
         except Exception as error:
             logger.error("Error querying pool for %s: %s", dex_name, error)
@@ -316,26 +401,57 @@ class LPTokenAdapter(BaseAdapter):
             # Reference: LP_TOKEN_DATA_ACCESS_PATTERNS.md
             total_lp_tokens = None
 
-            # Try datum-based approach first (VyFi, MinswapV2, SundaeSwapV3)
-            if hasattr(pool_state, "pool_datum") and pool_state.pool_datum:
-                # VyFi: pool_datum.lp_tokens
-                if hasattr(pool_state.pool_datum, "lp_tokens"):
-                    total_lp_tokens = pool_state.pool_datum.lp_tokens
-                    logger.debug("Using VyFi pool_datum.lp_tokens: %s", total_lp_tokens)
-                # MinswapV2: pool_datum.total_liquidity
-                elif hasattr(pool_state.pool_datum, "total_liquidity"):
-                    total_lp_tokens = pool_state.pool_datum.total_liquidity
-                    logger.debug(
-                        "Using MinswapV2 pool_datum.total_liquidity: %s",
-                        total_lp_tokens,
-                    )
-                # SundaeSwapV3: pool_datum.circulation_lp
-                elif hasattr(pool_state.pool_datum, "circulation_lp"):
-                    total_lp_tokens = pool_state.pool_datum.circulation_lp
-                    logger.debug(
-                        "Using SundaeSwapV3 pool_datum.circulation_lp: %s",
-                        total_lp_tokens,
-                    )
+            # Try explicit datum parsing from CBOR first (most robust)
+            try:
+                if hasattr(pool_state, "datum_cbor") and pool_state.datum_cbor:
+                    datum = None
+                    if self.pool_dex == "vyfi":
+                        datum = VyFiPoolDatum.from_cbor(pool_state.datum_cbor)
+                        if hasattr(datum, "lp_tokens"):
+                            total_lp_tokens = datum.lp_tokens
+                            logger.debug("Parsed VyFi datum.lp_tokens: %s", total_lp_tokens)
+                    
+                    elif self.pool_dex == "minswapv2":
+                        datum = MinswapV2PoolDatum.from_cbor(pool_state.datum_cbor)
+                        if hasattr(datum, "total_liquidity"):
+                            total_lp_tokens = datum.total_liquidity
+                            logger.debug("Parsed MinswapV2 datum.total_liquidity: %s", total_lp_tokens)
+                            
+                    elif self.pool_dex == "spectrum":
+                        # Spectrum datum structure check
+                        datum = SpectrumPoolDatum.from_cbor(pool_state.datum_cbor)
+                        # Spectrum might use different field name, check available fields
+                        if hasattr(datum, "pool_lp_amount"):
+                            total_lp_tokens = datum.pool_lp_amount
+                            logger.debug("Parsed Spectrum datum.pool_lp_amount: %s", total_lp_tokens)
+                        elif hasattr(datum, "lp_tokens"):
+                            total_lp_tokens = datum.lp_tokens
+                            logger.debug("Parsed Spectrum datum.lp_tokens: %s", total_lp_tokens)
+            except Exception as e:
+                logger.debug("Error parsing datum from CBOR: %s", e)
+
+            # Fallback: try pool-level attributes (older approach)
+            if total_lp_tokens is None:
+                # Try datum-based approach via pool_state property
+                if hasattr(pool_state, "pool_datum") and pool_state.pool_datum:
+                    # VyFi: pool_datum.lp_tokens
+                    if hasattr(pool_state.pool_datum, "lp_tokens"):
+                        total_lp_tokens = pool_state.pool_datum.lp_tokens
+                        logger.debug("Using VyFi pool_datum.lp_tokens: %s", total_lp_tokens)
+                    # MinswapV2: pool_datum.total_liquidity
+                    elif hasattr(pool_state.pool_datum, "total_liquidity"):
+                        total_lp_tokens = pool_state.pool_datum.total_liquidity
+                        logger.debug(
+                            "Using MinswapV2 pool_datum.total_liquidity: %s",
+                            total_lp_tokens,
+                        )
+                    # SundaeSwapV3: pool_datum.circulation_lp
+                    elif hasattr(pool_state.pool_datum, "circulation_lp"):
+                        total_lp_tokens = pool_state.pool_datum.circulation_lp
+                        logger.debug(
+                            "Using SundaeSwapV3 pool_datum.circulation_lp: %s",
+                            total_lp_tokens,
+                        )
 
             # Fallback: try pool-level attributes (older approach)
             if total_lp_tokens is None:

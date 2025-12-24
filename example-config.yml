@@ -32,14 +32,30 @@ Rate:
           - spectrum
           - muesliswap
     # LP Token pricing configuration (example)
-    # Uncomment to enable LP token pricing for specific DEX LP tokens
+    # Note: Each DEX has its own unique LP token for the same trading pair.
+    # The adapter will automatically find the pool with the highest TVL if multiple exist.
     lp_token:
+      # Example 1: VyFi SNEK/ADA LP token
       - dex: "vyfi"  # Which DEX pool to query (vyfi, minswapv2, spectrum)
         pool_assets:  # The trading pair assets in the pool
+          # Asset 1: Full hex ID (Policy ID + Asset Name in hex)
           - "279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b"  # SNEK
-          - "lovelace"  # ADA
+          # Asset 2: Must be "lovelace" (ADA)
+          - "lovelace"
         quote_required: false
         quote_calc_method: multiply
+      
+      # Example 2: MinswapV2 SNEK/ADA LP token (different price/token than VyFi)
+      - dex: "minswapv2"
+        pool_assets:
+          - "279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b"  # SNEK
+          - "lovelace"
+      
+      # Example 3: Spectrum HOSKY/ADA LP token
+      - dex: "spectrum"
+        pool_assets:
+          - "a0028f350aaabe0545fdcb56b039bfb08e4bb4d8c4d7c3c7d481c235484f534b59" # HOSKY
+          - "lovelace"
     api_sources:
       - adapter: generic-api
         asset_a: Cornucopias [via ChainPort.io]
