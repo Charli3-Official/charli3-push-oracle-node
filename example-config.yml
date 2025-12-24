@@ -31,6 +31,15 @@ Rate:
           - vyfi
           - spectrum
           - muesliswap
+    # LP Token pricing configuration (example)
+    # Uncomment to enable LP token pricing for specific DEX LP tokens
+    lp_token:
+      - dex: "vyfi"  # Which DEX pool to query (vyfi, minswapv2, spectrum)
+        pool_assets:  # The trading pair assets in the pool
+          - "279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b"  # SNEK
+          - "lovelace"  # ADA
+        quote_required: false
+        quote_calc_method: multiply
     api_sources:
       - adapter: generic-api
         asset_a: Cornucopias [via ChainPort.io]

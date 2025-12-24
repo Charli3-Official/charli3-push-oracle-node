@@ -219,3 +219,116 @@ The InverseCurrencyRate adapter configuration options:
 Note: For the InverseCurrencyRate adapter, "divide" is typically used to achieve the inversion of the rate.
 
 The InverseCurrencyRate adapter is particularly useful when you have an API that provides the rate in one direction (e.g., BTC to USD), but you need the rate in the other direction (e.g., USD to BTC). Instead of making an additional API call or finding another source for this rate, you can use the InverseCurrencyRate adapter to calculate it based on the rate you already have.
+## 10. LP Token Adapter
+
+The LP Token Adapter prices DEX liquidity provider (LP) tokens using on-chain Net Asset Value (NAV) calculation. This adapter is specifically designed to price LP tokens from decentralized exchanges on Cardano.
+
+### How It Works
+
+LP tokens represent a share of a liquidity pool. The adapter calculates their value using on-chain data from the pool state:
+
+**Formula for ADA-paired pools:**
+```
+LP Token Price (in ADA) = (Total ADA in Pool × 2) / Total LP Tokens Minted
+```
+
+This NAV-based approach:
+- Uses only on-chain data (pool reserves, LP supply)
+- Avoids market manipulation risks from low liquidity LP token markets
+- Works even when LP tokens themselves have no direct trading pairs
+- Provides accurate pricing based on the underlying pool composition
+
+### Configuration
+
+Configuration for LP Token Adapter:
+
+```yaml
+base_currency:
+  lp_token:
+    - adapter: "lp_token"
+      lp_token_id: "full_policy_id_and_asset_name_in_hex"  # Full LP token ID
+      pool_dex: "vyfi"  # DEX that issued this LP token
+      sources: ["vyfi"]  # Optional: multiple sources for aggregation
+      quote_required: false  # Set to true if pricing in quote currency
+      quote_calc_method: multiply  # multiply or divide
+```
+
+### Configuration Options
+
+- **adapter**: Should be set to `"lp_token"`.
+- **lp_token_id** (required): Full token identifier (policy_id + asset_name in hex). This is the complete hex representation of the LP token you want to price.
+- **pool_dex** (required): DEX name that issued this LP token. Supported values:
+  - `"vyfi"` - VyFi DEX
+  - `"minswapv2"` - MinswapV2 DEX
+  - `"spectrum"` - Spectrum DEX
+- **sources** (optional): List of DEX names to query. Defaults to `[pool_dex]`. Can include multiple DEXes for aggregation if the same LP token exists on multiple platforms.
+- **quote_required** (optional): If set to True, the LP token price will be converted using the quote currency rate. Defaults to False.
+- **quote_calc_method** (optional): The method to use for quote currency conversion. Options are "multiply" and "divide". Defaults to "multiply".
+
+### Supported DEXes
+
+- **VyFi** ✅ Fully supported
+- **MinswapV2** ✅ Fully supported
+- **Spectrum** ✅ Fully supported
+
+### Important Notes
+
+1. **Different LP tokens per DEX**: Each DEX issues its own unique LP token for the same trading pair
+   - VyFi ADA/USDC LP token ≠ Minswap ADA/USDC LP token
+   - They have different prices based on their respective pool reserves and LP token supplies
+   - You must specify the exact LP token ID and the DEX that issued it
+
+2. **ADA-paired pools only**: Currently, the adapter only supports pools paired with ADA (lovelace). Pools with other base assets (e.g., USDC/USDT) are not yet supported.
+
+3. **No market price**: LP token price is derived from the pool's underlying composition, not from trading activity of the LP token itself. This makes it resistant to manipulation and always reflects the true value of the pool shares.
+
+4. **Finding LP Token IDs**: You can find LP token IDs by:
+   - Querying the pool directly on-chain
+   - Using block explorers (e.g., CardanoScan, Cexplorer)
+   - Checking the DEX's documentation or API
+
+### Example Use Cases
+
+**Pricing a single DEX's LP token:**
+```yaml
+base_currency:
+  lp_token:
+    - adapter: "lp_token"
+      lp_token_id: "4086577ed57c514f8e29b78f42ef4f379363355a3b65b9a032ee30c9_lp_vyfi_ada_usdc"
+      pool_dex: "vyfi"
+      sources: ["vyfi"]
+```
+
+**Pricing multiple different LP tokens (different DEXes):**
+```yaml
+base_currency:
+  lp_token:
+    # VyFi ADA/USDC LP token
+    - adapter: "lp_token"
+      lp_token_id: "vyfi_lp_token_id_in_hex"
+      pool_dex: "vyfi"
+      sources: ["vyfi"]
+
+    # Minswap ADA/USDC LP token (different from VyFi's)
+    - adapter: "lp_token"
+      lp_token_id: "minswap_lp_token_id_in_hex"
+      pool_dex: "minswapv2"
+      sources: ["minswapv2"]
+```
+
+**Using quote currency conversion:**
+```yaml
+base_currency:
+  lp_token:
+    - adapter: "lp_token"
+      lp_token_id: "lp_token_id_in_hex"
+      pool_dex: "vyfi"
+      quote_required: true  # Convert LP price to quote currency
+      quote_calc_method: multiply
+
+quote_currency:
+  # Define ADA/USD rate sources here
+  api_sources:
+    - adapter: generic-api
+      # ... ADA/USD price sources
+```
