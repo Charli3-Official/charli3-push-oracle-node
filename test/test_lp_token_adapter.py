@@ -103,7 +103,10 @@ class TestLPTokenAdapter:
         """Test NAV calculation for VyFi pool with known values"""
         adapter = LPTokenAdapter(
             pool_dex="vyfi",
-            pool_assets=["test_asset", "lovelace"],
+            pool_assets=[
+                "279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b",
+                "lovelace",
+            ],
             pair_type="base",
         )
 
@@ -120,7 +123,10 @@ class TestLPTokenAdapter:
 
         adapter = LPTokenAdapter(
             pool_dex="minswapv2",
-            pool_assets=["test_asset", "lovelace"],
+            pool_assets=[
+                "279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b",
+                "lovelace",
+            ],
             pair_type="base",
         )
 
@@ -137,9 +143,13 @@ class TestLPTokenAdapter:
             "usdt_policy": 1_000_000,
         }
 
+        # Initialize with valid assets to pass __init__ validation
         adapter = LPTokenAdapter(
             pool_dex="vyfi",
-            pool_assets=["usdc_policy", "usdt_policy"],
+            pool_assets=[
+                "279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b",
+                "lovelace",
+            ],
             pair_type="base",
         )
 
@@ -155,7 +165,10 @@ class TestLPTokenAdapter:
 
         adapter = LPTokenAdapter(
             pool_dex="vyfi",
-            pool_assets=["usdc_policy", "lovelace"],
+            pool_assets=[
+                "0000000000000000000000000000000000000000000000000000000055534443",
+                "lovelace",
+            ],
             pair_type="base",
         )
 
@@ -171,7 +184,10 @@ class TestLPTokenAdapter:
 
         adapter = LPTokenAdapter(
             pool_dex="vyfi",
-            pool_assets=["test_asset", "lovelace"],
+            pool_assets=[
+                "279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b",
+                "lovelace",
+            ],
             pair_type="base",
         )
 
@@ -179,7 +195,7 @@ class TestLPTokenAdapter:
             adapter._calculate_lp_nav_price(mock_pool_state)
 
     @patch("backend.api.providers.lp_token_adapter.get_backend")
-    async def test_query_pool_by_lp_token_found(
+    async def test_query_pool_by_assets_found(
         self, mock_get_backend, mock_pool_state, sample_pool_assets
     ):
         """Test querying pool by trading pair assets when pool is found"""
@@ -214,13 +230,13 @@ class TestLPTokenAdapter:
                 pair_type="base",
             )
 
-            result = await adapter._query_pool_by_lp_token("vyfi")
+            result = await adapter._query_pool_by_assets("vyfi")
 
             assert result == mock_pool_state
             mock_backend.get_pool_utxos.assert_called_once()
 
     @patch("backend.api.providers.lp_token_adapter.get_backend")
-    async def test_query_pool_by_lp_token_not_found(
+    async def test_query_pool_by_assets_not_found(
         self, mock_get_backend, sample_pool_assets
     ):
         """Test querying pool by trading pair when pool is not found"""
@@ -240,7 +256,7 @@ class TestLPTokenAdapter:
                 pair_type="base",
             )
 
-            result = await adapter._query_pool_by_lp_token("vyfi")
+            result = await adapter._query_pool_by_assets("vyfi")
 
             assert result is None
 
@@ -257,7 +273,7 @@ class TestLPTokenAdapter:
 
         # Mock the internal methods
         with patch.object(
-            adapter, "_query_pool_by_lp_token", return_value=mock_pool_state
+            adapter, "_query_pool_by_assets", return_value=mock_pool_state
         ):
             with patch.object(
                 adapter, "_calculate_lp_nav_price", return_value=Decimal("4.0")
@@ -287,8 +303,8 @@ class TestLPTokenAdapter:
             pair_type="base",
         )
 
-        # Mock _query_pool_by_lp_token to return None
-        with patch.object(adapter, "_query_pool_by_lp_token", return_value=None):
+        # Mock _query_pool_by_assets to return None
+        with patch.object(adapter, "_query_pool_by_assets", return_value=None):
             result = await adapter.get_rates()
 
             assert result is None

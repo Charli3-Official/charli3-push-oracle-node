@@ -44,13 +44,13 @@ Rate:
           - "lovelace"
         quote_required: false
         quote_calc_method: multiply
-      
+
       # Example 2: MinswapV2 SNEK/ADA LP token (different price/token than VyFi)
       - dex: "minswapv2"
         pool_assets:
           - "279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b"  # SNEK
           - "lovelace"
-      
+
       # Example 3: Spectrum HOSKY/ADA LP token
       - dex: "spectrum"
         pool_assets:
