@@ -16,6 +16,11 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v3
 
+      - name: Setup SSH for private repositories
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
       - name: Install poetry
         run: pipx install poetry
 

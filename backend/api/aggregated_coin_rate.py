@@ -15,6 +15,7 @@ from backend.api.providers import (
     CCXTAdapter,
     Charli3DendriteAdapter,
     GenericApiAdapter,
+    LPTokenAdapter,
 )
 from backend.utils.alerts import AlertManager
 
@@ -94,6 +95,7 @@ class AggregatedCoinRate:
         dex_configs = config.get("dexes", [])
         api_configs = config.get("api_sources", [])
         cex_configs = config.get("cexes", [])
+        lp_configs = config.get("lp_token", [])
         db_providers = []
 
         # Initialize provider storage based on type (base or quote)
@@ -193,6 +195,35 @@ class AggregatedCoinRate:
 
                 providers.append(ccxt_adapter)
                 db_providers.extend(self.get_providers_from_adapter(ccxt_adapter))
+
+        # Handle LP Token adapters
+        if not isinstance(lp_configs, list):
+            lp_configs = [lp_configs]
+
+        for lp_config in lp_configs:
+            dex = lp_config.get("dex")
+            if dex:
+                lp_adapter = LPTokenAdapter(
+                    pool_dex=dex,
+                    pool_assets=lp_config.get("pool_assets"),
+                    pair_type=pair_type,
+                    quote_required=lp_config.get("quote_required", False),
+                    quote_calc_method=lp_config.get("quote_calc_method", None),
+                )
+
+                # Register provider in database
+                lp_token_name = lp_adapter.get_lp_token_name()
+                for source in lp_adapter.get_sources():
+                    db_provider = await self._ensure_provider_in_db(
+                        provider_name=source,
+                        feed_type=f"lp-token-{pair_type}",
+                        db_session=db_session,
+                        symbol=f"{lp_token_name}-ADA",
+                    )
+                    lp_adapter.set_source_id(source, str(db_provider.id))
+
+                providers.append(lp_adapter)
+                db_providers.extend(self.get_providers_from_adapter(lp_adapter))
 
         return providers, db_providers
 
@@ -390,6 +421,16 @@ class AggregatedCoinRate:
                     name=source,
                     feed_id=self.feed_id,
                     adapter_type=f"ccxt-{adapter.pair_type}",
+                    token=f"{asset_a_name}-{asset_b_name}",
+                    api_url="",
+                    path="",
+                )
+            elif isinstance(adapter, LPTokenAdapter):
+                provider = Provider(
+                    id=adapter.get_source_id(source),
+                    name=source,
+                    feed_id=self.feed_id,
+                    adapter_type=f"lp-token-{adapter.pair_type}",
                     token=f"{asset_a_name}-{asset_b_name}",
                     api_url="",
                     path="",
