@@ -2,6 +2,13 @@
 
 FROM python:3.10.18-slim-bookworm
 
+LABEL org.opencontainers.image.title="Charli3 Push Oracle Node"
+LABEL org.opencontainers.image.description="Backend for Node Operators using the Charli3 Oracle. Fetches, aggregates, and updates price data for specified assets on the Cardano blockchain."
+LABEL org.opencontainers.image.url="https://github.com/Charli3-Official/charli3-push-oracle-node"
+LABEL org.opencontainers.image.source="https://github.com/Charli3-Official/charli3-push-oracle-node"
+LABEL org.opencontainers.image.vendor="Charli3"
+LABEL org.opencontainers.image.licenses="MIT"
+
 WORKDIR /app
 
 # Install git
