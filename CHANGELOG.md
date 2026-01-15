@@ -1,9 +1,49 @@
 # Changelog
 
-All notable changes to the Charli3 Node Operator Backend will be documented in this file.
+All notable changes to the Charli3 Push Oracle Node will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [v3.5.7] - 2026-01-15
+
+### 🎉 First Release
+
+### Added
+- **LP Token Adapter**: Support for DEX liquidity token pricing
+  - Enables pricing of LP tokens from Cardano DEXes
+  - Automatic pool selection based on liquidity and data freshness
+  - Support for multiple DEX protocols
+  - Comprehensive asset naming and validation
+  - Full test coverage for LP token pricing logic
+
+- **Repository Standards**: Complete open-source project structure
+  - Issue and PR templates for better collaboration
+  - Contributing guidelines (CONTRIBUTING.md)
+  - Security policy (SECURITY.md)
+  - Code of conduct (CODE_OF_CONDUCT.md)
+
+### Changed
+- **SDK Integration**: Now using [Charli3 Push Oracle SDK](https://github.com/Charli3-Official/charli3-push-oracle-sdk) v1.8.8
+  - Fully open-source and accessible to the community
+  - Simplified installation process - no SSH keys required
+
+- **Updated README**:
+  - Links to SDK documentation
+  - Updated tested versions: Cardano-node v10.1.4, Ogmios v6.11.0, Kupo v2.10.0
+  - Improved setup instructions
+
+### Removed
+- **SSH Requirements**: Completely eliminated SSH dependencies
+  - Removed SSH setup from Dockerfile
+  - Removed SSH configuration from all GitHub Actions workflows
+  - Simplified CI/CD pipelines
+
+- **Cryptodome Dependency**: Removed deprecated cryptodome library
+
+### Fixed
+- Documentation improvements and corrections in adapter examples
+- Security policy cleanup and formatting
 
 ## [v3.4.0] - 2025-06-09
 
