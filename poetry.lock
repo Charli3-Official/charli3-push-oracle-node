@@ -756,7 +756,7 @@ resolved_reference = "f7d23c06598ed025087a23fa1c86f1c1531c3bd8"
 
 [[package]]
 name = "charli3-offchain-core"
-version = "1.8.7"
+version = "1.8.8"
 description = "Offchain core Python package for Charli3"
 optional = false
 python-versions = "^3.10"
@@ -778,9 +778,9 @@ retry = "^0.9.2"
 
 [package.source]
 type = "git"
-url = "ssh://git@github.com/Charli3-Official/charli3-offchain-core.git"
-reference = "v1.8.7"
-resolved_reference = "b616b073828911589ae0db280cf5e1bbb288dd70"
+url = "https://github.com/Charli3-Official/charli3-push-oracle-sdk.git"
+reference = "v1.8.8"
+resolved_reference = "9a4a37eb271fcd5e6d6fce56b64465e3fc7a8428"
 
 [[package]]
 name = "charset-normalizer"
@@ -4118,4 +4118,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "1e32b15ded0ae350b014fa1b85a36fcbf5bab320465c6f85e9c08e4767505c31"
+content-hash = "ca4b0db8a26451cc22712c9963b85dcfcb23bdd12a453d5f660be33c6ba419b8"
