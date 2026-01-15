@@ -36,18 +36,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup SSH for Docker build
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
       - name: Build, tag, and push Docker image to GHCR
         if: github.event_name == 'release'
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          ssh: default
           tags: |
             ghcr.io/charli3-official/charli3-node-operator-backend:${{ github.ref_name }}
             ghcr.io/charli3-official/charli3-node-operator-backend:latest
@@ -76,6 +70,5 @@ jobs:
         with:
           context: .
           push: true
-          ssh: default
           tags: ghcr.io/charli3-official/charli3-node-operator-backend:develop
           platforms: linux/amd64,linux/arm64

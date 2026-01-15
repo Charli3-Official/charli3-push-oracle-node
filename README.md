@@ -1,7 +1,7 @@
-# Charli3 Node Operator Backend
-This project provides a backend for Node Operators using the Charli3 Oracle. It is designed to fetch, aggregate and update price data for specified assets. The script can be configured with a custom config.yaml file and it utilizes the pycardano library for Cardano blockchain interactions.
+# Charli3 Push Oracle Node
+This project provides a backend for Node Operators using the Charli3 Oracle. It is designed to fetch, aggregate and update price data for specified assets. The script can be configured with a custom config.yaml file and it utilizes the [Charli3 Push Oracle SDK](https://github.com/Charli3-Official/charli3-push-oracle-sdk) for Cardano blockchain interactions.
 
-**Note**: The following demo was tested with Cardano-node v8.9.3, Ogmios v6.4.0, and Kupo v2.8.0. Older versions may not work properly.
+**Note**: The following demo was tested with Cardano-node v10.1.4, Ogmios v6.11.0, and Kupo v2.10.0. Older versions may not work properly.
 
 ## Getting Started
 ### Dependencies
