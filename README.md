@@ -3,6 +3,13 @@ This project provides a backend for Node Operators using the Charli3 Oracle. It 
 
 **Note**: The following demo was tested with Cardano-node v10.1.4, Ogmios v6.11.0, and Kupo v2.10.0. Older versions may not work properly.
 
+## Documentation
+
+- [Governance](./GOVERNANCE.md)
+- [Support](./SUPPORT.md)
+- [Maintainers](./MAINTAINERS.md)
+- [Changelog](./CHANGELOG.md)
+
 ## Getting Started
 ### Dependencies
 This project uses Poetry to manage dependencies. If you don't have Poetry installed, you can install it by following the instructions at [Poetry documentation](https://python-poetry.org/docs/).
