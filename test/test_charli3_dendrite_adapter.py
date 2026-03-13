@@ -1,6 +1,6 @@
 import pytest
 
-from backend.api.providers import Charli3DendriteAdapter
+from backend.api.providers.charli3_dendrite_adapter import Charli3DendriteAdapter
 
 
 @pytest.mark.asyncio

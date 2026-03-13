@@ -1,6 +1,6 @@
 import pytest
 
-from backend.api.providers import GenericApiAdapter
+from backend.api.providers.generic_api_adapter import GenericApiAdapter
 
 
 @pytest.mark.asyncio

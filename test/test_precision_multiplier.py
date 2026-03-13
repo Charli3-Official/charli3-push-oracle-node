@@ -38,7 +38,7 @@ def test_hosky_precision_calculation():
     assert old_result == 0.000001, f"Old result should be 0.000001, got {old_result}"
     assert (
         abs(new_result - hosky_rate) < 1e-15
-    ), f"New result should be very close to original"
+    ), "New result should be very close to original"
 
 
 def test_backward_compatibility_standard_feeds():

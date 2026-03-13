@@ -25,8 +25,8 @@ from pycardano import (
     TransactionInput,
 )
 
-from backend.api import NodeSyncApi
 from backend.api.aggregated_coin_rate import AggregatedCoinRate
+from backend.api.node_sync_api import NodeSyncApi
 from backend.db.crud.feed_crud import feed_crud
 from backend.db.database import get_session
 from backend.db.models.feed import Feed

@@ -27,7 +27,7 @@ from pycardano import (
     TransactionInput,
 )
 
-from backend.api import AggregatedCoinRate
+from backend.api.aggregated_coin_rate import AggregatedCoinRate
 from backend.utils.config_utils import RewardCollectionConfig
 
 from .utxo_mocker import utxo_mocker

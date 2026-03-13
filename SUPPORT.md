@@ -22,7 +22,7 @@ repository using the **Bug Report** template.
 
 ## Security Vulnerabilities
 
-**Do not open a public issue for security vulnerabilities.**  
+**Do not open a public issue for security vulnerabilities.**
 Please follow the responsible disclosure process described in
 [SECURITY.md](./SECURITY.md) and email **info@charli3.io** directly.
 
@@ -33,6 +33,6 @@ Feature requests are welcome via an issue using the
 
 ## Contact
 
-General enquiries: **info@charli3.io**  
-Website: [charli3.io](https://charli3.io)  
+General enquiries: **info@charli3.io**
+Website: [charli3.io](https://charli3.io)
 X / Twitter: [@Oraclecharli3](https://x.com/Oraclecharli3)

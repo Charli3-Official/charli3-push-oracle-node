@@ -7,14 +7,14 @@ from typing import List, Optional
 from charli3_offchain_core import Node
 from charli3_offchain_core.backend import Api, ApiResponse
 
-from ..db.crud import (
-    aggregated_rate_details_crud,
-    feed_crud,
-    node_crud,
-    rate_dataflow_crud,
-)
-from ..db.database import get_session
-from ..db.models import Feed, NodeUpdate, Provider
+from backend.db.crud.aggregated_rate_details_crud import aggregated_rate_details_crud
+from backend.db.crud.feed_crud import feed_crud
+from backend.db.crud.nodes_crud import node_crud
+from backend.db.crud.rate_dataflow_crud import rate_dataflow_crud
+from backend.db.database import get_session
+from backend.db.models.feed import Feed
+from backend.db.models.node_updates import NodeUpdate
+from backend.db.models.provider import Provider
 
 logger = logging.getLogger("node_sync_api")
 logging.Formatter.converter = time.gmtime

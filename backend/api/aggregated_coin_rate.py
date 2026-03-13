@@ -10,13 +10,11 @@ from urllib.parse import urlparse
 from charli3_offchain_core.chain_query import ChainQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.api.providers import (
-    BaseAdapter,
-    CCXTAdapter,
-    Charli3DendriteAdapter,
-    GenericApiAdapter,
-    LPTokenAdapter,
-)
+from backend.api.providers.base_adapter import BaseAdapter
+from backend.api.providers.ccxt_adapter import CCXTAdapter
+from backend.api.providers.charli3_dendrite_adapter import Charli3DendriteAdapter
+from backend.api.providers.generic_api_adapter import GenericApiAdapter
+from backend.api.providers.lp_token_adapter import LPTokenAdapter
 from backend.utils.alerts import AlertManager
 
 from ..db.crud.providers_crud import Provider, ProviderCreate, providers_crud
@@ -256,7 +254,7 @@ class AggregatedCoinRate:
 
         provider_responses = []
         valid_rates = []
-        no_response_providers = []
+
         invalid_providers = []
         valid_providers = []
 

@@ -10,20 +10,6 @@ from sqlmodel import SQLModel
 from alembic import context
 from backend.utils.config_utils import load_config
 
-from backend.db.models import (
-    AggregatedRateDetails,
-    Feed,
-    Job,
-    NodeAggregationParticipation,
-    NodeAggregation,
-    NodeUpdate,
-    Node,
-    OperationalError,
-    Provider,
-    RateDataFlow,
-    RewardDistribution,
-    Transaction,
-)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
