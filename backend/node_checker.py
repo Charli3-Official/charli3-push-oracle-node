@@ -2,7 +2,8 @@ import logging
 
 from charli3_offchain_core import ChainQuery, Node
 
-from backend.validators import ConfigValidator, HealthCheckValidator
+from backend.validators.config_validator import ConfigValidator
+from backend.validators.health_validator import HealthCheckValidator
 from backend.validators.node_operation_validator import NodeOperationValidator
 
 logger = logging.getLogger(__name__)

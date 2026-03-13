@@ -61,7 +61,7 @@ class DeliveryStreamHandler(logging.StreamHandler):
                 stream.write(msg)
                 stream.write(self.terminator)
             self.flush()
-        except Exception as exc:
+        except Exception:
             self.handleError(record)
 
     def flush(self):
@@ -74,7 +74,7 @@ class DeliveryStreamHandler(logging.StreamHandler):
                     Record=self.__stream_buffer,
                 )
                 self.__stream_buffer.clear()
-        except Exception as exc:
+        except Exception:
             # logger.info(repr(exc))
             pass
         finally:

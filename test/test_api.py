@@ -3,7 +3,6 @@
 import json
 
 import pytest
-import sure  # pylint: disable=unused-import
 from aioresponses import aioresponses
 from charli3_offchain_core.backend import Api
 
@@ -35,4 +34,4 @@ class TestApiMethods(Api):
                     data = await self._put(f"/{i}", data={"request": i})
                 if i.upper() == "DELETE":
                     data = await self._delete(f"/{i}", data={"request": i})
-                data.json.should.equal({"response": i})  # type: ignore[union-attr]
+                assert data.json == {"response": i}

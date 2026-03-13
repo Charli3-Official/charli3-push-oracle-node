@@ -13,7 +13,7 @@ from test.helper.mocked_data import (
 import pytest
 from charli3_offchain_core import ChainQuery
 from pycardano import Network
-from pycardano.backend.ogmios_v6 import KupoOgmiosV6ChainContext, OgmiosClient
+from pycardano.backend.ogmios_v6 import KupoOgmiosV6ChainContext
 
 
 @pytest.fixture
